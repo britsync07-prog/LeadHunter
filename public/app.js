@@ -116,11 +116,15 @@ async function checkAuth() {
 
     const usageQuotaEl = document.getElementById('usageQuotaEl');
     if (usageQuotaEl && user.usage) {
-      let dailyLimit = 300; let monthlyLimit = 9000;
-      if (user.subscriptionPlan !== 'basic') { dailyLimit = 100; monthlyLimit = 3000; }
-
-      usageQuotaEl.style.display = 'inline-block';
-      usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/${dailyLimit} | Month: ${user.usage.monthlyCount}/${monthlyLimit}`;
+      if (user.isAdmin) {
+        usageQuotaEl.style.display = 'inline-block';
+        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/Unlimited | Month: ${user.usage.monthlyCount}/Unlimited`;
+      } else {
+        let dailyLimit = 300; let monthlyLimit = 9000;
+        if (user.subscriptionPlan !== 'basic') { dailyLimit = 100; monthlyLimit = 3000; }
+        usageQuotaEl.style.display = 'inline-block';
+        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/${dailyLimit} | Month: ${user.usage.monthlyCount}/${monthlyLimit}`;
+      }
     }
 
     loadCountries();
@@ -133,7 +137,7 @@ async function checkAuth() {
     }
 
     // Apply UI locks based on subscription plan
-    applySubscriptionLocks(user.subscriptionPlan);
+    applySubscriptionLocks(user.subscriptionPlan, user.isAdmin);
 
     if (user.activeJobId) {
       attachToJob(user.activeJobId);
@@ -143,7 +147,7 @@ async function checkAuth() {
   }
 }
 
-function applySubscriptionLocks(plan) {
+function applySubscriptionLocks(plan, isAdmin) {
   const modeEmails = document.getElementById('modeEmails');
   const modePhones = document.getElementById('modePhones');
   const modeBoth = document.getElementById('modeBoth');
@@ -153,8 +157,8 @@ function applySubscriptionLocks(plan) {
   const navChecker = document.getElementById('navChecker');
   const smPriorityWrap = document.querySelector('.sm-priority-wrap');
 
-  // Ensure Sender and Checker are ONLY visible for Premium users
-  if (plan !== 'premium') {
+  // Ensure Sender and Checker are ONLY visible for Premium users OR Admins
+  if (plan !== 'premium' && !isAdmin) {
     if (navSender) navSender.style.display = 'none';
     if (navChecker) navChecker.style.display = 'none';
   }
@@ -486,12 +490,12 @@ async function loadHistory() {
       const params = job.params;
       const citiesList = params.cities || [];
       const statesList = params.states || [];
-      
+
       let locationText = params.country;
       if (statesList.length > 0) {
         locationText += ` &ndash; ${statesList.join(", ")}`;
       }
-      
+
       let citiesText = "";
       if (citiesList.length > 5) {
         citiesText = citiesList.slice(0, 5).join(", ") + ` (+${citiesList.length - 5} more)`;

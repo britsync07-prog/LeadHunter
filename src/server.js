@@ -532,21 +532,24 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   // --- Subscription Plan Enforcement ---
   const userPlan = req.session.user.subscriptionPlan || 'basic';
+  const isAdmin = req.session.user.isAdmin === 1;
   const usage = queue.getUserUsage(req.session.user.username);
 
-  if (userPlan === 'basic') {
-    if (includeGoogleMaps) return res.status(403).json({ error: "Basic plan does not include Google Maps scraping." });
-    if (scrapeMode !== 'emails') return res.status(403).json({ error: "Basic plan only allows scraping emails." });
+  if (!isAdmin) {
+    if (userPlan === 'basic') {
+      if (includeGoogleMaps) return res.status(403).json({ error: "Basic plan does not include Google Maps scraping." });
+      if (scrapeMode !== 'emails') return res.status(403).json({ error: "Basic plan only allows scraping emails." });
 
-    if (usage.dailyCount >= 300) return res.status(403).json({ error: "Daily limit of 300 emails reached on Basic plan." });
-    if (usage.monthlyCount >= 9000) return res.status(403).json({ error: "Monthly limit of 9000 emails reached on Basic plan." });
-  } else if (userPlan === 'advance' || userPlan === 'premium') {
-    if (!includeGoogleMaps || scrapeMode !== 'both') {
-      return res.status(403).json({ error: "Advance/Premium plans require Google Maps and 'both' scrape mode (emails + phones) for high quality leads." });
+      if (usage.dailyCount >= 300) return res.status(403).json({ error: "Daily limit of 300 emails reached on Basic plan." });
+      if (usage.monthlyCount >= 9000) return res.status(403).json({ error: "Monthly limit of 9000 emails reached on Basic plan." });
+    } else if (userPlan === 'advance' || userPlan === 'premium') {
+      if (!includeGoogleMaps || scrapeMode !== 'both') {
+        return res.status(403).json({ error: "Advance/Premium plans require Google Maps and 'both' scrape mode (emails + phones) for high quality leads." });
+      }
+
+      if (usage.dailyCount >= 100) return res.status(403).json({ error: `Daily limit of 100 premium leads reached on ${userPlan} plan.` });
+      if (usage.monthlyCount >= 3000) return res.status(403).json({ error: `Monthly limit of 3000 premium leads reached on ${userPlan} plan.` });
     }
-
-    if (usage.dailyCount >= 100) return res.status(403).json({ error: `Daily limit of 100 premium leads reached on ${userPlan} plan.` });
-    if (usage.monthlyCount >= 3000) return res.status(403).json({ error: `Monthly limit of 3000 premium leads reached on ${userPlan} plan.` });
   }
   // -------------------------------------
 
@@ -558,7 +561,7 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   const jobData = {
     id: crypto.randomUUID(),
-    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan }
+    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan, isAdmin }
   };
 
   const job = queue.addJob(jobData, req.session.user.username);

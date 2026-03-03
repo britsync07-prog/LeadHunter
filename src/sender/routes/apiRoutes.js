@@ -1,6 +1,7 @@
 import express from 'express';
 import { getCampaignAnalytics, getAccountAnalytics, getCampaignHistory } from '../controllers/analyticsController.js';
 import { launchCampaign } from '../controllers/campaignController.js';
+import { getSmtpAccounts, addSmtpAccount, deleteSmtpAccount } from '../controllers/smtpController.js';
 
 const router = express.Router();
 
@@ -11,5 +12,10 @@ router.get('/analytics/:campaignId', getCampaignAnalytics);
 
 // --- Campaign Management Endpoints ---
 router.post('/campaigns', express.json({ limit: '50mb' }), launchCampaign);
+
+// --- Admin Multi-SMTP Endpoints ---
+router.get('/smtp', getSmtpAccounts);
+router.post('/smtp', express.json(), addSmtpAccount);
+router.delete('/smtp/:id', deleteSmtpAccount);
 
 export default router;

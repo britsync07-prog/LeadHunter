@@ -205,7 +205,8 @@
           </div>
         </div>
 
-        <div
+        <!-- STANDARD USER SMTP CONFIG (Hidden for Admins) -->
+        <div id="standardSmtpBlock"
           style="background: var(--bg-surface); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 16px;">
           <h4
             style="margin-bottom: 12px; font-size: 14px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
@@ -248,6 +249,65 @@
                 placeholder="••••••••">
             </div>
           </div>
+        </div>
+
+        <!-- ADMIN MULTI-SMTP BLOCK (Hidden for standard users) -->
+        <div id="adminSmtpBlock"
+          style="display: none; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="font-size: 14px; color: #1e293b; display: flex; align-items: center; gap: 8px; margin:0;">
+              <svg width="16" height="16" fill="none" class="text-indigo-600" stroke="currentColor" stroke-width="2"
+                viewBox="0 0 24 24">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              Multi-SMTP Load Balancing <span
+                class="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full ml-1">Admin God Mode</span>
+            </h4>
+            <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='block'"
+              class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded shadow-sm transition-colors cursor-pointer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg> Add Account
+            </button>
+          </div>
+
+          <!-- Add New SMTP Form (Hidden by default) -->
+          <form id="addSmtpFormObj" onsubmit="submitNewSmtp(event)"
+            style="display:none; background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 12px;">
+            <div class="form-row text-xs" style="margin-bottom: 8px;">
+              <div class="form-group half" style="margin-bottom:0;"><input type="text" id="newSmtpHost"
+                  placeholder="Host (e.g. smtp.gmail.com)" required
+                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+              <div class="form-group half" style="margin-bottom:0; max-width:80px;"><input type="number"
+                  id="newSmtpPort" placeholder="587" value="587" required
+                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+            </div>
+            <div class="form-row text-xs" style="margin-bottom: 8px;">
+              <div class="form-group half" style="margin-bottom:0;"><input type="text" id="newSmtpUser"
+                  placeholder="Email" required
+                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+              <div class="form-group half" style="margin-bottom:0;"><input type="password" id="newSmtpPass"
+                  placeholder="App Password" required
+                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="submit" id="btnSaveSmtp"
+                class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-700 cursor-pointer">Verify
+                & Save</button>
+              <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='none'"
+                class="text-slate-500 px-3 py-1.5 rounded text-xs hover:bg-slate-100 cursor-pointer">Cancel</button>
+              <span id="addSmtpError" class="text-red-500 text-xs truncate"></span>
+            </div>
+          </form>
+
+          <!-- List of Saved Accounts -->
+          <div id="smtpAccountsList" class="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
+            <div class="text-xs text-slate-500 italic py-2">Loading accounts...</div>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2 leading-tight">Selected accounts will automatically load-balance
+            sequentially. Failed accounts (3 consecutive bounce/auth errors) will automatically rest for 1 hour.</p>
         </div>
 
         <div class="form-group">
@@ -339,9 +399,12 @@
           </svg>
           <h2 class="text-base font-semibold text-brand-text m-0">Campaign History</h2>
         </div>
-        <button id="btnRefreshHistory" class="text-xs font-medium text-brand-primary hover:text-blue-600 flex items-center gap-1 transition-colors">
+        <button id="btnRefreshHistory"
+          class="text-xs font-medium text-brand-primary hover:text-blue-600 flex items-center gap-1 transition-colors">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            <path
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+            </path>
           </svg>
           Refresh
         </button>
@@ -349,7 +412,8 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-slate-50 text-xs font-semibold text-brand-muted uppercase tracking-wider border-b border-slate-200">
+            <tr
+              class="bg-slate-50 text-xs font-semibold text-brand-muted uppercase tracking-wider border-b border-slate-200">
               <th class="px-5 py-3">Campaign Name</th>
               <th class="px-5 py-3">Status</th>
               <th class="px-5 py-3 text-center">Sent</th>

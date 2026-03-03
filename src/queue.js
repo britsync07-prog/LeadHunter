@@ -162,6 +162,7 @@ export class JobQueue {
 
       const usage = this.getUserUsage(job.userId);
       const plan = job.params.userPlan || 'basic';
+      const isAdmin = job.params.isAdmin || false;
       const dailyLimit = plan === 'basic' ? 300 : 100;
       const monthlyLimit = plan === 'basic' ? 9000 : 3000;
 
@@ -170,8 +171,9 @@ export class JobQueue {
         type: 'usage-update',
         usage: usage,
         plan: plan,
-        dailyLimit,
-        monthlyLimit,
+        isAdmin: isAdmin,
+        dailyLimit: isAdmin ? 'Unlimited' : dailyLimit,
+        monthlyLimit: isAdmin ? 'Unlimited' : monthlyLimit,
         time: new Date().toISOString()
       };
       job.events.push(usagePayload);
@@ -179,7 +181,7 @@ export class JobQueue {
         res.write(`data: ${JSON.stringify(usagePayload)}\n\n`);
       }
 
-      if (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit) {
+      if (!isAdmin && (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit)) {
         if (job.processInstance && !job.processInstance.isStopped) {
           job.processInstance.isStopped = true;
           const infoPayload = { type: "info", message: `Plan limit reached (Daily: ${dailyLimit}, Monthly: ${monthlyLimit}). Stopping.`, time: new Date().toISOString() };

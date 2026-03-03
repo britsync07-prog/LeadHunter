@@ -151,20 +151,133 @@ btnClearAudience.addEventListener('click', () => {
   renderAudiencePreview();
 });
 
+// --- MULTI-SMTP ADMIN LOGIC ---
+let isAdminUser = false;
+let savedSmtpAccounts = [];
+const standardSmtpBlock = document.getElementById('standardSmtpBlock');
+const adminSmtpBlock = document.getElementById('adminSmtpBlock');
+const smtpAccountsList = document.getElementById('smtpAccountsList');
+
+async function initSmtpUI() {
+  try {
+    const me = await fetchJson('/api/me');
+    if (me && me.isAdmin === 1) {
+      isAdminUser = true;
+      standardSmtpBlock.style.display = 'none';
+      adminSmtpBlock.style.display = 'block';
+      await loadSmtpAccounts();
+    }
+  } catch (err) {
+    console.error("Failed to init SMTP UI:", err);
+  }
+}
+
+async function loadSmtpAccounts() {
+  try {
+    const data = await fetchJson('/api/sender/smtp');
+    savedSmtpAccounts = data.accounts || [];
+    renderSmtpList();
+    validateForm();
+  } catch (err) {
+    smtpAccountsList.innerHTML = `<div class="text-red-500 text-xs py-2">Failed to load accounts.</div>`;
+  }
+}
+
+function renderSmtpList() {
+  if (savedSmtpAccounts.length === 0) {
+    smtpAccountsList.innerHTML = `<div class="text-xs text-slate-500 italic py-2 text-center bg-white border border-slate-200 rounded">No saved SMTP accounts yet. Add one above.</div>`;
+    return;
+  }
+
+  smtpAccountsList.innerHTML = savedSmtpAccounts.map(acc => `
+    <label class="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded hover:border-blue-400 cursor-pointer transition-colors ${acc.restingUntil && new Date(acc.restingUntil) > new Date() ? 'opacity-50 grayscale' : ''}">
+      <div class="flex items-center gap-3">
+        <input type="checkbox" name="selectedSmtps" value="${acc.id}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" onchange="validateForm()" ${acc.restingUntil && new Date(acc.restingUntil) > new Date() ? 'disabled' : ''}>
+        <div class="flex flex-col">
+          <span class="text-xs font-semibold text-slate-800">${acc.user}</span>
+          <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 w-fit mt-0.5 font-mono">${acc.host}:${acc.port}</span>
+        </div>
+      </div>
+      ${acc.restingUntil && new Date(acc.restingUntil) > new Date()
+      ? `<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full flex items-center gap-1 border border-amber-200"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Resting</span>`
+      : `<button type="button" onclick="deleteSmtp('${acc.id}'); event.preventDefault(); event.stopPropagation();" class="text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors cursor-pointer" title="Delete Account"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>`
+    }
+    </label>
+  `).join('');
+}
+
+async function submitNewSmtp(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSaveSmtp');
+  const errEl = document.getElementById('addSmtpError');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.innerHTML = 'Verifying...';
+
+  try {
+    const payload = {
+      host: document.getElementById('newSmtpHost').value.trim(),
+      port: document.getElementById('newSmtpPort').value.trim(),
+      user: document.getElementById('newSmtpUser').value.trim(),
+      pass: document.getElementById('newSmtpPass').value.trim()
+    };
+
+    const res = await fetchJson('/api/sender/smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.success) {
+      document.getElementById('addSmtpFormObj').reset();
+      document.getElementById('addSmtpFormObj').style.display = 'none';
+      await loadSmtpAccounts();
+    } else {
+      errEl.textContent = res.error || 'Failed to add account.';
+    }
+  } catch (err) {
+    errEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Verify & Save';
+  }
+}
+
+async function deleteSmtp(id) {
+  if (!confirm('Delete this SMTP account?')) return;
+  try {
+    await fetchJson(`/api/sender/smtp/${id}`, { method: 'DELETE' });
+    await loadSmtpAccounts();
+  } catch (err) {
+    alert('Failed to delete: ' + err.message);
+  }
+}
+
 // --- FORM VALIDATION ---
 const validateForm = () => {
   const hasValidRecipients = currentRecipients.some(r => r.valid);
-  const isConfigFilled = campaignNameEl.value.trim() &&
+
+  let isConfigFilled = campaignNameEl.value.trim() &&
     senderNameEl.value.trim() &&
     subjectLineEl.value.trim() &&
-    htmlTemplateEl.value.trim() &&
-    smtpHostEl.value.trim() &&
-    smtpPortEl.value.trim() &&
-    smtpUserEl.value.trim() &&
-    smtpPassEl.value.trim();
+    htmlTemplateEl.value.trim();
+
+  if (isAdminUser) {
+    const checkedSmtps = document.querySelectorAll('input[name="selectedSmtps"]:checked');
+    isConfigFilled = isConfigFilled && checkedSmtps.length > 0;
+  } else {
+    isConfigFilled = isConfigFilled &&
+      smtpHostEl.value.trim() &&
+      smtpPortEl.value.trim() &&
+      smtpUserEl.value.trim() &&
+      smtpPassEl.value.trim();
+  }
 
   btnLaunchCampaign.disabled = !(hasValidRecipients && isConfigFilled);
 };
+
+// Initialize Admin UI on Load
+initSmtpUI();
 
 [campaignNameEl, senderNameEl, subjectLineEl, htmlTemplateEl, smtpHostEl, smtpPortEl, smtpUserEl, smtpPassEl].forEach(el => {
   el.addEventListener('input', validateForm);
@@ -176,17 +289,23 @@ btnLaunchCampaign.addEventListener('click', async () => {
 
   const validEmails = currentRecipients.filter(r => r.valid).map(r => r.email);
 
-  const payload = {
+  let payload = {
     campaignName: campaignNameEl.value.trim(),
     senderName: senderNameEl.value.trim(),
     subject: subjectLineEl.value.trim(),
     htmlContent: htmlTemplateEl.value.trim(),
-    smtpHost: smtpHostEl.value.trim(),
-    smtpPort: parseInt(smtpPortEl.value.trim(), 10),
-    smtpUser: smtpUserEl.value.trim(),
-    smtpPass: smtpPassEl.value.trim(),
     recipients: validEmails
   };
+
+  if (isAdminUser) {
+    const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
+    payload.smtpAccountIds = checked;
+  } else {
+    payload.smtpHost = smtpHostEl.value.trim();
+    payload.smtpPort = parseInt(smtpPortEl.value.trim(), 10);
+    payload.smtpUser = smtpUserEl.value.trim();
+    payload.smtpPass = smtpPassEl.value.trim();
+  }
 
   try {
     btnLaunchCampaign.innerHTML = `<svg width="18" height="18" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Launching...`;
@@ -304,6 +423,17 @@ const loadHistory = async () => {
 
       const dateStr = new Date(camp.createdAt).toLocaleDateString() + ' ' + new Date(camp.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+      let downloadsHtml = '';
+      if (camp.status === 'completed' || camp.status === 'aborted') {
+        const safeName = camp.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        downloadsHtml = `
+          <div class="mt-2 flex gap-2">
+            ${camp.deliveredCount > 0 ? `<a href="/Sent_Emails_${safeName}.txt" target="_blank" class="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 hover:bg-emerald-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sent TXT</a>` : ''}
+            ${camp.bouncedCount > 0 || camp.status === 'aborted' ? `<a href="/Failed_Emails_${safeName}.txt" target="_blank" class="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 hover:bg-red-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Failed TXT</a>` : ''}
+          </div>
+        `;
+      }
+
       tr.innerHTML = `
         <td class="px-5 py-4 font-medium text-brand-text">${camp.name}</td>
         <td class="px-5 py-4">${statusBadge}</td>
@@ -312,6 +442,7 @@ const loadHistory = async () => {
         <td class="px-5 py-4 text-brand-muted text-xs">${dateStr}</td>
         <td class="px-5 py-4">
           ${camp.abortReason ? `<div class="text-xs text-red-500 max-w-xs break-words">${camp.abortReason}</div>` : `<span class="text-xs text-brand-muted">No errors logged</span>`}
+          ${downloadsHtml}
         </td>
       `;
       historyTableBody.appendChild(tr);
