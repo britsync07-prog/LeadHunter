@@ -31,6 +31,8 @@ const initDb = () => {
       subscriptionPlan TEXT DEFAULT 'free', -- 'free', 'basic', 'advance', 'premium'
       trialEndsAt DATETIME,
       stripeCustomerId TEXT,
+      isAdmin INTEGER DEFAULT 0,
+      isSuspended INTEGER DEFAULT 0,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -41,7 +43,12 @@ const initDb = () => {
       id TEXT PRIMARY KEY,
       userId TEXT NOT NULL,
       name TEXT NOT NULL,
-      status TEXT DEFAULT 'draft', -- 'draft', 'sending', 'completed'
+      status TEXT DEFAULT 'draft', -- 'draft', 'sending', 'completed', 'aborted'
+      abortReason TEXT,
+      deliveredCount INTEGER DEFAULT 0,
+      bouncedCount INTEGER DEFAULT 0,
+      sentReportFile TEXT,
+      failedReportFile TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -53,8 +60,24 @@ const initDb = () => {
       campaignId TEXT NOT NULL,
       email TEXT NOT NULL,
       status TEXT DEFAULT 'pending', -- 'pending', 'sent', 'delivered', 'bounced'
+      error TEXT,
       sentAt DATETIME,
       FOREIGN KEY (campaignId) REFERENCES campaigns(id) ON DELETE CASCADE
+    )
+  `);
+
+  // SMTP accounts for admin multi-sender rotation
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS smtp_accounts (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL,
+      user TEXT NOT NULL,
+      pass TEXT NOT NULL,
+      consecutiveFails INTEGER DEFAULT 0,
+      restingUntil DATETIME,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -80,7 +103,24 @@ const initDb = () => {
     CREATE INDEX IF NOT EXISTS idx_event_logs_campaignId ON event_logs(campaignId);
     CREATE INDEX IF NOT EXISTS idx_event_logs_recipientId ON event_logs(recipientId);
     CREATE INDEX IF NOT EXISTS idx_event_logs_eventType ON event_logs(eventType);
+    CREATE INDEX IF NOT EXISTS idx_smtp_accounts_userId ON smtp_accounts(userId);
   `);
+
+  // Safe schema migration for existing DBs
+  const safeAlter = (sql) => {
+    try { db.exec(sql); } catch { }
+  };
+
+  safeAlter(`ALTER TABLE users ADD COLUMN isAdmin INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE users ADD COLUMN isSuspended INTEGER DEFAULT 0`);
+
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN abortReason TEXT`);
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN deliveredCount INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN bouncedCount INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN sentReportFile TEXT`);
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN failedReportFile TEXT`);
+
+  safeAlter(`ALTER TABLE recipients ADD COLUMN error TEXT`);
 };
 
 initDb();

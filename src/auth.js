@@ -70,7 +70,8 @@ export async function authenticate(username, password) {
       username: user.username,
       subscriptionPlan: activePlan,
       email: user.email,
-      trialEndsAt: user.trialEndsAt
+      trialEndsAt: user.trialEndsAt,
+      isAdmin: !!user.isAdmin
     };
   }
   return null;

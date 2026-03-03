@@ -86,7 +86,7 @@ const getCampaignAnalytics = (req, res) => {
 
 const getAccountAnalytics = (req, res) => {
   // `userId` fallback mirrors campaignController's behavior
-  const userId = req.session?.user?.username || req.session?.user?.id || 'admin_user';
+  const userId = req.session?.user?.id || req.session?.user?.username || 'admin_user';
 
   try {
     const recipientStats = db.prepare(`
@@ -147,7 +147,7 @@ const getAccountAnalytics = (req, res) => {
 };
 
 const getCampaignHistory = (req, res) => {
-  const userId = req.session?.user?.username || req.session?.user?.id || 'admin_user';
+  const userId = req.session?.user?.id || req.session?.user?.username || 'admin_user';
 
   try {
     const history = db.prepare(`
@@ -158,7 +158,9 @@ const getCampaignHistory = (req, res) => {
         abortReason, 
         deliveredCount, 
         bouncedCount, 
-        createdAt
+        createdAt,
+        sentReportFile,
+        failedReportFile
       FROM campaigns
       WHERE userId = ?
       ORDER BY createdAt DESC

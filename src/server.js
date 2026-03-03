@@ -326,7 +326,7 @@ app.get("/api/me", (req, res) => {
 
     // Always read plan & trial from DB so Stripe webhook changes are reflected immediately
     // without requiring the user to log out and back in.
-    const freshUser = db.prepare("SELECT subscriptionPlan, trialEndsAt, email FROM users WHERE id = ?")
+    const freshUser = db.prepare("SELECT subscriptionPlan, trialEndsAt, email, isAdmin FROM users WHERE id = ?")
       .get(req.session.user.id);
 
     if (freshUser) {
@@ -532,7 +532,7 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   // --- Subscription Plan Enforcement ---
   const userPlan = req.session.user.subscriptionPlan || 'basic';
-  const isAdmin = req.session.user.isAdmin === 1;
+  const isAdmin = !!req.session.user.isAdmin;
   const usage = queue.getUserUsage(req.session.user.username);
 
   if (!isAdmin) {

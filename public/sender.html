@@ -269,7 +269,7 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
-              </svg> Add Account
+              </svg> Add Email
             </button>
           </div>
 
@@ -306,8 +306,8 @@
           <div id="smtpAccountsList" class="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
             <div class="text-xs text-slate-500 italic py-2">Loading accounts...</div>
           </div>
-          <p class="text-[11px] text-slate-500 mt-2 leading-tight">Selected accounts will automatically load-balance
-            sequentially. Failed accounts (3 consecutive bounce/auth errors) will automatically rest for 1 hour.</p>
+          <p class="text-[11px] text-slate-500 mt-2 leading-tight">Selected emails will rotate sequentially in a loop.
+            Failed emails (4 consecutive send errors) automatically rest for 1 hour, then rejoin.</p>
         </div>
 
         <div class="form-group">

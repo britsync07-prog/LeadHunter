@@ -161,7 +161,7 @@ const smtpAccountsList = document.getElementById('smtpAccountsList');
 async function initSmtpUI() {
   try {
     const me = await fetchJson('/api/me');
-    if (me && me.isAdmin === 1) {
+    if (me && me.isAdmin) {
       isAdminUser = true;
       standardSmtpBlock.style.display = 'none';
       adminSmtpBlock.style.display = 'block';
@@ -252,6 +252,10 @@ async function deleteSmtp(id) {
     alert('Failed to delete: ' + err.message);
   }
 }
+
+// Expose for inline onclick handlers in sender.html
+window.submitNewSmtp = submitNewSmtp;
+window.deleteSmtp = deleteSmtp;
 
 // --- FORM VALIDATION ---
 const validateForm = () => {
@@ -425,11 +429,12 @@ const loadHistory = async () => {
 
       let downloadsHtml = '';
       if (camp.status === 'completed' || camp.status === 'aborted') {
-        const safeName = camp.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const sentFile = camp.sentReportFile || null;
+        const failedFile = camp.failedReportFile || null;
         downloadsHtml = `
           <div class="mt-2 flex gap-2">
-            ${camp.deliveredCount > 0 ? `<a href="/Sent_Emails_${safeName}.txt" target="_blank" class="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 hover:bg-emerald-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sent TXT</a>` : ''}
-            ${camp.bouncedCount > 0 || camp.status === 'aborted' ? `<a href="/Failed_Emails_${safeName}.txt" target="_blank" class="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 hover:bg-red-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Failed TXT</a>` : ''}
+            ${sentFile ? `<a href="/${sentFile}" target="_blank" class="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 hover:bg-emerald-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Sent TXT</a>` : ''}
+            ${failedFile ? `<a href="/${failedFile}" target="_blank" class="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 hover:bg-red-100 flex items-center gap-1 transition-colors"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Failed TXT</a>` : ''}
           </div>
         `;
       }
