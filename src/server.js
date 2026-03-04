@@ -413,7 +413,12 @@ app.get("/api/jobs/:jobId/events", requireAuth, (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
-  for (const event of job.events) res.write(`data: ${JSON.stringify(event)}\n\n`);
+  
+  for (const event of job.events) {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    if (res.flush) res.flush();
+  }
+  
   job.listeners.add(res);
   req.on("close", () => job.listeners.delete(res));
   return undefined;

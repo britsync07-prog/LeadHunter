@@ -237,15 +237,19 @@ function setStatus(text, mode = 'idle') {
 }
 
 function addEvent(payload) {
+  const type = payload.type || '';
+  if (type === 'usage-update') return; // Don't show usage updates in the log feed
+
   const row = document.createElement("li");
   let cls = 'ev--log';
-  const type = payload.type || '';
   if (type === 'lead-saved') {
     cls = 'ev--saved';
-    if (liveLeadCountEl) { totalLeads++; liveLeadCountEl.textContent = totalLeads + ' leads'; }
+    totalLeads++;
+    if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
   } else if (type === 'phone-saved') {
     cls = 'ev--phone';
-    if (livePhoneCountEl) { totalPhones++; livePhoneCountEl.textContent = totalPhones + ' phones'; }
+    totalPhones++;
+    if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
   } else if (type === 'log' && payload.message && payload.message.toLowerCase().includes('email')) {
     cls = 'ev--email';
   } else if (type === 'search-query') {
@@ -301,7 +305,6 @@ function attachToJob(jobId) {
         usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount}/${payload.dailyLimit} | Month: ${payload.usage.monthlyCount}/${payload.monthlyLimit}`;
       }
     }
-
     if (payload.type === 'job-completed' || payload.type === 'job-complete' || payload.type === 'job-stopped' || payload.type === 'job-failed') {
       const isDone = payload.type.includes('complete');
       const isStopped = payload.type === 'job-stopped';

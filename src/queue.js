@@ -191,6 +191,7 @@ export class JobQueue {
       
       for (const res of job.listeners) {
         res.write(`data: ${JSON.stringify(usagePayload)}\n\n`);
+        if (res.flush) res.flush();
       }
 
       if (!isAdmin && (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit)) {
@@ -199,6 +200,7 @@ export class JobQueue {
           const infoPayload = { type: "info", message: `Plan limit reached. Stopping.`, time: new Date().toISOString() };
           for (const res of job.listeners) {
             res.write(`data: ${JSON.stringify(infoPayload)}\n\n`);
+            if (res.flush) res.flush();
           }
         }
       }
@@ -213,6 +215,7 @@ export class JobQueue {
 
     for (const res of job.listeners) {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      if (res.flush) res.flush();
     }
 
     // Asynchronously update events in DB for large jobs (optional: debounce this for ultra-high speed)
