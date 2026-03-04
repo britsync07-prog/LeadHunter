@@ -85,8 +85,8 @@ const getCampaignAnalytics = (req, res) => {
 };
 
 const getAccountAnalytics = (req, res) => {
-  // `userId` fallback mirrors campaignController's behavior
-  const userId = req.session?.user?.id || req.session?.user?.username || 'admin_user';
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const recipientStats = db.prepare(`
@@ -147,7 +147,8 @@ const getAccountAnalytics = (req, res) => {
 };
 
 const getCampaignHistory = (req, res) => {
-  const userId = req.session?.user?.id || req.session?.user?.username || 'admin_user';
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const history = db.prepare(`

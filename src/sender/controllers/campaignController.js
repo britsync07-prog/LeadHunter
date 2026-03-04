@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,7 +160,10 @@ const launchCampaign = async (req, res) => {
     }
 
     const isAdmin = !!req.session?.user?.isAdmin;
-    const userId = req.session?.user?.id || 'standard_user';
+    const userId = req.session?.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized: No user session found.' });
+    }
     let smtpPool = [];
 
     if (isAdmin && smtpAccountIds && smtpAccountIds.length > 0) {
@@ -223,12 +227,44 @@ const launchCampaign = async (req, res) => {
           db.prepare(`INSERT INTO recipients (id, campaignId, email, status) VALUES (?, ?, ?, 'pending')`).run(recipientId, campaignId, email);
 
           const trackedHtml = injectTrackingHtml(htmlContent, recipientId, hostUrl);
-          const activeSmtp = smtpPool[currentSmtpIndex % smtpPool.length];
+          let result;
 
-          // Strict round-robin progression (first email -> first sender, second -> second sender, loop).
-          currentSmtpIndex += 1;
+          // Admin-only Gmail Interception
+          if (isAdmin && email.toLowerCase().endsWith('@gmail.com')) {
+            console.log(`[Campaign ${campaignId}] Admin mode: Redirecting Gmail ${email} to webhook.`);
+            try {
+              const response = await fetch('https://primary-production-3af69.up.railway.app/webhook/gmail', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email,
+                  subject,
+                  html: trackedHtml,
+                  senderName,
+                  campaignId,
+                  recipientId,
+                  timestamp: new Date().toISOString()
+                })
+              });
 
-          const result = await sendEmail(activeSmtp.transporter, { name: senderName, email: activeSmtp.user }, email, subject, trackedHtml);
+              if (response.ok) {
+                result = { ok: true };
+              } else {
+                const errorText = await response.text();
+                result = { ok: false, error: `Webhook rejected: ${response.status} ${errorText}` };
+              }
+            } catch (webhookErr) {
+              result = { ok: false, error: `Webhook connection failed: ${webhookErr.message}` };
+            }
+          } else {
+            // Standard SMTP delivery
+            const activeSmtp = smtpPool[currentSmtpIndex % smtpPool.length];
+            currentSmtpIndex += 1;
+            result = await sendEmail(activeSmtp.transporter, { name: senderName, email: activeSmtp.user }, email, subject, trackedHtml);
+            
+            // Link back for failure tracking if needed
+            result.activeSmtp = activeSmtp; 
+          }
 
           if (result.ok) {
             db.prepare(`UPDATE recipients SET status = 'delivered', sentAt = CURRENT_TIMESTAMP, error = NULL WHERE id = ?`).run(recipientId);
@@ -237,38 +273,45 @@ const launchCampaign = async (req, res) => {
             ).run(uuidv4(), recipientId, campaignId, recipientId);
 
             deliveredCount += 1;
-            activeSmtp.consecutiveFails = 0;
-            if (activeSmtp.dbId !== 'adhoc') {
-              db.prepare(`UPDATE smtp_accounts SET consecutiveFails = 0 WHERE id = ?`).run(activeSmtp.dbId);
+
+            if (result.activeSmtp) {
+              result.activeSmtp.consecutiveFails = 0;
+              if (result.activeSmtp.dbId !== 'adhoc') {
+                db.prepare(`UPDATE smtp_accounts SET consecutiveFails = 0 WHERE id = ?`).run(result.activeSmtp.dbId);
+              }
             }
           } else {
-            const errorMsg = result.error || 'Unknown SMTP error';
+            const errorMsg = result.error || 'Unknown error';
             db.prepare(`UPDATE recipients SET status = 'bounced', error = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`).run(errorMsg, recipientId);
             db.prepare(
               `INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'BOUNCED', '127.0.0.1', 'Native SMTP Queue')`
             ).run(uuidv4(), recipientId, campaignId, recipientId);
 
             bouncedCount += 1;
-            activeSmtp.consecutiveFails += 1;
             lastError = errorMsg;
 
-            const maxFails = isAdmin ? ADMIN_MAX_CONSECUTIVE_FAILURES : STANDARD_MAX_CONSECUTIVE_FAILURES;
-            if (activeSmtp.consecutiveFails >= maxFails) {
-              console.warn(
-                `[Campaign ${campaignId}] SMTP ${activeSmtp.user} reached ${maxFails} consecutive failures. ${
-                  activeSmtp.dbId === 'adhoc' ? 'Removing for this campaign.' : 'Resting for 1 hour.'
-                }`
-              );
+            if (result.activeSmtp) {
+              const activeSmtp = result.activeSmtp;
+              activeSmtp.consecutiveFails += 1;
+              const maxFails = isAdmin ? ADMIN_MAX_CONSECUTIVE_FAILURES : STANDARD_MAX_CONSECUTIVE_FAILURES;
+              
+              if (activeSmtp.consecutiveFails >= maxFails) {
+                console.warn(
+                  `[Campaign ${campaignId}] SMTP ${activeSmtp.user} reached ${maxFails} consecutive failures. ${
+                    activeSmtp.dbId === 'adhoc' ? 'Removing for this campaign.' : 'Resting for 1 hour.'
+                  }`
+                );
 
-              if (activeSmtp.dbId !== 'adhoc') {
-                restSmtpAccount(activeSmtp.dbId);
-              }
+                if (activeSmtp.dbId !== 'adhoc') {
+                  restSmtpAccount(activeSmtp.dbId);
+                }
 
-              smtpPool = smtpPool.filter((s) => s.dbId !== activeSmtp.dbId);
-              if (smtpPool.length > 0) {
-                currentSmtpIndex = currentSmtpIndex % smtpPool.length;
-              } else {
-                currentSmtpIndex = 0;
+                smtpPool = smtpPool.filter((s) => s.dbId !== activeSmtp.dbId);
+                if (smtpPool.length > 0) {
+                  currentSmtpIndex = currentSmtpIndex % smtpPool.length;
+                } else {
+                  currentSmtpIndex = 0;
+                }
               }
             }
           }
