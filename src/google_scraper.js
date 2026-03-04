@@ -65,11 +65,9 @@ async function runGoogleSearchCli(query, stateFile) {
 
         child.on("close", (code) => {
             if (code !== 0) {
-                // If it fails (e.g. captcha), reject immediately
                 return reject(new Error(`Google Search CLI exited with code ${code}. Stderr: ${stderr}`));
             }
             try {
-                // Extract the JSON portion from stdout (in case there's logging noise before the JSON array/object)
                 const firstBrace = stdout.indexOf("{");
                 const lastBrace = stdout.lastIndexOf("}");
                 if (firstBrace === -1 || lastBrace === -1) {
@@ -86,17 +84,24 @@ async function runGoogleSearchCli(query, stateFile) {
 }
 
 async function main() {
-    if (process.argv.length < 3) {
-        console.error("Usage: node google_scraper.js '<json-config>'");
-        process.exit(1);
-    }
-
     let config;
-    try {
-        config = JSON.parse(process.argv[2]);
-    } catch (err) {
-        emit({ type: "job-failed", message: "Invalid JSON config", traceback: err.message });
-        process.exit(1);
+    if (process.argv.length < 3) {
+        // Read from stdin if no argument is provided
+        try {
+            const data = fs.readFileSync(0, "utf8");
+            if (!data) throw new Error("No data received via stdin");
+            config = JSON.parse(data);
+        } catch (err) {
+            emit({ type: "job-failed", message: "Failed to read config from stdin", traceback: err.message });
+            process.exit(1);
+        }
+    } else {
+        try {
+            config = JSON.parse(process.argv[2]);
+        } catch (err) {
+            emit({ type: "job-failed", message: "Invalid JSON config in arguments", traceback: err.message });
+            process.exit(1);
+        }
     }
 
     const outputDir = config.outputDir;
@@ -104,7 +109,7 @@ async function main() {
     const cities = config.cities;
     const niches = config.niches;
     const sites = config.sites || ["linkedin.com/in", "facebook.com", "instagram.com"];
-    const scrapeMode = config.scrapeMode || 'emails'; // 'emails' | 'phones' | 'both'
+    const scrapeMode = config.scrapeMode || 'emails'; 
 
     const doEmails = scrapeMode === 'emails' || scrapeMode === 'both';
     const doPhones = scrapeMode === 'phones' || scrapeMode === 'both';
@@ -112,7 +117,6 @@ async function main() {
     const expandedNiches = expandNiches(niches);
     const stateFile = path.resolve(__dirname, "..", "google-search", "browser-state.json");
 
-    // Email tracking
     const allEmailsFile = path.join(outputDir, "all_emails.txt");
     const seenEmails = new Set();
     if (doEmails) {
@@ -123,7 +127,6 @@ async function main() {
         }
     }
 
-    // Phone tracking
     const phoneFileName = `${sanitizeFileName(country)}_phones.txt`;
     const countryPhoneFile = path.join(outputDir, phoneFileName);
     const allPhonesFile = path.join(outputDir, "all_phones.txt");
@@ -134,8 +137,6 @@ async function main() {
         const existing = fs.existsSync(allPhonesFile) ? fs.readFileSync(allPhonesFile, "utf-8").split("\n") : [];
         existing.forEach(l => { if (l.trim()) seenPhones.add(l.trim()); });
     }
-
-    const files = [];
 
     emit({ type: "job-start", message: `Starting Google Search Scraper phase (mode: ${scrapeMode})` });
 
@@ -148,16 +149,16 @@ async function main() {
         const emailFileName = `${sanitizeFileName(country)}_${sanitizedCity}_emails.txt`;
 
         const filePath = path.join(outputDir, fileName);
-        const emailFilePath = path.join(outputDir, emailFileName);
+        const emailFilePath = path.join(outputDir, emailFilePath);
 
         if (doEmails) {
             if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, `--- LEADS FOR ${city}, ${country} ---\n\n`, "utf-8");
             if (!fs.existsSync(emailFilePath)) fs.writeFileSync(emailFilePath, "", "utf-8");
         }
 
-        const files = [];
-        if (doEmails) { files.push(fileName); files.push(emailFileName); files.push("all_emails.txt"); }
-        if (doPhones) { files.push(phoneFileName); files.push("all_phones.txt"); }
+        const currentFiles = [];
+        if (doEmails) { currentFiles.push(fileName); currentFiles.push(emailFileName); currentFiles.push("all_emails.txt"); }
+        if (doPhones) { currentFiles.push(phoneFileName); currentFiles.push("all_phones.txt"); }
 
         let savedCount = 0;
 
@@ -167,7 +168,6 @@ async function main() {
             for (let sIdx = 0; sIdx < sites.length; sIdx++) {
                 const site = sites[sIdx];
 
-                // ── PASS 1: Email scrape pass ──────────────────────────────────
                 if (doEmails) {
                     const emailQuery = buildEmailQuery(niche, city, "", site);
                     emit({ type: "search-query", query: emailQuery, message: `[Google/Email] ${emailQuery}` });
@@ -223,13 +223,12 @@ async function main() {
                         emit({ type: "log", message: `[Google/Email] Error: ${err.message}` });
                         consecutiveErrors++;
                         if (consecutiveErrors >= 2 || err.message.toLowerCase().includes("captcha")) {
-                            emit({ type: "log", message: "[Google] Critically failed. Aborting. Fallback to DuckDuckGo expected." });
+                            emit({ type: "log", message: "[Google] Critically failed. Aborting." });
                             process.exit(1);
                         }
                     }
                 }
 
-                // ── PASS 2: Phone scrape pass ──────────────────────────────────
                 if (doPhones) {
                     const phoneQuery = buildPhoneQuery(niche, city, "", site, country);
                     emit({ type: "search-query", query: phoneQuery, message: `[Google/Phone] ${phoneQuery}` });
@@ -250,7 +249,6 @@ async function main() {
                                 const href = result.link || "";
                                 const fullText = `${title} ${snippet}`;
 
-                                // Extract phones from result text
                                 const phones = extractPhones(fullText, country);
                                 for (const phone of phones) {
                                     if (!seenPhones.has(phone)) {
@@ -286,7 +284,7 @@ async function main() {
                         emit({ type: "log", message: `[Google/Phone] Error: ${err.message}` });
                         consecutiveErrors++;
                         if (consecutiveErrors >= 2 || err.message.toLowerCase().includes("captcha")) {
-                            emit({ type: "log", message: "[Google] Critically failed. Aborting. Fallback to DuckDuckGo expected." });
+                            emit({ type: "log", message: "[Google] Critically failed. Aborting." });
                             process.exit(1);
                         }
                     }

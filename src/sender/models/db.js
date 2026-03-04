@@ -98,12 +98,39 @@ const initDb = () => {
     )
   `);
 
+  // Scraper Job History Table (Replacing in-memory history.json)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      status TEXT DEFAULT 'queued', -- 'queued', 'running', 'completed', 'failed', 'stopped'
+      params TEXT, -- JSON string
+      events TEXT, -- JSON string
+      files TEXT,  -- JSON string
+      leadsFound INTEGER DEFAULT 0,
+      error TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // User Categories Table (Replacing in-memory categories.json)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_categories (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create indexes for fast analytical query performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_event_logs_campaignId ON event_logs(campaignId);
     CREATE INDEX IF NOT EXISTS idx_event_logs_recipientId ON event_logs(recipientId);
     CREATE INDEX IF NOT EXISTS idx_event_logs_eventType ON event_logs(eventType);
     CREATE INDEX IF NOT EXISTS idx_smtp_accounts_userId ON smtp_accounts(userId);
+    CREATE INDEX IF NOT EXISTS idx_jobs_userId ON jobs(userId);
+    CREATE INDEX IF NOT EXISTS idx_job_categories_userId ON job_categories(userId);
   `);
 
   // Safe schema migration for existing DBs

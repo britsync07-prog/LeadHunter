@@ -279,6 +279,16 @@ if __name__ == "__main__":
         try:
             payload = json.loads(sys.argv[1])
         except:
+            # Maybe it's not JSON, or arg list is empty
             pass
+    
+    if not payload:
+        # Try reading from stdin if no valid arg provided
+        try:
+            if not sys.stdin.isatty():
+                payload = json.load(sys.stdin)
+        except:
+            pass
+            
     scraper = DDGMultiNicheScraper(payload=payload)
     scraper.run_batch()

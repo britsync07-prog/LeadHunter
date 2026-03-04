@@ -12,7 +12,7 @@ const USERS_FILE = path.join(__dirname, "..", "data", "users.json");
 let _migrated = false;
 
 // Seamless 1-time background migration from the flat file to SQLite.
-async function runMigration() {
+export async function initAuth() {
   if (_migrated) return;
   try {
     const data = await fs.readFile(USERS_FILE, "utf-8");
@@ -36,30 +36,25 @@ async function runMigration() {
   const count = db.prepare("SELECT COUNT(*) as c FROM users").get();
   if (count.c === 0) {
     const hashedPassword = await bcrypt.hash("admin123", 10);
-    db.prepare("INSERT INTO users (id, username, password, subscriptionPlan) VALUES (?, ?, ?, ?)").run(uuidv4(), "admin", hashedPassword, "premium");
+    db.prepare("INSERT INTO users (id, username, password, subscriptionPlan, isAdmin) VALUES (?, ?, ?, ?, 1)").run(uuidv4(), "admin", hashedPassword, "premium");
   }
 
   _migrated = true;
 }
 
 export async function authenticate(username, password) {
-  await runMigration();
-
+  // Migration check is now in server.js startup
   const user = db.prepare("SELECT * FROM users WHERE username = ? OR email = ?").get(username, username);
 
   if (user && (await bcrypt.compare(password, user.password))) {
-
-    // Block suspended accounts immediately at login
     if (user.isSuspended) {
       return { suspended: true };
     }
 
-    // Dynamic Trial Evaluation
     let activePlan = user.subscriptionPlan;
     if (user.trialEndsAt) {
       const isTrialActive = new Date(user.trialEndsAt) > new Date();
       if (!isTrialActive && activePlan === 'premium') {
-        // Silently revoke expired premium trials back to free tier.
         activePlan = 'free';
         db.prepare("UPDATE users SET subscriptionPlan = 'free', trialEndsAt = NULL WHERE id = ?").run(user.id);
       }
@@ -78,8 +73,6 @@ export async function authenticate(username, password) {
 }
 
 export async function registerUser(username, email, password) {
-  await runMigration();
-
   try {
     const existing = db.prepare("SELECT id FROM users WHERE username = ? OR email = ?").get(username, email);
     if (existing) {
@@ -123,7 +116,6 @@ export async function changePassword(username, currentPassword, newPassword) {
 
 export function requireAuth(req, res, next) {
   if (req.session && req.session.user) {
-    // Live suspension check — blocks users even if they're mid-session
     const fresh = db.prepare("SELECT isSuspended FROM users WHERE id = ?").get(req.session.user.id);
     if (fresh && fresh.isSuspended) {
       req.session.destroy();

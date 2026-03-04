@@ -257,7 +257,14 @@ function addEvent(payload) {
   }
   row.className = cls;
   row.textContent = `[${type}] ${payload.message || 'update'}`;
-  eventsEl.prepend(row);
+  
+  if (eventsEl) {
+    eventsEl.prepend(row);
+    // Keep only the latest 5 logs to prevent UI lag and "screen freeze"
+    while (eventsEl.children.length > 5) {
+      eventsEl.removeChild(eventsEl.lastChild);
+    }
+  }
 }
 
 function attachToJob(jobId) {

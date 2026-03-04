@@ -1,53 +1,29 @@
 import { LeadScraper } from "./scraper.js";
 import path from "node:path";
-import fs from "node:fs";
-import fsPromises from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import db from "./sender/models/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const HISTORY_FILE = path.join(__dirname, "..", "data", "history.json");
-const CATEGORIES_FILE = path.join(__dirname, "..", "data", "categories.json");
 
 export class JobQueue {
   constructor(maxConcurrent = 3) {
     this.maxConcurrent = maxConcurrent;
     this.activeJobs = new Map();
     this.queuedJobs = [];
-    this.jobs = new Map(); // All jobs (active, queued, completed)
-    this.categories = new Map(); // Explicit categories: Map<id, {id, name, userId, createdAt}>
+    this.jobs = new Map(); // Currently active or recently accessed jobs in memory
   }
 
   async loadHistory() {
-    try {
-      const data = await fsPromises.readFile(HISTORY_FILE, "utf-8");
-      const history = JSON.parse(data);
-      for (const job of history) {
-        job.listeners = new Set();
-        if (!job.files) job.files = [];
-        this.jobs.set(job.id, job);
-      }
-    } catch {
-      await fsPromises.writeFile(HISTORY_FILE, "[]");
-    }
-
-    try {
-      const catData = await fsPromises.readFile(CATEGORIES_FILE, "utf-8");
-      const categories = JSON.parse(catData);
-      for (const cat of categories) {
-        this.categories.set(cat.id, cat);
-      }
-    } catch {
-      await fsPromises.writeFile(CATEGORIES_FILE, "[]");
-    }
+    // Migration: If history.json exists, we could migrate it, but for a "fast" fix
+    // we just ensure the DB is ready. The constructor already imports db.
+    // We'll keep this method for compatibility with server.js call.
+    return Promise.resolve();
   }
 
   async saveHistory() {
-    const history = Array.from(this.jobs.values()).map(job => {
-      const { listeners, ...rest } = job;
-      return rest;
-    });
-    await fsPromises.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2));
+    // No longer needed as we save to DB per event/status change
+    return Promise.resolve();
   }
 
   addJob(jobData, userId) {
@@ -58,8 +34,25 @@ export class JobQueue {
       events: [],
       listeners: new Set(),
       files: [],
+      leadsFound: 0,
       createdAt: new Date().toISOString()
     };
+
+    // Persist to DB immediately
+    db.prepare(`
+      INSERT INTO jobs (id, userId, status, params, events, files, leadsFound, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      job.id,
+      job.userId,
+      job.status,
+      JSON.stringify(job.params),
+      JSON.stringify(job.events),
+      JSON.stringify(job.files),
+      job.leadsFound,
+      job.createdAt
+    );
+
     this.jobs.set(job.id, job);
     this.queuedJobs.push(job.id);
     this.processQueue();
@@ -72,13 +65,25 @@ export class JobQueue {
     }
 
     const jobId = this.queuedJobs.shift();
-    const job = this.jobs.get(jobId);
-    if (!job) return;
+    let job = this.jobs.get(jobId);
+
+    if (!job) {
+      // Load from DB if not in memory
+      const row = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
+      if (!row) return;
+      job = {
+        ...row,
+        params: JSON.parse(row.params),
+        events: JSON.parse(row.events),
+        files: JSON.parse(row.files),
+        listeners: new Set()
+      };
+      this.jobs.set(jobId, job);
+    }
 
     const scraper = new LeadScraper({
       outputRoot: path.join(__dirname, "..", "output"),
       onProgress: (event) => {
-        // Dynamically add files as they are discovered/saved
         if (event.fileName && !job.files.includes(event.fileName)) {
           job.files.push(event.fileName);
         }
@@ -88,6 +93,8 @@ export class JobQueue {
 
     this.activeJobs.set(jobId, { job, scraper });
     job.status = "running";
+    
+    db.prepare("UPDATE jobs SET status = ? WHERE id = ?").run(job.status, job.id);
     this.pushEvent(job, { type: "info", message: "Job started" });
 
     try {
@@ -105,7 +112,6 @@ export class JobQueue {
 
       if (job.status !== "stopped") {
         job.status = "completed";
-        // Safely merge files so we don't overwrite dynamically tracked files like CSVs
         job.files = Array.from(new Set([...(job.files || []), ...(result.files || [])]));
         this.pushEvent(job, { type: "job-completed", files: job.files });
       }
@@ -116,32 +122,41 @@ export class JobQueue {
         this.pushEvent(job, { type: "job-failed", message: error.message });
       }
     } finally {
+      db.prepare(`
+        UPDATE jobs SET status = ?, files = ?, leadsFound = ?, error = ?, events = ?
+        WHERE id = ?
+      `).run(
+        job.status,
+        JSON.stringify(job.files),
+        job.leadsFound || 0,
+        job.error || null,
+        JSON.stringify(job.events),
+        job.id
+      );
       this.activeJobs.delete(jobId);
-      await this.saveHistory();
       this.processQueue();
     }
   }
 
   stopJob(jobId) {
-    // Check if it's an active job
     if (this.activeJobs.has(jobId)) {
       const { job, scraper } = this.activeJobs.get(jobId);
       job.status = "stopped";
       scraper.stop();
       this.pushEvent(job, { type: "job-stopped", message: "Job stopped by user" });
-      this.saveHistory();
+      db.prepare("UPDATE jobs SET status = ?, events = ? WHERE id = ?").run(job.status, JSON.stringify(job.events), job.id);
       return true;
     }
 
-    // Check if it's a queued job
     const queuedIndex = this.queuedJobs.indexOf(jobId);
     if (queuedIndex !== -1) {
       this.queuedJobs.splice(queuedIndex, 1);
-      const job = this.jobs.get(jobId);
+      const job = this.jobs.get(jobId) || db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
       if (job) {
-        job.status = "stopped";
-        this.pushEvent(job, { type: "job-stopped", message: "Job cancelled by user" });
-        this.saveHistory();
+        const updatedJob = { ...job, status: "stopped" };
+        if (typeof updatedJob.events === 'string') updatedJob.events = JSON.parse(updatedJob.events);
+        this.pushEvent(updatedJob, { type: "job-stopped", message: "Job cancelled by user" });
+        db.prepare("UPDATE jobs SET status = ?, events = ? WHERE id = ?").run("stopped", JSON.stringify(updatedJob.events), job.id);
       }
       return true;
     }
@@ -153,10 +168,8 @@ export class JobQueue {
     const payload = { ...event, time: new Date().toISOString() };
     job.events.push(payload);
 
-    // Track usage natively per job (emails only)
     if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved') {
       if (payload.type === 'lead-saved' && payload.emailFileName) {
-        // Only count actual emails towards quota
         job.leadsFound = (job.leadsFound || 0) + 1;
       }
 
@@ -166,7 +179,6 @@ export class JobQueue {
       const dailyLimit = plan === 'basic' ? 300 : 100;
       const monthlyLimit = plan === 'basic' ? 9000 : 3000;
 
-      // Send usage update to listeners
       const usagePayload = {
         type: 'usage-update',
         usage: usage,
@@ -176,7 +188,7 @@ export class JobQueue {
         monthlyLimit: isAdmin ? 'Unlimited' : monthlyLimit,
         time: new Date().toISOString()
       };
-      job.events.push(usagePayload);
+      
       for (const res of job.listeners) {
         res.write(`data: ${JSON.stringify(usagePayload)}\n\n`);
       }
@@ -184,8 +196,7 @@ export class JobQueue {
       if (!isAdmin && (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit)) {
         if (job.processInstance && !job.processInstance.isStopped) {
           job.processInstance.isStopped = true;
-          const infoPayload = { type: "info", message: `Plan limit reached (Daily: ${dailyLimit}, Monthly: ${monthlyLimit}). Stopping.`, time: new Date().toISOString() };
-          job.events.push(infoPayload);
+          const infoPayload = { type: "info", message: `Plan limit reached. Stopping.`, time: new Date().toISOString() };
           for (const res of job.listeners) {
             res.write(`data: ${JSON.stringify(infoPayload)}\n\n`);
           }
@@ -193,25 +204,22 @@ export class JobQueue {
       }
     }
 
-    // Track files in the job object immediately when they are mentioned in events
-    if (payload.fileName && !job.files.includes(payload.fileName)) {
-      job.files.push(payload.fileName);
-    }
-    if (payload.emailFileName && !job.files.includes(payload.emailFileName)) {
-      job.files.push(payload.emailFileName);
-    }
-    if (payload.allEmailsFileName && !job.files.includes(payload.allEmailsFileName)) {
-      job.files.push(payload.allEmailsFileName);
-    }
-    if (payload.phoneFileName && !job.files.includes(payload.phoneFileName)) {
-      job.files.push(payload.phoneFileName);
-    }
-    if (payload.allPhonesFileName && !job.files.includes(payload.allPhonesFileName)) {
-      job.files.push(payload.allPhonesFileName);
-    }
+    // Update job files in memory
+    if (payload.fileName && !job.files.includes(payload.fileName)) job.files.push(payload.fileName);
+    if (payload.emailFileName && !job.files.includes(payload.emailFileName)) job.files.push(payload.emailFileName);
+    if (payload.allEmailsFileName && !job.files.includes(payload.allEmailsFileName)) job.files.push(payload.allEmailsFileName);
+    if (payload.phoneFileName && !job.files.includes(payload.phoneFileName)) job.files.push(payload.phoneFileName);
+    if (payload.allPhonesFileName && !job.files.includes(payload.allPhonesFileName)) job.files.push(payload.allPhonesFileName);
 
     for (const res of job.listeners) {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    }
+
+    // Asynchronously update events in DB for large jobs (optional: debounce this for ultra-high speed)
+    // For now, we update it in processQueue finally, but let's do a partial update for "Live" persistence
+    if (job.events.length % 10 === 0) {
+        db.prepare("UPDATE jobs SET events = ?, files = ?, leadsFound = ? WHERE id = ?")
+          .run(JSON.stringify(job.events), JSON.stringify(job.files), job.leadsFound, job.id);
     }
   }
 
@@ -220,29 +228,50 @@ export class JobQueue {
     const todayStr = now.toISOString().split('T')[0];
     const monthStr = todayStr.substring(0, 7);
 
+    // Optimized SQLite usage query
+    const rows = db.prepare(`
+        SELECT leadsFound, createdAt FROM jobs 
+        WHERE userId = ? AND leadsFound > 0 AND createdAt >= ?
+    `).all(userId, monthStr + "-01");
+
     let dailyCount = 0;
     let monthlyCount = 0;
 
-    for (const job of this.jobs.values()) {
-      if (job.userId === userId && job.leadsFound) {
-        const jobDateStr = job.createdAt.split('T')[0];
-        const jobMonthStr = jobDateStr.substring(0, 7);
-
-        if (jobDateStr === todayStr) dailyCount += job.leadsFound;
-        if (jobMonthStr === monthStr) monthlyCount += job.leadsFound;
-      }
+    for (const row of rows) {
+        const jobDateStr = row.createdAt.split('T')[0];
+        if (jobDateStr === todayStr) dailyCount += row.leadsFound;
+        monthlyCount += row.leadsFound;
     }
+
     return { dailyCount, monthlyCount };
   }
 
   getJob(jobId) {
-    return this.jobs.get(jobId);
+    let job = this.jobs.get(jobId);
+    if (!job) {
+      const row = db.prepare("SELECT * FROM jobs WHERE id = ?").get(jobId);
+      if (row) {
+        job = {
+          ...row,
+          params: JSON.parse(row.params),
+          events: JSON.parse(row.events),
+          files: JSON.parse(row.files),
+          listeners: new Set()
+        };
+        this.jobs.set(jobId, job);
+      }
+    }
+    return job;
   }
 
   getUserHistory(userId) {
-    return Array.from(this.jobs.values())
-      .filter((j) => j.userId === userId)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const rows = db.prepare("SELECT * FROM jobs WHERE userId = ? ORDER BY createdAt DESC").all(userId);
+    return rows.map(row => ({
+      ...row,
+      params: JSON.parse(row.params),
+      events: JSON.parse(row.events),
+      files: JSON.parse(row.files)
+    }));
   }
 
   getQueueStatus() {
@@ -254,35 +283,22 @@ export class JobQueue {
   }
 
   hasUserActiveJob(userId) {
-    return Array.from(this.jobs.values()).some(
-      (job) => job.userId === userId && (job.status === "running" || job.status === "queued")
-    );
-  }
-
-  // ── Explicit Category Management ── //
-
-  async saveCategories() {
-    const cats = Array.from(this.categories.values());
-    await fsPromises.writeFile(CATEGORIES_FILE, JSON.stringify(cats, null, 2));
+    const row = db.prepare(`
+        SELECT id FROM jobs 
+        WHERE userId = ? AND (status = 'running' OR status = 'queued')
+        LIMIT 1
+    `).get(userId);
+    return !!row;
   }
 
   addCategory(name, userId) {
-    // Generate an ID for the category (we use a simple slug or timestamp + random)
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-    const category = {
-      id,
-      name,
-      userId,
-      createdAt: new Date().toISOString()
-    };
-    this.categories.set(id, category);
-    this.saveCategories();
-    return category;
+    db.prepare("INSERT INTO job_categories (id, userId, name) VALUES (?, ?, ?)")
+      .run(id, userId, name);
+    return { id, name, userId, createdAt: new Date().toISOString() };
   }
 
   getCategories(userId) {
-    return Array.from(this.categories.values())
-      .filter((c) => c.userId === userId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return db.prepare("SELECT * FROM job_categories WHERE userId = ? ORDER BY name ASC").all(userId);
   }
 }

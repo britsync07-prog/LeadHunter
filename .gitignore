@@ -29,7 +29,17 @@ scrape_progress.json
 .DS_Store
 
 # SQLite runtime files
+*.db
+*.db-journal
 *.db-wal
 *.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/sessions/
+data/users.json
+data/history.json
+data/categories.json
+output/
 
 

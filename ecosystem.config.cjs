@@ -3,11 +3,17 @@ module.exports = {
         {
             name: 'leadhunter-production',
             script: 'src/server.js',
-            instances: 'max', // Scale across all CPU cores
-            exec_mode: 'cluster',
+            // --- SCALING NOTE FOR 1000+ USERS ---
+            // 'max' instances (Cluster Mode) is great for performance but:
+            // 1. SSE (Server-Sent Events) requires sticky sessions on the load balancer.
+            // 2. The JobQueue in-memory state is currently per-instance.
+            // For production with 1000+ users, we recommend using a single large instance
+            // OR implementing Redis for JobQueue/SSE synchronization.
+            instances: 1, 
+            exec_mode: 'fork',
             autorestart: true,
             watch: false,
-            max_memory_restart: '1G',
+            max_memory_restart: '2G',
             env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
