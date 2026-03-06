@@ -15,7 +15,6 @@ services:
       # - TRACKING_HMAC_SECRET=your-secure-tracking-secret-here
     volumes:
       # Persist SQLite databases across container rebuilds
-      - ./src/sender/models/sender.db:/usr/src/app/src/sender/models/sender.db
       - ./data:/usr/src/app/data
       # Map the Chrome profile if preserving local cookie sessions
       - ./google-search/browser-state.json:/usr/src/app/google-search/browser-state.json
