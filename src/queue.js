@@ -14,6 +14,26 @@ export class JobQueue {
     this.jobs = new Map(); // Currently active or recently accessed jobs in memory
   }
 
+  async cleanupStaleJobs() {
+    console.log("[System] Cleaning up stale jobs and campaigns from previous session...");
+    
+    // 1. Cleanup Scraper Jobs
+    const result = db.prepare("UPDATE jobs SET status = 'failed', error = 'Server was restarted' WHERE status = 'running' OR status = 'queued'").run();
+    if (result.changes > 0) {
+      console.log(`[System] Marked ${result.changes} stale scraper jobs as failed.`);
+    }
+
+    // 2. Cleanup Sender Campaigns (if any were stuck in 'sending')
+    try {
+      const campResult = db.prepare("UPDATE campaigns SET status = 'aborted', abortReason = 'Server was restarted' WHERE status = 'sending'").run();
+      if (campResult.changes > 0) {
+        console.log(`[System] Aborted ${campResult.changes} stale email campaigns.`);
+      }
+    } catch (e) {
+      // Ignore if table doesn't exist yet
+    }
+  }
+
   async loadHistory() {
     // Migration: If history.json exists, we could migrate it, but for a "fast" fix
     // we just ensure the DB is ready. The constructor already imports db.
@@ -84,6 +104,13 @@ export class JobQueue {
     const scraper = new LeadScraper({
       outputRoot: path.join(__dirname, "..", "output"),
       onProgress: (event) => {
+        // --- ADDED FOR DEBUGGING ---
+        if (event.type === 'log') {
+          console.log(`[JOB ${job.id}] ${event.message}`);
+        } else if (event.type === 'lead-saved' || event.type === 'phone-saved') {
+          console.log(`[JOB ${job.id}] Found: ${event.email || event.phone}`);
+        }
+
         if (event.fileName && !job.files.includes(event.fileName)) {
           job.files.push(event.fileName);
         }
@@ -169,8 +196,22 @@ export class JobQueue {
     job.events.push(payload);
 
     if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved') {
-      if (payload.type === 'lead-saved' && payload.emailFileName) {
+      if ((payload.type === 'lead-saved' && payload.emailFileName) || (payload.type === 'phone-saved' && payload.phoneFileName)) {
         job.leadsFound = (job.leadsFound || 0) + 1;
+      }
+
+      // --- PER-JOB LIMIT ENFORCEMENT ---
+      if (job.params?.maxLeads && job.leadsFound >= job.params.maxLeads) {
+        const active = this.activeJobs.get(job.id);
+        if (active && active.scraper && !active.scraper.isStopped) {
+          active.scraper.stop();
+          const limitMsg = { type: "info", message: `Per-job limit of ${job.params.maxLeads} leads reached. Stopping and saving files...`, time: new Date().toISOString() };
+          job.events.push(limitMsg);
+          for (const res of job.listeners) {
+             res.write(`data: ${JSON.stringify(limitMsg)}\n\n`);
+             if (res.flush) res.flush();
+          }
+        }
       }
 
       const usage = this.getUserUsage(job.userId);
@@ -195,8 +236,9 @@ export class JobQueue {
       }
 
       if (!isAdmin && (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit)) {
-        if (job.processInstance && !job.processInstance.isStopped) {
-          job.processInstance.isStopped = true;
+        const active = this.activeJobs.get(job.id);
+        if (active && active.scraper && !active.scraper.isStopped) {
+          active.scraper.stop();
           const infoPayload = { type: "info", message: `Plan limit reached. Stopping.`, time: new Date().toISOString() };
           for (const res of job.listeners) {
             res.write(`data: ${JSON.stringify(infoPayload)}\n\n`);

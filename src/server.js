@@ -33,10 +33,20 @@ const HOST = process.env.HOST || "0.0.0.0";
 const COUNTRY_API = "https://countriesnow.space/api/v0.1";
 
 const queue = new JobQueue(3);
+await queue.cleanupStaleJobs(); // --- CLEANUP STUCK JOBS ---
 await queue.loadHistory();
 await initAuth(); // Ensure DB is seeded and migrated
 
 // --- GLOBAL MIDDLEWARE ---
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} - ${duration}ms`);
+  });
+  next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: false, 
 }));
@@ -146,6 +156,89 @@ function requireAdmin(req, res, next) {
   if (!user || !user.isAdmin) return res.status(403).json({ error: "Admin access required" });
   next();
 }
+
+// --- EXTERNAL API KEY MIDDLEWARE ---
+const EXTERNAL_API_KEY = process.env.EXTERNAL_API_KEY || "your-secure-api-key";
+function requireApiKey(req, res, next) {
+  const apiKey = req.headers["x-api-key"] || req.query.apiKey;
+  if (!apiKey || apiKey !== EXTERNAL_API_KEY) {
+    return res.status(401).json({ error: "Invalid or missing API Key" });
+  }
+  next();
+}
+
+// --- EXTERNAL API ROUTES ---
+app.get("/api/external/countries", requireApiKey, async (_req, res) => {
+  try { res.json({ countries: await getCountries() }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+app.get("/api/external/locations", requireApiKey, async (req, res) => {
+  const { country, state } = req.query;
+  if (!country) return res.status(400).json({ error: "country required" });
+  try {
+    if (state) return res.json({ country, state, cities: await getCitiesForState(country, state) });
+    return res.json({ ...await getCountryDetails(country), country });
+  } catch (e) { return res.status(502).json({ error: e.message }); }
+});
+
+app.post("/api/external/jobs", requireApiKey, async (req, res) => {
+  let { country, cities = [], states = [], niches, scrapeMode = 'both', includeGoogleMaps = true } = req.body || {};
+  if (!country || !niches?.length) return res.status(400).json({ error: "Missing required fields (country, niches)" });
+
+  // Auto-expand states into cities if cities are not provided
+  if (cities.length === 0 && states.length > 0) {
+    try {
+      for (const state of states) {
+        const stateCities = await getCitiesForState(country, state);
+        cities.push(...stateCities);
+      }
+    } catch (e) {
+      return res.status(502).json({ error: "Failed to fetch cities for states: " + e.message });
+    }
+  }
+
+  if (cities.length === 0) return res.status(400).json({ error: "No cities found or provided for the given location." });
+
+  const job = queue.addJob({ 
+    id: crypto.randomUUID(), 
+    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100 } 
+  }, "external_server");
+  
+  res.status(202).json({ jobId: job.id, status: job.status });
+});
+
+app.get("/api/external/jobs/:jobId/status", requireApiKey, (req, res) => {
+  const job = queue.getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+
+  const result = {
+    jobId: job.id,
+    status: job.status,
+    leadsFound: job.leadsFound || 0,
+    files: {},
+    error: job.error || null
+  };
+
+  if (job.status === "completed" || job.status === "running") {
+    // Specifically looking for the 3 requested files
+    if (job.files.includes("all_emails.txt")) result.files.emails = `/api/external/jobs/${job.id}/download/all_emails.txt`;
+    if (job.files.includes("all_phones.txt")) result.files.numbers = `/api/external/jobs/${job.id}/download/all_phones.txt`;
+    if (job.files.includes("google_maps_all.csv")) result.files.csv = `/api/external/jobs/${job.id}/download/google_maps_all.csv`;
+  }
+
+  res.json(result);
+});
+
+app.get("/api/external/jobs/:jobId/download/:fileName", requireApiKey, (req, res) => {
+  const { jobId, fileName } = req.params;
+  const job = queue.getJob(jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  
+  const filePath = path.join(__dirname, "..", "output", jobId, fileName);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
+  return res.download(filePath);
+});
 
 // --- ADMIN API ROUTES ---
 app.get("/api/admin/users", requireAdmin, (req, res) => {
