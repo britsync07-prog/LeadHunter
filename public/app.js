@@ -238,34 +238,73 @@ function setStatus(text, mode = 'idle') {
 
 function addEvent(payload) {
   const type = payload.type || '';
-  if (type === 'usage-update') return; // Don't show usage updates in the log feed
+  if (type === 'usage-update') return; 
 
-  const row = document.createElement("li");
-  let cls = 'ev--log';
+  // Update global counters for all saves
   if (type === 'lead-saved') {
-    cls = 'ev--saved';
     totalLeads++;
     if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
   } else if (type === 'phone-saved') {
-    cls = 'ev--phone';
     totalPhones++;
     if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
-  } else if (type === 'log' && payload.message && payload.message.toLowerCase().includes('email')) {
-    cls = 'ev--email';
-  } else if (type === 'search-query') {
-    cls = 'ev--query';
-  } else if (type.includes('fail') || type.includes('error')) {
-    cls = 'ev--error';
-  } else if (type.includes('complete') || type.includes('done')) {
-    cls = 'ev--done';
   }
-  row.className = cls;
-  row.textContent = `[${type}] ${payload.message || 'update'}`;
+
+  // Filter: Only show emails, phones, completion, or errors in the feed
+  const isEmail = (type === 'lead-saved' && payload.email);
+  const isPhone = (type === 'phone-saved' && payload.phone);
+  const isDone = type.includes('complete') || type.includes('done');
+  const isError = type.includes('fail') || type.includes('error');
+
+  if (!isEmail && !isPhone && !isDone && !isError) return;
+
+  const row = document.createElement("li");
+  let cls = 'ev--log';
+  let content = '';
+
+  if (isEmail) {
+    cls = 'ev--email';
+    content = `<div class="ev-flex">
+      <span class="ev-icon">📧</span>
+      <div class="ev-body">
+        <div class="ev-label">New Email Found</div>
+        <div class="ev-value">${payload.email}</div>
+      </div>
+    </div>`;
+  } else if (isPhone) {
+    cls = 'ev--phone';
+    content = `<div class="ev-flex">
+      <span class="ev-icon">📱</span>
+      <div class="ev-body">
+        <div class="ev-label">New Phone Found</div>
+        <div class="ev-value">${payload.phone}</div>
+      </div>
+    </div>`;
+  } else if (isDone) {
+    cls = 'ev--done';
+    content = `<div class="ev-flex">
+      <span class="ev-icon">✅</span>
+      <div class="ev-body">
+        <div class="ev-label">Completed</div>
+        <div class="ev-value">${payload.message || 'Scraping finished successfully.'}</div>
+      </div>
+    </div>`;
+  } else if (isError) {
+    cls = 'ev--error';
+    content = `<div class="ev-flex">
+      <span class="ev-icon">❌</span>
+      <div class="ev-body">
+        <div class="ev-label">Error</div>
+        <div class="ev-value">${payload.message || 'An error occurred.'}</div>
+      </div>
+    </div>`;
+  }
+
+  row.className = `ev-item ${cls}`;
+  row.innerHTML = content;
   
   if (eventsEl) {
     eventsEl.prepend(row);
-    // Keep only the latest 5 logs to prevent UI lag and "screen freeze"
-    while (eventsEl.children.length > 5) {
+    while (eventsEl.children.length > 15) {
       eventsEl.removeChild(eventsEl.lastChild);
     }
   }

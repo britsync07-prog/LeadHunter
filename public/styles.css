@@ -1793,3 +1793,65 @@ select option {
     gap: 14px;
   }
 }
+
+/* --- Beautiful Live Activity Feed --- */
+.ev-item {
+  list-style: none;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.05);
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+  animation: slideInActivity 0.3s ease-out;
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.ev-item:hover {
+  transform: translateX(2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+.ev-flex {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ev-icon {
+  font-size: 18px;
+  padding-top: 2px;
+}
+
+.ev-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ev-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.ev-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+.ev--email { border-left-color: #3b82f6 !important; }
+.ev--phone { border-left-color: #8b5cf6 !important; }
+.ev--done { border-left-color: #10b981 !important; }
+.ev--error { border-left-color: #ef4444 !important; }
+
+@keyframes slideInActivity {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

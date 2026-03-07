@@ -133,6 +133,7 @@ export class LeadScraper {
                 newEmailsFound++;
                 this.onProgress({
                   type: "lead-saved",
+                  email: email,
                   fileName: mapsLeadsJsonName,
                   emailFileName: "google_maps_emails.txt",
                   allEmailsFileName: "all_emails.txt",
