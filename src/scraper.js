@@ -113,6 +113,11 @@ export class LeadScraper {
           let newPhonesFound = 0;
 
           for (const lead of leads) {
+            this.onProgress({
+              type: "business-processed",
+              name: lead.name,
+              message: `[Maps] Processing: ${lead.name}`
+            });
             for (const email of lead.possibleEmails) {
               const eLower = email.toLowerCase();
               if (!seenEmails.has(eLower)) {

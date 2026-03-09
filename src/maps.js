@@ -121,25 +121,39 @@ class BusinessScraper {
       });
 
       await page.goto(websiteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+const emails = await page.evaluate(() => {
+  const text = document.documentElement.outerHTML;
+  const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+  const matches = text.match(emailRegex) || [];
+  const mailtoLinks = Array.from(document.querySelectorAll('a[href^="mailto:"]'))
+                           .map(a => a.href.replace('mailto:', '').split('?')[0]);
+  return [...new Set([...matches, ...mailtoLinks])];
+});
 
-      const emails = await page.evaluate(() => {
-        const text = document.documentElement.outerHTML;
-        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
-        const matches = text.match(emailRegex) || [];
-        const mailtoLinks = Array.from(document.querySelectorAll('a[href^="mailto:"]'))
-                                 .map(a => a.href.replace('mailto:', '').split('?')[0]);
-        return [...new Set([...matches, ...mailtoLinks])];
-      });
+return emails.filter(e => {
+  const lower = e.toLowerCase();
 
-      return emails.filter(e => {
-        const lower = e.toLowerCase();
-        const badExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.pdf', '.css', '.js'];
-        if (badExtensions.some(ext => lower.endsWith(ext))) return false;
-        const badKeywords = ['sentry', 'wixpress', 'example', 'test', 'domain', 'noreply'];
-        return !badKeywords.some(word => lower.includes(word));
-      });
-    } catch (error) {
-      return [];
+  // 1. Basic format & length checks
+  if (lower.length < 5 || !lower.includes('.') || lower.includes(' ')) return false;
+
+  // 2. Filter out common file extensions
+  const badExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.pdf', '.css', '.js', '.ico', '.zip', '.mp4'];
+  if (badExtensions.some(ext => lower.endsWith(ext))) return false;
+
+  // 3. Filter out placeholder emails
+  const badLocals = ['your', 'email', 'user', 'example', 'test', 'admin', 'info@example', 'mail@example', 'hello@example', 'name', 'support@domain'];
+  if (badLocals.some(bad => lower.startsWith(bad + '@'))) return false;
+
+  // 4. Filter out version strings (e.g., jquery@1.14.0)
+  if (/@\d+\.\d+/.test(lower)) return false;
+
+  // 5. Filter out junk/placeholder domains
+  const badDomains = ['sentry.io', 'wixpress', 'example.com', 'test.com', 'domain.com', 'yoursite.com', 'company.com', 'yourdomain.com', 'wordpress.com'];
+  if (badDomains.some(bad => lower.includes(bad))) return false;
+
+  return true;
+});
+
     } finally {
       if (page) try { await page.close(); } catch(e) {}
     }

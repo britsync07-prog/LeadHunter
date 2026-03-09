@@ -195,8 +195,8 @@ export class JobQueue {
       job.events = job.events.slice(job.events.length - 1000);
     }
 
-    if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved') {
-      if ((payload.type === 'lead-saved' && payload.emailFileName) || (payload.type === 'phone-saved' && payload.phoneFileName)) {
+    if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved' || payload.type === 'business-processed') {
+      if (payload.type === 'business-processed') {
         job.leadsFound = (job.leadsFound || 0) + 1;
       }
 
