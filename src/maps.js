@@ -1,168 +1,116 @@
-import puppeteer from "puppeteer";
-import readline from "readline";
-import fs from "fs";
-import process from "process";
-import { fileURLToPath } from "url";
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import fs from 'fs';
+import path from 'path';
+
+puppeteer.use(StealthPlugin());
 
 class BusinessScraper {
   constructor() {
     this.browser = null;
     this.results = [];
-    this.delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Helper to clean Google's hidden icon characters from text
+  cleanText(str) {
+    if (!str || str === "N/A") return "N/A";
+    // Strips  (phone),  (address),  (plus code),  (stars) and other glyphs
+    return str.replace(/[]/g, '').trim();
   }
 
   async init() {
     this.browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-notifications"],
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-notifications", "--lang=en-US"],
     });
-    console.log("Browser initialized");
+    console.log("Browser initialized (Ultra Mode)");
   }
 
   async scrapeGoogleMaps(searchQuery, maxResults = 30) {
-    this.results = []; // NEW: Clears prior query data to prevent buildup
+    this.results = []; 
     if (!this.browser) await this.init();
 
     const page = await this.browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    );
+    await page.setViewport({ width: 1280, height: 900 });
 
     try {
-      const searchUrl = `https://www.google.com/maps/search/$${encodeURIComponent(searchQuery)}?hl=en`;
-
+      const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}?hl=en`;
+      console.log(`[Maps] Searching: ${searchUrl}`);
+      
       await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 60000 });
-      await this.delay(3000);
 
-      // Scroll to load results
-      await this.scrollResults(page, maxResults);
+      console.log(`[Maps] Scrolling to find up to ${maxResults} leads...`);
+      const links = await page.evaluate(async (max) => {
+        const wrapper = document.querySelector('div[role="feed"]');
+        if (!wrapper) return [];
 
-      // Extract data
-      const businesses = await page.evaluate(() => {
-        const results = [];
-        const businessCards = document.querySelectorAll('.Nv2PK');
+        let collected = new Map();
+        let lastSize = 0;
+        let idleTurns = 0;
 
-        for (let i = 0; i < businessCards.length; i++) {
-          const card = businessCards[i];
+        return await new Promise((resolve) => {
+          let timer = setInterval(() => {
+            wrapper.scrollBy(0, 1000);
+            
+            const cards = document.querySelectorAll('.Nv2PK');
+            cards.forEach(card => {
+              const linkEl = card.querySelector('a.hfpxzc');
+              const link = linkEl?.href;
+              if (!link || collected.has(link)) return;
 
-          const nameElement = card.querySelector('.qBF1Pd.fontHeadlineSmall');
-          const name = nameElement ? nameElement.textContent.trim() : '';
-
-          let referenceLink = '';
-          const mainLink = card.querySelector('a.hfpxzc');
-          if (mainLink) referenceLink = mainLink.href;
-
-          let website = '';
-          const websiteButton = card.querySelector('a[data-value="Website"]');
-          if (websiteButton) website = websiteButton.href;
-
-          let rating = '';
-          const ratingElement = card.querySelector('.MW4etd');
-          if (ratingElement) rating = ratingElement.textContent.trim();
-
-          let address = '';
-          let phone = '';
-
-          // Universal info extractor
-          const infoContainers = card.querySelectorAll('.W4Efsd');
-          infoContainers.forEach(container => {
-            const text = container.textContent;
-
-            const phoneMatch = text.match(/(\+\d{1,4}[\s.-]?)?(\(?\d{2,6}\)?[\s.-]?)?(\d{2,6}[\s.-]?){1,4}\d{2,6}/);
-
-            if (phoneMatch && text.includes(phoneMatch[0])) {
-              if (phoneMatch[0].replace(/\D/g, '').length >= 7) {
-                phone = phoneMatch[0];
+              const name = card.querySelector('.qBF1Pd')?.textContent || "N/A";
+              const rating = card.querySelector('.MW4etd')?.textContent || 
+                             card.querySelector('span[aria-label*="stars"]')?.ariaLabel?.split(' ')[0] || "N/A";
+              const website = card.querySelector('a[data-value="Website"]')?.href || "N/A";
+              
+              let phone = "N/A";
+              const infoText = card.textContent;
+              const phoneMatch = infoText.match(/(\+\d{1,4}[\s.-]?)?(\(?\d{2,6}\)?[\s.-]?)?(\d{2,6}[\s.-]?){1,4}\d{2,6}/);
+              if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 7) {
+                  phone = phoneMatch[0];
               }
-            }
 
-            if (text.includes('·') && !text.includes('(') && !text.includes('Closed') && !text.includes('Open')) {
-              const parts = text.split('·');
-              for (const part of parts) {
-                if (!part.match(/\d{3}[\s.-]?\d{4}/) && part.trim().length > 5) {
-                  address = part.trim();
-                }
-              }
-            }
-          });
-
-          if (name) {
-            results.push({
-              name, address, phone, rating, website, referenceLink,
-              hasWebsite: !!website
+              collected.set(link, { name, link, rating, website, phone });
             });
-          }
-        }
 
-        return results;
-      });
+            if (collected.size >= max) {
+              clearInterval(timer);
+              resolve(Array.from(collected.values()).slice(0, max));
+            } else {
+              if (collected.size === lastSize) {
+                idleTurns++;
+                if (idleTurns > 15) { 
+                  clearInterval(timer);
+                  resolve(Array.from(collected.values()));
+                }
+              } else {
+                lastSize = collected.size;
+                idleTurns = 0;
+              }
+            }
+          }, 1000);
+        });
+      }, maxResults);
 
-      this.results = [...this.results, ...businesses];
+      console.log(`[Maps] Found ${links.length} potential leads. Processing details...`);
+      this.results = links;
+      
       await page.close();
-      return businesses;
+      return links;
 
     } catch (error) {
-      if (page) await page.close();
+      console.error("[Maps] Scrape Error:", error);
+      if (page) try { await page.close(); } catch(e) {}
       return [];
     }
   }
 
-  async scrollResults(page, maxResults = 999) {
-    try {
-      const scrollSelectors = ['[role="feed"]', '.m6QErb.DxyBCb.kA9KIf.dS8AEf.XiKgde.ecceSd', '[role="main"]'];
-
-      let scrollContainer = null;
-      for (const selector of scrollSelectors) {
-        scrollContainer = await page.$(selector);
-        if (scrollContainer) break;
-      }
-
-      if (!scrollContainer) {
-        for (let i = 0; i < 5; i++) {
-          await page.evaluate(() => window.scrollBy(0, 1000));
-          await this.delay(1000);
-        }
-        return;
-      }
-
-      let previousCount = 0;
-      let noChangeCount = 0;
-
-      for (let i = 0; i < 200; i++) {
-        await page.evaluate((container) => {
-          container.scrollTop = container.scrollHeight;
-        }, scrollContainer);
-
-        await this.delay(2000);
-
-        const resultCount = await page.evaluate(() => document.querySelectorAll('.Nv2PK').length);
-        if (resultCount >= maxResults) break;
-
-        if (resultCount === previousCount) {
-          noChangeCount++;
-          if (noChangeCount >= 3) break;
-        } else {
-          noChangeCount = 0;
-        }
-        previousCount = resultCount;
-      }
-    } catch (error) {
-      // Intentionally suppressed for clean server logs
-    }
-  }
-
-  cleanPhoneNumber(phone) {
-    if (!phone) return "";
-    return phone.replace(/[^\d+]/g, "");
-  }
-
   async findEmails(websiteUrl) {
-    if (!websiteUrl || !websiteUrl.startsWith('http')) return [];
-
+    if (!websiteUrl || websiteUrl === 'N/A' || !websiteUrl.startsWith('http')) return [];
+    
     let page;
     try {
       page = await this.browser.newPage();
-
       await page.setRequestInterception(true);
       page.on('request', (req) => {
         if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
@@ -175,29 +123,25 @@ class BusinessScraper {
       await page.goto(websiteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
       const emails = await page.evaluate(() => {
-        const text = document.body.innerText;
+        const text = document.documentElement.outerHTML;
         const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
         const matches = text.match(emailRegex) || [];
-
         const mailtoLinks = Array.from(document.querySelectorAll('a[href^="mailto:"]'))
-          .map(a => a.href.replace('mailto:', '').split('?')[0]);
-
+                                 .map(a => a.href.replace('mailto:', '').split('?')[0]);
         return [...new Set([...matches, ...mailtoLinks])];
       });
 
-      const validEmails = emails.filter(e =>
-        !e.toLowerCase().endsWith('.png') &&
-        !e.toLowerCase().endsWith('.jpg') &&
-        !e.toLowerCase().endsWith('.jpeg') &&
-        !e.toLowerCase().includes('sentry') &&
-        !e.toLowerCase().includes('example')
-      );
-
-      return [...new Set(validEmails)];
+      return emails.filter(e => {
+        const lower = e.toLowerCase();
+        const badExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.pdf', '.css', '.js'];
+        if (badExtensions.some(ext => lower.endsWith(ext))) return false;
+        const badKeywords = ['sentry', 'wixpress', 'example', 'test', 'domain', 'noreply'];
+        return !badKeywords.some(word => lower.includes(word));
+      });
     } catch (error) {
       return [];
     } finally {
-      if (page) await page.close();
+      if (page) try { await page.close(); } catch(e) {}
     }
   }
 
@@ -207,31 +151,90 @@ class BusinessScraper {
         index === self.findIndex((b) => b.name.toLowerCase() === business.name.toLowerCase())
     );
 
+    const limitedResults = uniqueResults.slice(0, targetCount);
     const finalResults = [];
 
-    for (let i = 0; i < uniqueResults.length; i++) {
-      if (finalResults.length >= targetCount) break;
+    for (let i = 0; i < limitedResults.length; i++) {
+      const lead = limitedResults[i];
+      let detailPage = null;
+      
+      try {
+        if (!this.browser) break;
+        detailPage = await this.browser.newPage();
+        
+        await detailPage.goto(lead.link, { waitUntil: 'networkidle2', timeout: 25000 });
+        await new Promise(r => setTimeout(r, 1000));
 
-      const business = uniqueResults[i];
-      const cleanPhone = this.cleanPhoneNumber(business.phone);
+        const deepData = await detailPage.evaluate(() => {
+          const rating = document.querySelector('span.ceNzR')?.textContent || 
+                         document.querySelector('div.F7B61b')?.textContent || 
+                         document.querySelector('span[aria-label*="stars"]')?.ariaLabel?.split(' ')[0];
 
-      let possibleEmails = [];
-      if (business.website) {
-        possibleEmails = await this.findEmails(business.website);
+          // Robust Website Extractor
+          const getWebsite = () => {
+             const standard = document.querySelector('a[data-item-id="authority"]')?.href;
+             if (standard) return standard;
+             
+             const ariaWebsite = document.querySelector('a[aria-label*="Website"]')?.href;
+             if (ariaWebsite) return ariaWebsite;
+
+             const allLinks = Array.from(document.querySelectorAll('a'));
+             const found = allLinks.find(a => 
+               a.textContent?.toLowerCase().includes('website') || 
+               a.href?.includes('business.site') ||
+               a.getAttribute('data-value') === 'Website'
+             );
+             return found ? found.href : null;
+          };
+
+          return {
+            title: document.querySelector('h1.DUwDbe')?.textContent || document.querySelector('h1')?.textContent,
+            rating: rating,
+            category: document.querySelector('button[jsaction*="category"]')?.textContent,
+            phone: document.querySelector('button[data-item-id^="phone:tel:"]')?.textContent || 
+                   document.querySelector('[aria-label^="Phone:"]')?.textContent,
+            website: getWebsite(),
+            address: document.querySelector('button[data-item-id="address"]')?.textContent
+          };
+        });
+
+        const merged = {
+          id: i + 1,
+          name: this.cleanText(deepData.title || lead.name),
+          address: this.cleanText(deepData.address || lead.address),
+          phone: this.cleanText(deepData.phone || lead.phone),
+          website: deepData.website || lead.website || "N/A",
+          referenceLink: lead.link,
+          rating: this.cleanText(deepData.rating || lead.rating),
+          possibleEmails: [], 
+          source: "Google Maps",
+          scrapedAt: new Date().toISOString(),
+        };
+
+        if (merged.website && merged.website !== 'N/A') {
+          merged.possibleEmails = await this.findEmails(merged.website);
+        }
+
+        finalResults.push(merged);
+        console.log(`   [Maps] (${i + 1}/${limitedResults.length}) Processed: ${merged.name}`);
+
+      } catch (err) {
+        console.error(`   [Maps] Error processing ${lead.name}: ${err.message}`);
+        finalResults.push({
+          id: i + 1,
+          name: this.cleanText(lead.name),
+          address: this.cleanText(lead.address),
+          phone: this.cleanText(lead.phone),
+          website: lead.website,
+          referenceLink: lead.link,
+          rating: this.cleanText(lead.rating),
+          possibleEmails: [],
+          source: "Google Maps",
+          scrapedAt: new Date().toISOString(),
+        });
+      } finally {
+        if (detailPage) try { await detailPage.close(); } catch(e) {}
       }
-
-      finalResults.push({
-        id: finalResults.length + 1,
-        name: business.name,
-        address: business.address,
-        phone: cleanPhone,
-        website: business.website || "",
-        referenceLink: business.referenceLink || "",
-        possibleEmails: possibleEmails,
-        rating: business.rating || "N/A",
-        source: "Google Maps",
-        scrapedAt: new Date().toISOString(),
-      });
     }
 
     return finalResults;
@@ -239,50 +242,12 @@ class BusinessScraper {
 
   async close() {
     if (this.browser) {
-      await this.browser.close();
+      try {
+        await this.browser.close();
+      } catch(e) {}
+      this.browser = null;
     }
   }
-}
-
-// CLI Execution Block (Skipped when imported into scraper.js)
-const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
-
-if (isMainModule) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  console.log("=== Google Maps Lead Scraper ===");
-
-  rl.question("Enter the niche (e.g., plumbers, web design): ", (niche) => {
-    rl.question("Enter the location (e.g., New York, Jakarta): ", async (location) => {
-      console.log(`\n🚀 Starting scraper for "${niche}" in "${location}"...\n`);
-
-      const scraper = new BusinessScraper();
-
-      try {
-        await scraper.init();
-        const query = `${niche} in ${location}`;
-
-        await scraper.scrapeGoogleMaps(query, 999);
-        const top20Leads = await scraper.processResults(999);
-
-        const safeNiche = niche.replace(/\s+/g, "_").toLowerCase();
-        const safeLocation = location.replace(/\s+/g, "_").toLowerCase();
-        const filename = `${safeNiche}_${safeLocation}_leads.json`;
-
-        fs.writeFileSync(filename, JSON.stringify(top20Leads, null, 2));
-
-        console.log(`\n✅ Successfully scraped and saved ${top20Leads.length} leads to ${filename}`);
-      } catch (error) {
-        console.error("\n❌ An error occurred during execution:", error);
-      } finally {
-        await scraper.close();
-        rl.close();
-      }
-    });
-  });
 }
 
 export default BusinessScraper;

@@ -24,6 +24,11 @@ let currentUser = null;
 let totalLeads = 0;
 let totalPhones = 0;
 
+// Throttled UI State
+let _uiUpdateQueued = false;
+let _pendingEvents = [];
+const MAX_EVENTS_IN_DOM = 15;
+
 // ── Scrape Mode helpers ─────────────────────────────────────
 function getScrapeMode() {
   const checked = document.querySelector('input[name="scrapeMode"]:checked');
@@ -63,6 +68,14 @@ function updatePhoneQueryPreview() {
   phoneQueryExampleEl.textContent = `site:linkedin.com/in ${niche} "${city}" ${phoneTerm}`;
 }
 
+function getPlanLimits(plan) {
+  const p = (plan || '').toLowerCase().trim();
+  if (p === 'premium') return { daily: 6000, monthly: 180000, concurrentJobs: 5 };
+  if (p === 'advance') return { daily: 1000, monthly: 30000, concurrentJobs: 1 };
+  if (p === 'basic') return { daily: 300, monthly: 9000, concurrentJobs: 1 };
+  return { daily: 100, monthly: 3000, concurrentJobs: 1 };
+}
+
 async function checkAuth() {
   try {
     const user = await fetchJson("/api/me");
@@ -95,14 +108,15 @@ async function checkAuth() {
       }
 
       if (!showTrial) {
-        currentPlanEl.textContent = `${user.subscriptionPlan} Plan`;
+        const p = user.subscriptionPlan.toLowerCase().trim();
+        currentPlanEl.textContent = `${p.charAt(0).toUpperCase() + p.slice(1)} Plan`;
 
         // Color code by tier
-        if (user.subscriptionPlan === 'premium') {
+        if (p === 'premium') {
           currentPlanEl.style.color = '#10b981'; // Green
           currentPlanEl.style.borderColor = 'rgba(16, 185, 129, 0.3)';
           currentPlanEl.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
-        } else if (user.subscriptionPlan === 'advance') {
+        } else if (p === 'advance') {
           currentPlanEl.style.color = 'var(--blue-primary)';
           currentPlanEl.style.borderColor = 'rgba(59, 130, 246, 0.3)';
           currentPlanEl.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
@@ -120,14 +134,14 @@ async function checkAuth() {
         usageQuotaEl.style.display = 'inline-block';
         usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/Unlimited | Month: ${user.usage.monthlyCount}/Unlimited`;
       } else {
-        let dailyLimit = 300; let monthlyLimit = 9000;
-        if (user.subscriptionPlan !== 'basic') { dailyLimit = 100; monthlyLimit = 3000; }
+        const limits = getPlanLimits(user.subscriptionPlan);
         usageQuotaEl.style.display = 'inline-block';
-        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/${dailyLimit} | Month: ${user.usage.monthlyCount}/${monthlyLimit}`;
+        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/${limits.daily} | Month: ${user.usage.monthlyCount}/${limits.monthly}`;
       }
     }
 
     loadCountries();
+    loadCategories();
     loadHistory();
     startQueuePolling();
 
@@ -238,16 +252,11 @@ function setStatus(text, mode = 'idle') {
 
 function addEvent(payload) {
   const type = payload.type || '';
-  if (type === 'usage-update') return; 
+  if (type === 'usage-update') return;
 
-  // Update global counters for all saves
-  if (type === 'lead-saved') {
-    totalLeads++;
-    if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
-  } else if (type === 'phone-saved') {
-    totalPhones++;
-    if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
-  }
+  // Update global counters (DOM updating is deferred)
+  if (type === 'lead-saved') totalLeads++;
+  else if (type === 'phone-saved') totalPhones++;
 
   // Filter: Only show emails, phones, completion, or errors in the feed
   const isEmail = (type === 'lead-saved' && payload.email);
@@ -255,59 +264,79 @@ function addEvent(payload) {
   const isDone = type.includes('complete') || type.includes('done');
   const isError = type.includes('fail') || type.includes('error');
 
-  if (!isEmail && !isPhone && !isDone && !isError) return;
+  if (!isEmail && !isPhone && !isDone && !isError) {
+    // Still queue a UI update just for the counters, but no event log
+    queueUiUpdate();
+    return;
+  }
 
-  const row = document.createElement("li");
   let cls = 'ev--log';
   let content = '';
 
   if (isEmail) {
     cls = 'ev--email';
-    content = `<div class="ev-flex">
-      <span class="ev-icon">📧</span>
-      <div class="ev-body">
-        <div class="ev-label">New Email Found</div>
-        <div class="ev-value">${payload.email}</div>
-      </div>
-    </div>`;
+    content = `<div class="ev-flex"><span class="ev-icon">📧</span><div class="ev-body"><div class="ev-label">New Email Found</div><div class="ev-value">${payload.email}</div></div></div>`;
   } else if (isPhone) {
     cls = 'ev--phone';
-    content = `<div class="ev-flex">
-      <span class="ev-icon">📱</span>
-      <div class="ev-body">
-        <div class="ev-label">New Phone Found</div>
-        <div class="ev-value">${payload.phone}</div>
-      </div>
-    </div>`;
+    content = `<div class="ev-flex"><span class="ev-icon">📱</span><div class="ev-body"><div class="ev-label">New Phone Found</div><div class="ev-value">${payload.phone}</div></div></div>`;
   } else if (isDone) {
     cls = 'ev--done';
-    content = `<div class="ev-flex">
-      <span class="ev-icon">✅</span>
-      <div class="ev-body">
-        <div class="ev-label">Completed</div>
-        <div class="ev-value">${payload.message || 'Scraping finished successfully.'}</div>
-      </div>
-    </div>`;
+    content = `<div class="ev-flex"><span class="ev-icon">✅</span><div class="ev-body"><div class="ev-label">Completed</div><div class="ev-value">${payload.message || 'Scraping finished successfully.'}</div></div></div>`;
   } else if (isError) {
     cls = 'ev--error';
-    content = `<div class="ev-flex">
-      <span class="ev-icon">❌</span>
-      <div class="ev-body">
-        <div class="ev-label">Error</div>
-        <div class="ev-value">${payload.message || 'An error occurred.'}</div>
-      </div>
-    </div>`;
+    content = `<div class="ev-flex"><span class="ev-icon">❌</span><div class="ev-body"><div class="ev-label">Error</div><div class="ev-value">${payload.message || 'An error occurred.'}</div></div></div>`;
   }
 
-  row.className = `ev-item ${cls}`;
-  row.innerHTML = content;
-  
-  if (eventsEl) {
-    eventsEl.prepend(row);
-    while (eventsEl.children.length > 15) {
-      eventsEl.removeChild(eventsEl.lastChild);
-    }
+  _pendingEvents.push({ cls, content });
+
+  // Keep pending array small to avoid memory bloat
+  if (_pendingEvents.length > 50) {
+    _pendingEvents = _pendingEvents.slice(_pendingEvents.length - MAX_EVENTS_IN_DOM);
   }
+
+  queueUiUpdate();
+}
+
+/** 
+ * Batches DOM updates to run at most once every 300ms.
+ * Massively improves performance when processing thousands of leads per second.
+ */
+function queueUiUpdate() {
+  if (_uiUpdateQueued) return;
+  _uiUpdateQueued = true;
+
+  setTimeout(() => {
+    _uiUpdateQueued = false;
+
+    // Update counters
+    if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
+    if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
+
+    // Update Feed
+    if (eventsEl && _pendingEvents.length > 0) {
+      // Create a document fragment to append multiple items safely at once
+      const fragment = document.createDocumentFragment();
+
+      // We only insert the newest N items if there's a huge backlog
+      const toRender = _pendingEvents.slice(-MAX_EVENTS_IN_DOM).reverse();
+
+      for (const ev of toRender) {
+        const row = document.createElement("li");
+        row.className = `ev-item ${ev.cls}`;
+        row.innerHTML = ev.content;
+        fragment.appendChild(row);
+      }
+
+      eventsEl.prepend(fragment);
+
+      // Trim DOM elements
+      while (eventsEl.children.length > MAX_EVENTS_IN_DOM) {
+        eventsEl.removeChild(eventsEl.lastChild);
+      }
+
+      _pendingEvents = []; // clear queue
+    }
+  }, 300);
 }
 
 function attachToJob(jobId) {
@@ -318,11 +347,11 @@ function attachToJob(jobId) {
     const payload = JSON.parse(event.data);
     addEvent(payload);
 
-    const jobStatusEl = document.getElementById(`status-${jobId}`);
+    const jobStatusEl = document.getElementById(`status - ${jobId}`);
     if (jobStatusEl) {
       const s = payload.type.replace('job-', '');
       jobStatusEl.textContent = s.toUpperCase();
-      jobStatusEl.className = `status-${s}`;
+      jobStatusEl.className = `status - ${s}`;
     }
 
     if (payload.type === 'info' && payload.message === 'Job started') {
@@ -341,7 +370,8 @@ function attachToJob(jobId) {
       const usageQuotaEl = document.getElementById('usageQuotaEl');
       if (usageQuotaEl && payload.usage) {
         usageQuotaEl.style.display = 'inline-block';
-        usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount}/${payload.dailyLimit} | Month: ${payload.usage.monthlyCount}/${payload.monthlyLimit}`;
+        const limits = (currentUser && !currentUser.isAdmin) ? getPlanLimits(currentUser.subscriptionPlan) : { daily: payload.dailyLimit, monthly: payload.monthlyLimit };
+        usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount} / ${limits.daily} | Month: ${payload.usage.monthlyCount} / ${limits.monthly}`;
       }
     }
     if (payload.type === 'job-completed' || payload.type === 'job-complete' || payload.type === 'job-stopped' || payload.type === 'job-failed') {
@@ -376,7 +406,7 @@ function renderCheckboxList(container, values, selectAllEl) {
   }
   values.forEach((value) => {
     const label = document.createElement("label");
-    label.innerHTML = `<input type="checkbox" value="${value}" /> ${value}`;
+    label.innerHTML = `<input type = "checkbox" value = "${value}" /> ${value}`;
     container.appendChild(label);
   });
 }
@@ -418,7 +448,7 @@ async function fetchJson(url, options = {}) {
 async function loadCountries() {
   try {
     const metadata = await fetchJson("/api/metadata");
-    countryEl.innerHTML = metadata.countries.map((country) => `<option value="${country}">${country}</option>`).join("");
+    countryEl.innerHTML = metadata.countries.map((country) => `<option value = "${country}" > ${country}</option> `).join("");
     if (countryEl.value) {
       await loadLocationDetails(countryEl.value);
     }
@@ -448,7 +478,7 @@ async function loadCategories() {
     if (selectEl) {
       const currentVal = selectEl.value;
       selectEl.innerHTML = '<option value="">-- Select a Category --</option>' +
-        categories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+        categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
 
       const exists = categories.find(c => c.id === currentVal);
       if (exists) selectEl.value = currentVal;
@@ -459,7 +489,7 @@ async function loadCategories() {
     if (filterSelect) {
       const currentVal = filterSelect.value;
       filterSelect.innerHTML = '<option value="all">All Categories</option>' +
-        categories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+        categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
       const exists = categories.find(c => c.id === currentVal);
       filterSelect.value = exists ? currentVal : "all";
     }
@@ -527,7 +557,7 @@ async function loadHistory() {
     if (filterVal !== "all") {
       filteredHistory = history.filter(job => job.params.category === filterVal);
       if (filteredHistory.length === 0) {
-        historyEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px;padding:8px 0;">No jobs found in this category.</p>`;
+        historyEl.innerHTML = `<p style = "color:var(--text-muted);font-size:13px;padding:8px 0;" > No jobs found in this category.</p> `;
         return;
       }
     }
@@ -542,7 +572,7 @@ async function loadHistory() {
 
       let locationText = params.country;
       if (statesList.length > 0) {
-        locationText += ` &ndash; ${statesList.join(", ")}`;
+        locationText += ` &ndash; ${statesList.join(", ")} `;
       }
 
       let citiesText = "";
@@ -560,8 +590,8 @@ async function loadHistory() {
       const secondaryFiles = fileList.filter(f => !isPrimary(f) && (f.endsWith(".txt") || f.endsWith(".json")));
 
       const renderFileBtn = (f, isPhone) => {
-        const style = isPhone ? `border-color:var(--purple);color:var(--purple);background:rgba(139,92,246,0.12)` : ``;
-        return `<div style="display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:6px;">
+        const style = isPhone ? `border - color: var(--purple); color: var(--purple); background: rgba(139, 92, 246, 0.12)` : ``;
+        return `<div style = "display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:6px;" >
            <span style="font-size:13px; font-weight:500; color:#374151; display:flex; align-items:center; gap:6px; word-break: break-all;">
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
              ${f}
@@ -570,31 +600,31 @@ async function loadHistory() {
              <a href="#" onclick="openFilePreview('${job.id}', '${f}'); return false;" class="download-btn" style="padding: 4px 8px; ${style}">View</a>
              <a data-file-name="${f}" href="/api/jobs/${job.id}/files/${f}" target="_blank" class="download-btn" style="padding: 4px 8px; ${style}">Download</a>
            </div>
-         </div>`;
+         </div> `;
       };
 
       const primaryHtml = primaryFiles.map(f => renderFileBtn(f, f.includes("phone"))).join("");
       const secondaryHtml = secondaryFiles.map(f => renderFileBtn(f, f.includes("phone"))).join("");
 
       const toggleSecondaryBtn = secondaryFiles.length > 0
-        ? `<div style="width: 100%; margin-top: 5px;"><button class="btn btn--ghost btn--sm" onclick="toggleSecondaryFiles('sec-${job.id}')" style="font-size: 0.75rem; padding: 4px 8px; width:100%; justify-content:center;">Show all files (${secondaryFiles.length})</button></div>`
+        ? `<div style = "width: 100%; margin-top: 5px;" > <button class="btn btn--ghost btn--sm" onclick="toggleSecondaryFiles('sec-${job.id}')" style="font-size: 0.75rem; padding: 4px 8px; width:100%; justify-content:center;">Show all files (${secondaryFiles.length})</button></div> `
         : "";
 
       const fileButtons = `
         ${primaryHtml}
         ${toggleSecondaryBtn}
-        <div id="sec-${job.id}" style="display: none; width: 100%; margin-top: 8px; flex-direction: column;">
-          ${secondaryHtml}
-        </div>
-      `;
+  <div id="sec-${job.id}" style="display: none; width: 100%; margin-top: 8px; flex-direction: column;">
+    ${secondaryHtml}
+  </div>
+  `;
 
-      const isStoppable = job.status === "running" || job.status === "queued";
-      const stopButton = isStoppable ? `<button class="stop-btn" onclick="stopJob('${job.id}')">&#x25A0; Stop</button>` : "";
+      const isStoppable = job.status === "running";
+      const stopButton = isStoppable ? `<button class="stop-btn" onclick = "stopJob('${job.id}')" >&#x25A0; Stop</button> ` : "";
 
       const emailListId = `emails-${job.id}`;
 
       div.innerHTML = `
-        <div class="history-meta-row">
+    <div class="history-meta-row" >
           <div class="history-meta">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span class="history-date">${date}</span>
@@ -605,17 +635,17 @@ async function loadHistory() {
             </div>
             <div class="history-niches">${params.niches.join(" &middot; ")}</div>
           </div>
-          <div class="history-actions">
-            <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
-            ${stopButton}
-            <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
-          </div>
+    <div class="history-actions">
+      <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
+      ${stopButton}
+      <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
+    </div>
         </div>
-        ${job.error ? `<div class="error-message" style="margin-top:6px">Error: ${job.error}</div>` : ""}
-        <div id="${emailListId}" class="email-dropdown" style="display: none; flex-direction: column;">
-          ${fileButtons}
-        </div>
-      `;
+    ${job.error ? `<div class="error-message" style="margin-top:6px">Error: ${job.error}</div>` : ""}
+  <div id="${emailListId}" class="email-dropdown" style="display: none; flex-direction: column;">
+    ${fileButtons}
+  </div>
+  `;
       historyEl.appendChild(div);
     });
   } catch (error) {
@@ -643,7 +673,7 @@ window.toggleSecondaryFiles = function (id) {
     if (btn) {
       const isHidden = el.style.display === "none";
       const count = el.children.length;
-      btn.textContent = isHidden ? `Show all files (${count})` : `Hide extra files`;
+      btn.textContent = isHidden ? `Show all files(${count})` : `Hide extra files`;
     }
   }
 };
@@ -661,15 +691,31 @@ window.stopJob = async function (jobId) {
 
 async function updateQueueStatus() {
   try {
-    const status = await fetchJson("/api/queue");
-    if (queueStatusEl) queueStatusEl.textContent = `${status.active} active · ${status.queued} queued · max ${status.max}`;
+    const status = await fetchJson("/api/queue?_=" + Date.now());
+    if (queueStatusEl) {
+      let maxText;
+      if (currentUser) {
+        if (currentUser.isAdmin) {
+          maxText = 'Unlimited';
+        } else {
+          const limits = getPlanLimits(currentUser.subscriptionPlan);
+          maxText = limits?.concurrentJobs ?? 1;
+        }
+      } else {
+        maxText = '...';
+      }
+      queueStatusEl.textContent = `${status.active} active · max ${maxText} concurrent`;
+    }
   } catch (error) {
     console.error("Could not update queue status", error);
   }
 }
 
+let _queuePollingStarted = false;
 function startQueuePolling() {
   updateQueueStatus();
+  if (_queuePollingStarted) return; // prevent duplicate intervals
+  _queuePollingStarted = true;
   setInterval(updateQueueStatus, 5000);
 }
 
@@ -805,7 +851,8 @@ document.getElementById("run")?.addEventListener("click", async () => {
         const usageQuotaEl = document.getElementById('usageQuotaEl');
         if (usageQuotaEl && payload.usage) {
           usageQuotaEl.style.display = 'inline-block';
-          usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount}/${payload.dailyLimit} | Month: ${payload.usage.monthlyCount}/${payload.monthlyLimit}`;
+          const limits = (currentUser && !currentUser.isAdmin) ? getPlanLimits(currentUser.subscriptionPlan) : { daily: payload.dailyLimit, monthly: payload.monthlyLimit };
+          usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount}/${limits.daily} | Month: ${payload.usage.monthlyCount}/${limits.monthly}`;
         }
       }
 
@@ -988,12 +1035,7 @@ window.openFilePreview = async function (jobId, fileName) {
     console.error(err);
   }
 };
+// ── Initial Setup ─────────────────────────
 checkAuth();
-
-// Load initial data
-loadCountries();
-loadCategories();
-
-startQueuePolling();
 
 export { fetchJson, checkAuth as checkAuthAndSetupSidebar };

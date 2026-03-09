@@ -38,6 +38,8 @@
     "playwright": "^1.50.1",
     "prompt-sync": "^4.2.0",
     "puppeteer": "^23.11.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "stripe": "^20.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2",

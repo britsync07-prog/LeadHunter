@@ -1,4 +1,15 @@
 import "dotenv/config";
+
+// ── EPIPE Guard ──────────────────────────────────────────────────────────────
+// When a browser tab closes mid-scrape, Node throws EPIPE on the dead socket.
+// Without this handler the server crashes. We swallow EPIPE silently; all
+// other genuine uncaught exceptions still crash as expected.
+process.on("uncaughtException", (err) => {
+  if (err.code === "EPIPE") return; // Ignore broken-pipe from closed SSE clients
+  // Re-throw everything else so real bugs still surface
+  console.error("[Fatal] Uncaught exception:", err);
+  process.exit(1);
+});
 import express from "express";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -48,9 +59,9 @@ app.use((req, res, next) => {
 });
 
 app.use(helmet({
-  contentSecurityPolicy: false, 
+  contentSecurityPolicy: false,
 }));
-app.use(compression()); 
+app.use(compression());
 
 // --- STRIPE WEBHOOK ---
 app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req, res) => {
@@ -83,13 +94,14 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req
 
 app.use(express.json({ limit: "10mb" }));
 
-// Static files with caching
-const oneDay = 86400000;
+// Static files — no long-term caching so JS/CSS changes take effect immediately
 app.use(express.static(path.join(__dirname, "..", "public"), {
-  maxAge: oneDay,
-  setHeaders: (res, path) => {
-    if (path.endsWith(".html")) {
-      res.setHeader("Cache-Control", "public, max-age=0");
+  maxAge: 0,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".js") || filePath.endsWith(".css")) {
+      res.setHeader("Cache-Control", "no-store");
+    } else if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-store");
     }
   }
 }));
@@ -98,8 +110,8 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 app.use(
   session({
     store: new SQLiteSessionStore({
-        db: 'sessions.db',
-        dir: path.join(__dirname, "..", "data")
+      db: 'sessions.db',
+      dir: path.join(__dirname, "..", "data")
     }),
     secret: process.env.SESSION_SECRET || "company-secret-key-12345",
     resave: false,
@@ -114,18 +126,18 @@ app.use(
 // --- RATE LIMITERS ---
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50, 
+  max: 50,
   message: { error: "Too many login/register attempts." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const apiLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000,
-    max: 200, 
-    message: { error: "Too many API requests." },
-    standardHeaders: true,
-    legacyHeaders: false,
+  windowMs: 1 * 60 * 1000,
+  max: 200,
+  message: { error: "Too many API requests." },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 app.use("/api/login", authLimiter);
@@ -140,7 +152,7 @@ const locationCache = {
 // --- SENDER TRACKING SECURITY & ROUTES ---
 const trackingLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 2000, 
+  max: 2000,
   message: "Too many tracking requests.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -200,11 +212,11 @@ app.post("/api/external/jobs", requireApiKey, async (req, res) => {
 
   if (cities.length === 0) return res.status(400).json({ error: "No cities found or provided for the given location." });
 
-  const job = queue.addJob({ 
-    id: crypto.randomUUID(), 
-    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100 } 
+  const job = queue.addJob({
+    id: crypto.randomUUID(),
+    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100 }
   }, "external_server");
-  
+
   res.status(202).json({ jobId: job.id, status: job.status });
 });
 
@@ -234,7 +246,7 @@ app.get("/api/external/jobs/:jobId/download/:fileName", requireApiKey, (req, res
   const { jobId, fileName } = req.params;
   const job = queue.getJob(jobId);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  
+
   const filePath = path.join(__dirname, "..", "output", jobId, fileName);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
   return res.download(filePath);
@@ -330,12 +342,12 @@ app.get("/api/checkout/session", requireAuth, async (req, res) => {
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{
-          price_data: {
-            currency: "usd",
-            product_data: { name: `LeadHunter ${plan} Subscription` },
-            unit_amount: plan === 'basic' ? 900 : plan === 'advance' ? 2900 : 4900,
-          },
-          quantity: 1,
+        price_data: {
+          currency: "usd",
+          product_data: { name: `LeadHunter ${plan} Subscription` },
+          unit_amount: plan === 'basic' ? 900 : plan === 'advance' ? 2900 : 4900,
+        },
+        quantity: 1,
       }],
       mode: "payment",
       success_url: `${domain}/dashboard.html?checkout=success`,
@@ -366,7 +378,8 @@ app.post("/api/logout", (req, res) => {
 
 app.get("/api/me", (req, res) => {
   if (req.session.user) {
-    const activeJob = Array.from(queue.jobs.values()).find(j => j.userId === req.session.user.username && (j.status === "running" || j.status === "queued"));
+    // Only jobs with status 'running' count — no queue anymore
+    const activeJob = Array.from(queue.jobs.values()).find(j => j.userId === req.session.user.username && j.status === "running");
     const usage = queue.getUserUsage(req.session.user.username);
     const freshUser = db.prepare("SELECT subscriptionPlan, trialEndsAt, email, isAdmin FROM users WHERE id = ?").get(req.session.user.id);
     if (freshUser) {
@@ -399,7 +412,7 @@ async function fetchJson(url, options = {}) {
 async function getCountries() {
   if (locationCache.countries) return locationCache.countries;
   const payload = await fetchJson(`${COUNTRY_API}/countries`);
-  locationCache.countries = (payload.data || []).map(i => i.country).filter(Boolean).sort((a,b) => a.localeCompare(b));
+  locationCache.countries = (payload.data || []).map(i => i.country).filter(Boolean).sort((a, b) => a.localeCompare(b));
   return locationCache.countries;
 }
 
@@ -410,8 +423,8 @@ async function getCountryDetails(country) {
     fetchJson(`${COUNTRY_API}/countries/cities`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ country }) })
   ]);
   const details = {
-    states: Array.from(new Set((s.data?.states || []).map(i => i.name).filter(Boolean).sort((a,b) => a.localeCompare(b)))),
-    cities: Array.from(new Set((c.data || []).filter(Boolean).sort((a,b) => a.localeCompare(b))))
+    states: Array.from(new Set((s.data?.states || []).map(i => i.name).filter(Boolean).sort((a, b) => a.localeCompare(b)))),
+    cities: Array.from(new Set((c.data || []).filter(Boolean).sort((a, b) => a.localeCompare(b))))
   };
   locationCache.details.set(country, details);
   return details;
@@ -423,7 +436,7 @@ async function getCitiesForState(country, state) {
   if (stateCityCache.has(key)) return stateCityCache.get(key);
   try {
     const p = await fetchJson(`${COUNTRY_API}/countries/state/cities`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ country, state }) });
-    const cities = (p.data || []).filter(Boolean).sort((a,b) => a.localeCompare(b));
+    const cities = (p.data || []).filter(Boolean).sort((a, b) => a.localeCompare(b));
     stateCityCache.set(key, cities);
     return cities;
   } catch { return []; }
@@ -477,25 +490,53 @@ app.post("/api/categories", requireAuth, (req, res) => {
 
 app.post("/api/jobs", requireAuth, async (req, res) => {
   const { country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, category } = req.body || {};
-  if (queue.hasUserActiveJob(req.session.user.username)) return res.status(429).json({ error: "Active job exists" });
-  if (!country || !cities?.length || !niches?.length) return res.status(400).json({ error: "Missing required fields" });
-
-  const userPlan = req.session.user.subscriptionPlan || 'basic';
+  const userPlan = req.session.user.subscriptionPlan || 'free';
   const isAdmin = !!req.session.user.isAdmin;
+
+  // Usage / scrape-mode restrictions (non-admins only)
   const usage = queue.getUserUsage(req.session.user.username);
 
   if (!isAdmin) {
-    if (userPlan === 'basic') {
-      if (includeGoogleMaps || scrapeMode !== 'emails') return res.status(403).json({ error: "Upgrade plan for Maps/Phones" });
-      if (usage.dailyCount >= 300 || usage.monthlyCount >= 9000) return res.status(403).json({ error: "Limit reached" });
-    } else {
+    let dailyLimit = 100;
+    let monthlyLimit = 3000;
+
+    if (userPlan === 'premium') {
+      dailyLimit = 6000;
+      monthlyLimit = 180000;
       if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Premium plan requires Maps+Both" });
-      if (usage.dailyCount >= 100 || usage.monthlyCount >= 3000) return res.status(403).json({ error: "Limit reached" });
+    } else if (userPlan === 'advance') {
+      dailyLimit = 1000;
+      monthlyLimit = 30000;
+      if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Advance plan requires Maps+Both" });
+    } else if (userPlan === 'basic') {
+      dailyLimit = 300;
+      monthlyLimit = 9000;
+      if (includeGoogleMaps || scrapeMode !== 'emails') return res.status(403).json({ error: "Upgrade plan for Maps/Phones" });
+    } else {
+      // free
+      dailyLimit = 100;
+      monthlyLimit = 3000;
+    }
+
+    if (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit) {
+      return res.status(403).json({ error: "Limit reached" });
     }
   }
 
   try { await getCountryDetails(country); } catch (e) { return res.status(502).json({ error: e.message }); }
-  const job = queue.addJob({ id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan, isAdmin } }, req.session.user.username);
+
+  // addJob handles concurrent-limit check internally — no queue, instant reject
+  const effectivePlan = isAdmin ? 'admin' : userPlan;
+  const job = queue.addJob(
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin } },
+    req.session.user.username // username is the userId key used throughout the queue
+  );
+
+  if (job.status === 'failed') {
+    // Job was instantly rejected due to concurrent limit
+    return res.status(429).json({ error: job.error });
+  }
+
   res.status(202).json({ jobId: job.id, status: job.status });
 });
 
@@ -505,13 +546,25 @@ app.get("/api/jobs/:jobId/events", requireAuth, (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
-  
-  for (const event of job.events) {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+  // Prevent EPIPE from crashing the server when the client closes the tab
+  res.socket?.on("error", () => {
+    job.listeners.delete(res);
+  });
+
+  try {
+    res.flushHeaders();
+    // Replay past events so reconnecting clients don't miss anything
+    for (const event of job.events) {
+      if (res.writableEnded || res.destroyed) break;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
     if (res.flush) res.flush();
+  } catch {
+    // Client already closed — nothing to do
+    return undefined;
   }
-  
+
   job.listeners.add(res);
   req.on("close", () => job.listeners.delete(res));
   return undefined;
@@ -535,6 +588,7 @@ app.get("/api/history", requireAuth, (req, res) => {
 });
 
 app.get("/api/queue", requireAuth, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.json(queue.getQueueStatus());
 });
 

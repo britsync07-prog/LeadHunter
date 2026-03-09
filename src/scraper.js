@@ -104,25 +104,14 @@ export class LeadScraper {
           await this.mapsScraper.scrapeGoogleMaps(query, 999);
           let leads = await this.mapsScraper.processResults(999);
 
-          if (userPlan === 'advance' || userPlan === 'premium') {
-            const originalCount = leads.length;
-            leads = leads.filter(lead => {
-              const hasEmail = lead.possibleEmails && lead.possibleEmails.length > 0;
-              const rawPhone = lead.phone || "";
-              const extractedPhones = rawPhone
-                ? extractPhones(rawPhone, country)
-                : extractPhones([lead.name, lead.address].join(" "), country);
-              return hasEmail && extractedPhones.length > 0;
-            });
-            this.onProgress({ type: "log", message: `[Maps] Quality Filter: Kept ${leads.length}/${originalCount} leads.` });
-          }
+          // Removed Quality Filter to ensure ALL maps leads are saved
 
           const mapsLeadsJsonName = `maps_${safeCity}_leads.json`;
           await fsPromises.writeFile(path.join(outputDir, mapsLeadsJsonName), JSON.stringify(leads, null, 2));
 
           let newEmailsFound = 0;
           let newPhonesFound = 0;
-          
+
           for (const lead of leads) {
             for (const email of lead.possibleEmails) {
               const eLower = email.toLowerCase();
@@ -230,9 +219,9 @@ export class LeadScraper {
     const runScraperProcess = (cmd, args, name, payloadData) => {
       return new Promise((resolve, reject) => {
         // Use stdin to pass large payloads to avoid E2BIG (ARG_MAX limit)
-        this.child = spawn(cmd, args, { 
-          stdio: ["pipe", "pipe", "pipe"], 
-          env: { ...process.env, PYTHONUNBUFFERED: "1" } 
+        this.child = spawn(cmd, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+          env: { ...process.env, PYTHONUNBUFFERED: "1" }
         });
 
         if (payloadData) {
@@ -282,7 +271,7 @@ export class LeadScraper {
     const filesList = await fsPromises.readdir(outputDir);
     const files = filesList.filter(f => f.endsWith('.txt') || f.endsWith('.json') || f.endsWith('.csv'));
     this.onProgress({ type: "job-complete", files, message: "Scraping completed." });
-    
+
     this.child = null;
     this.isStopped = false;
     return { files, expandedNiches: expandedNichesList, sites: this.sites };

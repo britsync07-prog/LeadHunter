@@ -673,20 +673,21 @@ Gym Coach"
     document.getElementById('profileEmail').textContent = user.email || 'No email on record';
 
     const isTrialing = user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
+    const rawPlan = (user.subscriptionPlan || '').toLowerCase().trim();
     let planLabel = user.subscriptionPlan || '–';
     if (isTrialing) {
       const days = Math.ceil((new Date(user.trialEndsAt) - new Date()) / 86400000);
       planLabel = `Free Trial · ${days}d left`;
       document.getElementById('profilePlan').style.color = '#3b82f6';
-    } else if (user.subscriptionPlan === 'premium') {
+    } else if (rawPlan === 'premium') {
       document.getElementById('profilePlan').style.color = '#10b981';
     } else {
       document.getElementById('profilePlan').style.color = '#6366f1';
     }
     document.getElementById('profilePlan').textContent = planLabel.charAt(0).toUpperCase() + planLabel.slice(1);
 
-    const dailyLimit = user.subscriptionPlan === 'basic' ? 100 : 300;
-    const monthlyLimit = user.subscriptionPlan === 'basic' ? 3000 : 9000;
+    const dailyLimit = rawPlan === 'premium' ? 6000 : (rawPlan === 'advance' ? 1000 : (rawPlan === 'basic' ? 300 : 100));
+    const monthlyLimit = rawPlan === 'premium' ? 180000 : (rawPlan === 'advance' ? 30000 : (rawPlan === 'basic' ? 9000 : 3000));
     const d = user.usage?.dailyCount ?? 0;
     const m = user.usage?.monthlyCount ?? 0;
     document.getElementById('profileDailyUsage').textContent = `${d} / ${dailyLimit}`;
@@ -734,4 +735,4 @@ Gym Coach"
   });
 </script>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=2.2"></script>
