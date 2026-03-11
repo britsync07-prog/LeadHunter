@@ -40,11 +40,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (e.g. Nginx)
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 const COUNTRY_API = "https://countriesnow.space/api/v0.1";
-
-app.set('trust proxy', true);
 
 // --- GLOBAL ERROR HANDLERS (Prevent Puppeteer fatal crashes) ---
 process.on('unhandledRejection', (reason, promise) => {
@@ -143,7 +142,11 @@ const authLimiter = rateLimit({
   message: { error: "Too many login/register attempts." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false },
+  validate: { 
+    ip: false,
+    trustProxy: false,
+    xForwardedForHeader: false 
+  },
 });
 
 const apiLimiter = rateLimit({
@@ -152,7 +155,11 @@ const apiLimiter = rateLimit({
   message: { error: "Too many API requests." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false },
+  validate: { 
+    ip: false,
+    trustProxy: false,
+    xForwardedForHeader: false 
+  },
 });
 
 app.use("/api/login", authLimiter);
