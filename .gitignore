@@ -20,6 +20,7 @@ data/*.db-wal
 data/*.db-shm
 data/*.json
 data/*.bak
+data/sessions/
 !data/.gitkeep
 
 # Scraping logs and progress
