@@ -38,9 +38,35 @@ async function init() {
 
         document.getElementById('adminUsername').textContent = `admin: ${me.username}`;
         await loadUsers();
+        setupMobileMenu();
     } catch {
         window.location.href = '/login.html';
     }
+}
+
+function setupMobileMenu() {
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileOverlay = document.getElementById('mobileOverlay');
+    const sidebar = document.querySelector('aside');
+
+    if (!mobileMenuBtn || !mobileOverlay || !sidebar) return;
+
+    const toggle = () => {
+        sidebar.classList.toggle('active');
+        mobileOverlay.classList.toggle('active');
+    };
+
+    mobileMenuBtn.addEventListener('click', toggle);
+    mobileOverlay.addEventListener('click', toggle);
+
+    // Close sidebar when clicking a nav item on mobile
+    sidebar.querySelectorAll('nav a').forEach(link => {
+        link.addEventListener('click', () => {
+            if (sidebar.classList.contains('active')) {
+                toggle();
+            }
+        });
+    });
 }
 
 // ─── Load & render users ───────────────────────────────────────

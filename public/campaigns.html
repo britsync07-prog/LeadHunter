@@ -233,6 +233,42 @@
             display: flex;
             gap: 10px;
         }
+
+        /* --- MOBILE RESPONSIVENESS for 3-Panel Layout --- */
+        @media (max-width: 1024px) {
+            .categories-layout {
+                flex-direction: column;
+                height: auto;
+                overflow-y: auto;
+            }
+
+            .panel-sidebar,
+            .panel-center,
+            .panel-right {
+                width: 100% !important;
+                min-width: 100% !important;
+                height: auto !important;
+                min-height: auto !important;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .panel-sidebar {
+                max-height: 300px;
+            }
+
+            .panel-center {
+                max-height: 400px;
+            }
+
+            .panel-right {
+                min-height: 500px;
+            }
+
+            body {
+                overflow: auto;
+            }
+        }
     </style>
 </head>
 

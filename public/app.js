@@ -181,9 +181,36 @@ async function checkAuth() {
     if (user.isAdmin) {
         initAutoMailUI();
     }
+
+    setupMobileMenu();
   } catch (error) {
     window.location.href = "/login.html";
   }
+}
+
+function setupMobileMenu() {
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const mobileOverlay = document.getElementById('mobileOverlay');
+  const sidebar = document.querySelector('aside');
+
+  if (!mobileMenuBtn || !mobileOverlay || !sidebar) return;
+
+  const toggle = () => {
+    sidebar.classList.toggle('active');
+    mobileOverlay.classList.toggle('active');
+  };
+
+  mobileMenuBtn.addEventListener('click', toggle);
+  mobileOverlay.addEventListener('click', toggle);
+
+  // Close sidebar when clicking a nav item on mobile
+  sidebar.querySelectorAll('nav a').forEach(link => {
+    link.addEventListener('click', () => {
+      if (sidebar.classList.contains('active')) {
+        toggle();
+      }
+    });
+  });
 }
 
 function applySubscriptionLocks(plan, isAdmin) {
@@ -755,8 +782,8 @@ async function loadHistory() {
       const secondaryFiles = fileList.filter(f => !isPrimary(f) && (f.endsWith(".txt") || f.endsWith(".json")));
 
       const renderFileBtn = (f, isPhone) => {
-        const style = isPhone ? `border - color: var(--purple); color: var(--purple); background: rgba(139, 92, 246, 0.12)` : ``;
-        return `<div style = "display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:6px;" >
+        const style = isPhone ? `border-color: var(--purple); color: var(--purple); background: rgba(139, 92, 246, 0.12)` : ``;
+        return `<div class="history-file-row">
            <span style="font-size:13px; font-weight:500; color:#374151; display:flex; align-items:center; gap:6px; word-break: break-all;">
              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
              ${f}
