@@ -20,6 +20,21 @@ const livePhoneCountEl = document.getElementById("livePhoneCount");
 const phoneQueryPreviewEl = document.getElementById("phoneQueryPreview");
 const phoneQueryExampleEl = document.getElementById("phoneQueryExample");
 
+// Auto-Mail Elements
+const adminAutoMailCard = document.getElementById('adminAutoMailCard');
+const enableAutoMailEl = document.getElementById('enableAutoMail');
+const autoMailSettingsEl = document.getElementById('autoMailSettings');
+const templateSelectEl = document.getElementById('autoMailTemplateSelect');
+const templateNameEl = document.getElementById('autoMailTemplateName');
+const senderNameEl = document.getElementById('autoMailSenderName');
+const subjectEl = document.getElementById('autoMailSubject');
+const htmlEl = document.getElementById('autoMailHtml');
+const smtpListEl = document.getElementById('autoMailSmtpList');
+const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
+const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
+
+let autoMailTemplates = [];
+
 let currentUser = null;
 let totalLeads = 0;
 let totalPhones = 0;
@@ -80,6 +95,12 @@ async function checkAuth() {
   try {
     const user = await fetchJson("/api/me");
     currentUser = user;
+
+    if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'free') {
+      window.location.href = "/expired.html";
+      return;
+    }
+
     userInfoEl.textContent = `Logged in as: ${user.username}`;
 
     // Show Admin Panel link if user is an admin
@@ -155,6 +176,10 @@ async function checkAuth() {
 
     if (user.activeJobId) {
       attachToJob(user.activeJobId);
+    }
+
+    if (user.isAdmin) {
+        initAutoMailUI();
     }
   } catch (error) {
     window.location.href = "/login.html";
@@ -254,13 +279,15 @@ function addEvent(payload) {
   const type = payload.type || '';
   if (type === 'usage-update') return;
 
-  // Update global counters (DOM updating is deferred)
-  if (type === 'lead-saved') totalLeads++;
-  else if (type === 'phone-saved') totalPhones++;
-
-  // Filter: Only show emails, phones, completion, or errors in the feed
+  // Format rules
   const isEmail = (type === 'lead-saved' && payload.email);
   const isPhone = (type === 'phone-saved' && payload.phone);
+
+  // Update global counters only for strictly validated events
+  if (isEmail) totalLeads++;
+  else if (isPhone) totalPhones++;
+
+  // Filter: Only show emails, phones, completion, or errors in the feed
   const isDone = type.includes('complete') || type.includes('done');
   const isError = type.includes('fail') || type.includes('error');
 
@@ -425,6 +452,144 @@ function setupSelectAll(selectAllEl, container) {
 setupSelectAll(selectAllStates, stateContainer);
 setupSelectAll(selectAllCities, cityContainer);
 
+// --- AUTO-MAIL (ADMIN) UI LOGIC ---
+async function initAutoMailUI() {
+    if (!adminAutoMailCard) return;
+    adminAutoMailCard.style.display = 'block';
+
+    enableAutoMailEl.addEventListener('change', () => {
+        autoMailSettingsEl.style.display = enableAutoMailEl.checked ? 'block' : 'none';
+        if (enableAutoMailEl.checked) {
+            loadAutoMailTemplates();
+            loadSenderSmtps();
+        }
+    });
+
+    templateSelectEl.addEventListener('change', () => {
+        const val = templateSelectEl.value;
+        if (val === 'new') {
+            resetAutoMailForm();
+        } else {
+            const t = autoMailTemplates.find(x => x.id === val);
+            if (t) populateAutoMailForm(t);
+        }
+    });
+
+    btnSaveTemplateEl.addEventListener('click', async () => {
+        const payload = {
+            id: templateSelectEl.value === 'new' ? null : templateSelectEl.value,
+            name: templateNameEl.value.trim(),
+            senderName: senderNameEl.value.trim(),
+            subject: subjectEl.value.trim(),
+            htmlContent: htmlEl.value.trim(),
+            smtpAccountIds: [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value)
+        };
+
+        if (!payload.name || !payload.senderName || !payload.subject || !payload.htmlContent) {
+            alert("Please fill in all template fields.");
+            return;
+        }
+
+        try {
+            btnSaveTemplateEl.disabled = true;
+            btnSaveTemplateEl.textContent = 'Saving...';
+            const res = await fetchJson('/api/admin/auto-mail-templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.success) {
+                alert("Template saved!");
+                await loadAutoMailTemplates();
+                templateSelectEl.value = res.id;
+            }
+        } catch (err) {
+            alert("Failed to save template: " + err.message);
+        } finally {
+            btnSaveTemplateEl.disabled = false;
+            btnSaveTemplateEl.textContent = 'Save Template';
+        }
+    });
+
+    btnDeleteTemplateEl.addEventListener('click', async () => {
+        const id = templateSelectEl.value;
+        if (id === 'new') return;
+        if (!confirm("Are you sure you want to delete this template?")) return;
+
+        try {
+            await fetchJson(`/api/admin/auto-mail-templates/${id}`, { method: 'DELETE' });
+            alert("Template deleted.");
+            await loadAutoMailTemplates();
+            resetAutoMailForm();
+        } catch (err) {
+            alert("Failed to delete template: " + err.message);
+        }
+    });
+}
+
+async function loadAutoMailTemplates() {
+    try {
+        const data = await fetchJson('/api/admin/auto-mail-templates');
+        autoMailTemplates = data.templates || [];
+        renderAutoMailTemplates();
+    } catch (err) {
+        console.error("Failed to load auto-mail templates:", err);
+    }
+}
+
+function renderAutoMailTemplates() {
+    const currentVal = templateSelectEl.value;
+    templateSelectEl.innerHTML = '<option value="new">+ Create New Template</option>' +
+        autoMailTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    if (autoMailTemplates.find(t => t.id === currentVal)) {
+        templateSelectEl.value = currentVal;
+    }
+}
+
+async function loadSenderSmtps() {
+    try {
+        const data = await fetchJson('/api/sender/smtp');
+        const accounts = data.accounts || [];
+        if (accounts.length === 0) {
+            smtpListEl.innerHTML = '<div class="text-[10px] text-slate-500 italic">No SMTP accounts found in Sender.</div>';
+            return;
+        }
+
+        const selectedIds = templateSelectEl.value !== 'new' 
+            ? (autoMailTemplates.find(t => t.id === templateSelectEl.value)?.smtpAccountIds || [])
+            : [];
+
+        smtpListEl.innerHTML = accounts.map(acc => `
+            <label class="flex items-center gap-2 p-1.5 hover:bg-red-50 rounded cursor-pointer transition-colors">
+                <input type="checkbox" value="${acc.id}" class="w-3.5 h-3.5 text-red-600 rounded border-slate-300" ${selectedIds.includes(acc.id) ? 'checked' : ''}>
+                <span class="text-[11px] font-medium text-slate-700 truncate">${acc.user} (${acc.host})</span>
+            </label>
+        `).join('');
+    } catch (err) {
+        smtpListEl.innerHTML = '<div class="text-[10px] text-red-500">Failed to load SMTP accounts.</div>';
+    }
+}
+
+function resetAutoMailForm() {
+    templateNameEl.value = '';
+    senderNameEl.value = '';
+    subjectEl.value = '';
+    htmlEl.value = '';
+    smtpListEl.querySelectorAll('input').forEach(i => i.checked = false);
+}
+
+function populateAutoMailForm(t) {
+    templateNameEl.value = t.name;
+    senderNameEl.value = t.senderName;
+    subjectEl.value = t.subject;
+    htmlEl.value = t.htmlContent;
+    
+    const checkboxes = smtpListEl.querySelectorAll('input');
+    checkboxes.forEach(i => {
+        i.checked = t.smtpAccountIds.includes(i.value);
+    });
+}
+
 async function fetchJson(url, options = {}) {
   // Always include session cookie for backend authentication
   options.credentials = options.credentials || "include";
@@ -477,7 +642,7 @@ async function loadCategories() {
     const selectEl = document.getElementById("jobCategory");
     if (selectEl) {
       const currentVal = selectEl.value;
-      selectEl.innerHTML = '<option value="">-- Select a Category --</option>' +
+      selectEl.innerHTML = '<option value="">-- Select a Campaign --</option>' +
         categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
 
       const exists = categories.find(c => c.id === currentVal);
@@ -488,7 +653,7 @@ async function loadCategories() {
     const filterSelect = document.getElementById("historyCategoryFilter");
     if (filterSelect) {
       const currentVal = filterSelect.value;
-      filterSelect.innerHTML = '<option value="all">All Categories</option>' +
+      filterSelect.innerHTML = '<option value="all">All Campaigns</option>' +
         categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
       const exists = categories.find(c => c.id === currentVal);
       filterSelect.value = exists ? currentVal : "all";
@@ -503,7 +668,7 @@ const addCategoryBtn = document.getElementById("addCategoryBtn");
 if (addCategoryBtn) {
   addCategoryBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
-    const name = prompt("Enter a name for the new category:");
+    const name = prompt("Enter a name for the new campaign:");
     if (!name?.trim()) return;
 
     try {
@@ -514,7 +679,7 @@ if (addCategoryBtn) {
       });
 
       if (!res.ok) {
-        let errorMsg = "Failed to create category";
+        let errorMsg = "Failed to create campaign";
         try {
           const data = await res.json();
           errorMsg = data.error || errorMsg;
@@ -531,7 +696,7 @@ if (addCategoryBtn) {
       if (selectEl) selectEl.value = category.id;
 
     } catch (err) {
-      alert("Error creating category");
+      alert("Error creating campaign");
       console.error(err);
     }
   });
@@ -557,7 +722,7 @@ async function loadHistory() {
     if (filterVal !== "all") {
       filteredHistory = history.filter(job => job.params.category === filterVal);
       if (filteredHistory.length === 0) {
-        historyEl.innerHTML = `<p style = "color:var(--text-muted);font-size:13px;padding:8px 0;" > No jobs found in this category.</p> `;
+        historyEl.innerHTML = `<p style = "color:var(--text-muted);font-size:13px;padding:8px 0;" > No jobs found in this campaign.</p> `;
         return;
       }
     }
@@ -619,7 +784,9 @@ async function loadHistory() {
   `;
 
       const isStoppable = job.status === "running";
-      const stopButton = isStoppable ? `<button class="stop-btn" onclick = "stopJob('${job.id}')" >&#x25A0; Stop</button> ` : "";
+      const isRestartable = job.status === "failed" || job.status === "stopped";
+      const stopButton = isStoppable ? `<button class="stop-btn" onclick="stopJob('${job.id}')">&#x25A0; Stop</button>` : "";
+      const restartButton = isRestartable ? `<button class="restart-btn" onclick="restartJob('${job.id}')" style="background:var(--blue-primary); color:white; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">&#x21BB; Restart</button>` : "";
 
       const emailListId = `emails-${job.id}`;
 
@@ -638,6 +805,7 @@ async function loadHistory() {
     <div class="history-actions">
       <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
       ${stopButton}
+      ${restartButton}
       <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
     </div>
         </div>
@@ -686,6 +854,21 @@ window.stopJob = async function (jobId) {
     updateQueueStatus();
   } catch (error) {
     alert("Failed to stop job: " + error.message);
+  }
+};
+
+window.restartJob = async function (jobId) {
+  if (!confirm("Are you sure you want to restart this job? It will resume from the last saved state.")) return;
+  try {
+    const res = await fetchJson(`/api/jobs/${jobId}/restart`, { method: "POST" });
+    if (res.success) {
+      alert("Job restart requested!");
+      loadHistory();
+      updateQueueStatus();
+      if (typeof attachToJob === 'function') attachToJob(jobId);
+    }
+  } catch (error) {
+    alert("Failed to restart job: " + error.message);
   }
 };
 
@@ -803,6 +986,27 @@ document.getElementById("run")?.addEventListener("click", async () => {
   filesEl.innerHTML = "";
 
   try {
+    const jobCategory = document.getElementById("jobCategory")?.value;
+
+    let autoMailConfig = null;
+    if (currentUser?.isAdmin && enableAutoMailEl?.checked) {
+        const smtpAccountIds = [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value);
+        if (smtpAccountIds.length === 0) {
+            alert("Please select at least one SMTP account for Auto-Mail.");
+            return;
+        }
+        autoMailConfig = {
+            senderName: senderNameEl.value.trim(),
+            subject: subjectEl.value.trim(),
+            htmlContent: htmlEl.value.trim(),
+            smtpAccountIds
+        };
+        if (!autoMailConfig.senderName || !autoMailConfig.subject || !autoMailConfig.htmlContent) {
+            alert("Please fill in all Auto-Mail template fields.");
+            return;
+        }
+    }
+
     const { jobId, status } = await fetchJson("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -814,7 +1018,8 @@ document.getElementById("run")?.addEventListener("click", async () => {
         includeGoogleMaps,
         scrapeMode,
         sites,
-        category: document.getElementById("jobCategory")?.value || undefined
+        category: jobCategory,
+        autoMailConfig
       })
     });
 

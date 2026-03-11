@@ -5,6 +5,22 @@ import fsPromises from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import BusinessScraper from "./maps.js";
 import { extractPhones, buildPhoneQueryTerm } from "./phone_utils.js";
+import db from "./sender/models/db.js";
+import { v4 as uuidv4 } from 'uuid';
+
+// Helper to check/save global duplicates
+function isDuplicate(value, type, jobId) {
+  try {
+    const existing = db.prepare("SELECT 1 FROM scraped_leads_master WHERE value = ?").get(value);
+    if (existing) return true;
+    
+    db.prepare("INSERT INTO scraped_leads_master (id, value, type, jobId) VALUES (?, ?, ?, ?)")
+      .run(uuidv4(), value, type, jobId);
+    return false;
+  } catch (e) {
+    return false; // Fallback to non-duplicate if DB fails
+  }
+}
 
 const nicheExpansionDictionary = {
   fitness: ["Fitness Coach", "Gym Instructor", "Personal Trainer", "Yoga Instructor", "Pilates Teacher"],
@@ -70,7 +86,7 @@ export class LeadScraper {
     return true;
   }
 
-  async runMapsScraper({ country, cities, niches, outputDir, userPlan }) {
+  async runMapsScraper({ jobId, country, cities, niches, outputDir, userPlan }) {
     this.mapsScraper = new BusinessScraper();
     await this.mapsScraper.init();
 
@@ -90,101 +106,119 @@ export class LeadScraper {
       data.split("\n").forEach(p => { if (p.trim()) seenPhones.add(p.trim()); });
     }
 
+    const progressFile = path.join(outputDir, "maps_progress.json");
+    let startCityIdx = 0;
+    let startNicheIdx = 0;
+    if (fs.existsSync(progressFile)) {
+      try {
+        const prog = JSON.parse(await fsPromises.readFile(progressFile, "utf8"));
+        startCityIdx = prog.cityIdx || 0;
+        startNicheIdx = prog.nicheIdx || 0;
+        this.onProgress({ type: "log", message: `[Maps] Auto-resuming from City index ${startCityIdx}, Niche index ${startNicheIdx}` });
+      } catch (e) {}
+    }
+
     try {
-      for (const city of cities) {
+      for (let cIdx = 0; cIdx < cities.length; cIdx++) {
+        if (cIdx < startCityIdx) continue;
+        const city = cities[cIdx];
         if (this.isStopped) break;
         const safeCity = city.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-        for (const niche of niches) {
+        for (let nIdx = 0; nIdx < niches.length; nIdx++) {
+          if (cIdx === startCityIdx && nIdx < startNicheIdx) continue;
+          const niche = niches[nIdx];
           if (this.isStopped) break;
 
           const query = `"${niche}" in "${city} ${country}"`;
           this.onProgress({ type: "log", message: `[Maps] Searching: ${query}` });
 
           await this.mapsScraper.scrapeGoogleMaps(query, 999);
-          let leads = await this.mapsScraper.processResults(999);
-
-          // Removed Quality Filter to ensure ALL maps leads are saved
-
-          const mapsLeadsJsonName = `maps_${safeCity}_leads.json`;
-          await fsPromises.writeFile(path.join(outputDir, mapsLeadsJsonName), JSON.stringify(leads, null, 2));
-
+          
           let newEmailsFound = 0;
           let newPhonesFound = 0;
 
-          for (const lead of leads) {
-            this.onProgress({
-              type: "business-processed",
-              name: lead.name,
-              message: `[Maps] Processing: ${lead.name}`
-            });
-            for (const email of lead.possibleEmails) {
-              const eLower = email.toLowerCase();
-              if (!seenEmails.has(eLower)) {
-                seenEmails.add(eLower);
-                await fsPromises.appendFile(mapsOnlyEmailsPath, email + "\n");
-                await fsPromises.appendFile(allEmailsPath, email + "\n");
-                newEmailsFound++;
-                this.onProgress({
-                  type: "lead-saved",
-                  email: email,
-                  fileName: mapsLeadsJsonName,
-                  emailFileName: "google_maps_emails.txt",
-                  allEmailsFileName: "all_emails.txt",
-                  message: `[Maps] Found Email: ${email}`
-                });
-              }
-            }
-
-            const rawPhone = lead.phone || "";
-            const extractedPhones = rawPhone
-              ? extractPhones(rawPhone, country)
-              : extractPhones([lead.name, lead.address].join(" "), country);
-
-            for (const phone of extractedPhones) {
-              if (!seenPhones.has(phone)) {
-                seenPhones.add(phone);
-                await fsPromises.appendFile(countryPhoneFile, phone + "\n");
-                await fsPromises.appendFile(allPhonesPath, phone + "\n");
-                newPhonesFound++;
-                this.onProgress({
-                  type: "phone-saved",
-                  phone,
-                  city: lead.address || "",
-                  niche: niches[0] || "",
-                  site: "Google Maps",
-                  title: lead.name,
-                  phoneFileName: path.basename(countryPhoneFile),
-                  allPhonesFileName: "all_phones.txt",
-                  message: `[Maps] Phone: ${phone}`
-                });
-              }
-            }
+          const mapsLeadsJsonName = `maps_${safeCity}_leads.json`;
+          const csvFileName = `google_maps_all.csv`;
+          const csvPath = path.join(outputDir, csvFileName);
+          
+          if (!fs.existsSync(csvPath)) {
+             await fsPromises.writeFile(csvPath, "Name,Phone,Emails,Website,Rating,Address,Source Link\n");
           }
 
-          if (leads.length > 0) {
-            const csvFileName = `google_maps_all.csv`;
-            const csvPath = path.join(outputDir, csvFileName);
-            const fileExists = fs.existsSync(csvPath);
-            let csvContent = !fileExists ? "Name,Phone,Emails,Website,Rating,Address,Source Link\n" : "";
+          // Pass a callback that instantly saves data AND emits to the UI for each lead
+          let leads = await this.mapsScraper.processResults(999, async (lead) => {
+             this.onProgress({
+                type: "business-processed",
+                name: lead.name,
+                message: `[Maps] Processing: ${lead.name}`
+             });
 
-            leads.forEach(lead => {
-              const escapeCsv = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
-              csvContent += [
-                escapeCsv(lead.name),
-                escapeCsv(lead.phone),
-                escapeCsv(lead.possibleEmails.join('; ')),
-                escapeCsv(lead.website),
-                escapeCsv(lead.rating),
-                escapeCsv(lead.address),
-                escapeCsv(lead.referenceLink)
-              ].join(",") + "\n";
-            });
+             // Append to CSV immediately
+             const escapeCsv = (str) => {
+               if (!str) return '""';
+               return `"${str.toString().replace(/"/g, '""')}"`;
+             };
+             const csvRecord = [
+                escapeCsv(lead.name), escapeCsv(lead.phone), escapeCsv(lead.possibleEmails.join('; ')),
+                escapeCsv(lead.website), escapeCsv(lead.rating), escapeCsv(lead.address), escapeCsv(lead.referenceLink)
+             ].join(",") + "\n";
+             await fsPromises.appendFile(csvPath, csvRecord);
+             this.onProgress({ type: "csv-saved", fileName: csvFileName }); // Tell queue CSV is updated
 
-            await fsPromises.appendFile(csvPath, csvContent);
-            this.onProgress({ type: "csv-saved", fileName: csvFileName });
-          }
+             // Instant Email Save & Emit
+             for (const email of lead.possibleEmails) {
+                const eLower = email.toLowerCase();
+                if (!seenEmails.has(eLower) && !isDuplicate(eLower, 'email', jobId)) {
+                   seenEmails.add(eLower);
+                   await fsPromises.appendFile(mapsOnlyEmailsPath, email + "\n");
+                   await fsPromises.appendFile(allEmailsPath, email + "\n");
+                   newEmailsFound++;
+                   this.onProgress({
+                      type: "lead-saved",
+                      email: email,
+                      fileName: mapsLeadsJsonName,
+                      emailFileName: "google_maps_emails.txt",
+                      allEmailsFileName: "all_emails.txt",
+                      message: `[Maps] Found Email: ${email}`
+                   });
+                }
+             }
+
+             // Instant Phone Save & Emit
+             const rawPhone = lead.phone || "";
+             const extractedPhones = rawPhone ? extractPhones(rawPhone, country) : extractPhones([lead.name, lead.address].join(" "), country);
+             
+             for (const phone of extractedPhones) {
+                if (!seenPhones.has(phone) && !isDuplicate(phone, 'phone', jobId)) {
+                   seenPhones.add(phone);
+                   await fsPromises.appendFile(countryPhoneFile, phone + "\n");
+                   await fsPromises.appendFile(allPhonesPath, phone + "\n");
+                   newPhonesFound++;
+                   this.onProgress({
+                      type: "phone-saved",
+                      phone,
+                      city: lead.address || "",
+                      niche: niches[0] || "",
+                      site: "Google Maps",
+                      title: lead.name,
+                      phoneFileName: path.basename(countryPhoneFile),
+                      allPhonesFileName: "all_phones.txt",
+                      message: `[Maps] Phone: ${phone}`
+                   });
+                }
+             }
+          });
+
+          // Dump the full raw JSON array at the end of the query
+          await fsPromises.writeFile(path.join(outputDir, mapsLeadsJsonName), JSON.stringify(leads, null, 2));
+
+          // Save progress after completing this niche
+          await fsPromises.writeFile(progressFile, JSON.stringify({ cityIdx: cIdx, nicheIdx: nIdx + 1 }));
         }
+
+        // Reset niche index when advancing to the next city
+        await fsPromises.writeFile(progressFile, JSON.stringify({ cityIdx: cIdx + 1, nicheIdx: 0 }));
       }
     } catch (error) {
       this.onProgress({ type: "log", message: `[Maps] Error: ${error.message}` });
@@ -212,7 +246,7 @@ export class LeadScraper {
 
     if (includeGoogleMaps && !this.isStopped) {
       this.onProgress({ type: "log", message: "Starting Google Maps phase..." });
-      await this.runMapsScraper({ country, cities, niches: expandedNichesList, outputDir, userPlan });
+      await this.runMapsScraper({ jobId, country, cities, niches: expandedNichesList, outputDir, userPlan });
     }
 
     if (this.isStopped) return { files: [], expandedNiches: expandedNichesList, sites: this.sites };

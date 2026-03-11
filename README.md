@@ -1,154 +1,73 @@
-# Lead Scraper Dashboard
+# LeadHunter — Ultimate B2B Lead Generation & Outreach System
 
-A Node.js dashboard that lets users:
+LeadHunter is a powerful, full-stack lead generation and automated outreach platform. It combines a high-performance scraping engine with a sophisticated email campaign manager, all within a sleek, modern dashboard.
 
-- Input one or more niches.
-- Expand niches into related role keywords.
-- Select country, states/regions, and city list.
-- Choose whether to include Google Maps search (Yes/No dropdown in Search options).
-- Run a background scraper job.
-- Download city-wise TXT lead files from the dashboard.
+## 🚀 Key Features
 
-## Location data source
+- **Multi-Channel Scraping**: Extract leads from Google Maps, LinkedIn, Facebook, Instagram, and dozens of other sources via targeted search.
+- **Intelligent Niche Expansion**: Automatically expand broad niches into specific target roles using AI-driven keyword suggestions.
+- **Global Reach**: Precision targeting by Country, State/Region, and City.
+- **Robust Scraper Engine**: Built for scale with automatic retries, timeout management, and graceful error handling.
+- **Smart Sender (CRM)**:
+  - Multi-SMTP Load Balancing: Rotate through multiple mail accounts to protect your sender reputation.
+  - Automated Outreach: Send personalized HTML campaigns to your scraped leads instantly.
+  - Tracking & Analytics: Monitor opens and clicks in real-time.
+- **Global Duplicate Filter**: Cross-job lead tracking ensures you never scrape or contact the same lead twice.
+- **Session Resumption**: Interrupted jobs and campaigns automatically resume from their last known state on server restart.
 
-The dashboard fetches dynamic country/state/city data from:
+## 🛠 Project Structure
 
-- `https://countriesnow.space/api/v0.1/countries`
-- `https://countriesnow.space/api/v0.1/countries/states`
-- `https://countriesnow.space/api/v0.1/countries/cities`
+- `src/`: Backend logic (Express, Puppeteer, Worker Queue).
+- `public/`: Modern frontend (HTML, Vanilla JS, Tailwind CSS).
+- `data/`: SQLite databases and persistent state (Local development).
+- `scripts/`: Utility scripts for user management and setup.
 
-The dashboard uses these endpoints as the source of truth for countries, states, and cities.
+## 🚦 Getting Started
 
-## What it searches on the internet
+### 1. Prerequisites
+- **Node.js**: v18+ recommended.
+- **Python**: v3.9+ (For the high-performance search engine).
+- **Chrome/Chromium**: Required for the Puppeteer scraping runtime.
 
-For each expanded niche, selected city, area/state hint, and site source, the scraper runs DuckDuckGo queries in this pattern:
-
-- `site:<domain> "<niche>" "<area city>" ("@gmail.com" OR "@hotmail.com" OR "@outlook.com" OR "@yahoo.com" OR "@icloud.com" OR "email" OR "contact" OR "contact me")`
-
-It then extracts title, snippet details, and link from organic results.
-
-If **Include Google Maps search** is enabled in the dashboard, it also searches:
-
-- `https://www.google.com/maps/search/<niche + area + city>`
-
-and extracts Google Maps listing links.
-
-## Search sources
-
-The scraper performs site-targeted DuckDuckGo queries across a broad default list, including:
-
-- LinkedIn, Facebook, Instagram, Reddit, X/Twitter, TikTok, YouTube, Pinterest, Threads
-- Medium, Substack, Quora, Tumblr
-- Yelp, Foursquare, Nextdoor, Alignable, Trustpilot
-- Crunchbase, Wellfound, AngelList, About.me
-- Behance, Dribbble, Meetup, Eventbrite
-- Gumtree, Craigslist, YellowPages, Yell, Hotfrog, Manta, Kompass, Clutch
-- Plus optional Google Maps extraction
-
-## Python scraper engine
-
-The scraping runtime now runs in Python (`src/scraper.py`) and is called by Node (`src/scraper.js` wrapper).
-
-Python dependencies are declared in `requirements.txt` and are installed automatically on `npm install` via the `postinstall` script.
-
-Manual install command (if needed):
-
+### 2. Installation
 ```bash
-npm run setup:python
-```
-
-or directly:
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-Also ensure Chrome/Chromium is installed on the server for Selenium/UC.
-
-## Run locally
-
-```bash
+# Install Node & Python dependencies
 npm install
+```
+
+### 3. Configuration
+Copy the example environment file and fill in your secrets:
+```bash
+cp .env.example .env
+```
+
+### 4. Running the Application
+```bash
+# Standard start
 npm start
+
+# Development with automatic restarts
+npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Open: `http://localhost:3000`
+## 🛡 Security & Reliability
+- **Rate Limiting**: Protection against brute-force and API abuse.
+- **Error Handling**: Comprehensive global error handlers prevent Puppeteer crashes from affecting the server.
+- **Data Persistence**: SQLite-based state management ensures no lead is lost.
 
-## Host on VPS IP address
+## 📦 Deployment
+LeadHunter is ready for production deployment via **Docker** or **PM2**.
 
-The server now binds using:
-
-- `HOST` (default: `0.0.0.0`)
-- `PORT` (default: `3000`)
-
-So it can be exposed directly on your VPS IP.
-
-### 1) Start app on all interfaces
-
+### PM2 Example
 ```bash
-HOST=0.0.0.0 PORT=3000 npm start
+pm2 start ecosystem.config.cjs
 ```
 
-Then open in browser:
-
-- `http://<YOUR_VPS_PUBLIC_IP>:3000`
-
-### 2) Open firewall/security group
-
-Allow TCP `3000` in:
-
-- VPS firewall (`ufw`/provider firewall)
-- Cloud security group (if applicable)
-
-Example (`ufw`):
-
+### Docker Example
 ```bash
-sudo ufw allow 3000/tcp
-sudo ufw reload
+docker-compose up -d
 ```
 
-### 3) Run in background (recommended)
-
-Using PM2:
-
-```bash
-npm install -g pm2
-pm2 start "HOST=0.0.0.0 PORT=3000 npm start" --name lead-dashboard
-pm2 save
-pm2 startup
-```
-
-### 4) Verify listening address
-
-```bash
-ss -ltnp | grep 3000
-```
-
-You should see `0.0.0.0:3000`.
-
-## Reliability during long runs
-
-Leads are appended to each city TXT file immediately (`appendFileSync`) as soon as each lead is found.
-This means if the job fails or is interrupted, previously saved leads stay in the file.
-
-The dashboard now receives live `lead-saved` updates and shows file download links during the run (not only at completion).
-
-## See backend logs live
-
-Run server and stream logs to terminal + file:
-
-```bash
-npm start 2>&1 | tee backend.log
-```
-
-Then in another terminal, follow logs live:
-
-```bash
-tail -f backend.log
-```
-
-## Why you may see "Not Found"
-
-If you open only static files (for example with `python3 -m http.server public`), the frontend can load but backend routes like `/api/metadata` are missing, which causes `Not Found` responses.
-
-Always run the Node server (`npm start`) so both UI and API endpoints are available together.
+## 📜 License
+Private Software. All Rights Reserved.

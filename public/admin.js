@@ -1,4 +1,4 @@
-// admin.js — BritSync Admin Dashboard Logic
+// admin.js — LeadHunter Admin Dashboard Logic
 
 let allUsers = [];
 let editingUserId = null;
@@ -8,7 +8,8 @@ const PLAN_CONFIG = {
     premium: { cls: 'plan-premium', label: 'Premium' },
     advance: { cls: 'plan-advance', label: 'Advance' },
     basic: { cls: 'plan-basic', label: 'Basic' },
-    free: { cls: 'plan-free', label: 'Free' },
+    free: { cls: 'plan-free', label: 'Free Trial' },
+    expired: { cls: 'plan-free', label: 'Expired' },
 };
 
 async function api(path, options = {}) {
@@ -59,7 +60,7 @@ function renderStats(users) {
 }
 
 function planBadge(plan) {
-    const cfg = PLAN_CONFIG[plan] || PLAN_CONFIG.free;
+    const cfg = PLAN_CONFIG[plan] || { cls: 'plan-basic', label: plan || 'Free' };
     return `<span class="plan-badge ${cfg.cls}">${cfg.label}</span>`;
 }
 
@@ -116,6 +117,11 @@ function renderTable(users) {
           <button onclick="openEdit('${u.id}','${escAttr(u.username)}','${u.subscriptionPlan}')"
             class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer" title="Change plan">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </button>
+          <!-- Reset password -->
+          <button onclick="openResetPassword('${u.id}','${escAttr(u.username)}')"
+            class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Reset password">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><path d="M12 16v2"/><path d="M12 16a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
           </button>
           <!-- Toggle admin -->
           <button onclick="toggleAdmin('${u.id}', ${u.isAdmin ? 'false' : 'true'})"
@@ -268,6 +274,44 @@ async function submitDelete() {
         await api(`/api/admin/users/${deletingUserId}`, { method: 'DELETE' });
         document.getElementById('deleteModal').classList.remove('open');
         await loadUsers(document.getElementById('searchInput').value.trim());
+    } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+    }
+}
+
+// ─── Reset password ─────────────────────────────────────────────
+function openResetPassword(id, username) {
+    editingUserId = id;
+    document.getElementById('resetPasswordUsername').textContent = username;
+    document.getElementById('resetNewPassword').value = '';
+    document.getElementById('resetPasswordError').classList.add('hidden');
+    document.getElementById('resetPasswordModal').classList.add('open');
+}
+function closeResetPassword(e) {
+    if (e && e.target !== document.getElementById('resetPasswordModal')) return;
+    document.getElementById('resetPasswordModal').classList.remove('open');
+    editingUserId = null;
+}
+
+async function submitResetPassword() {
+    const errEl = document.getElementById('resetPasswordError');
+    const newPass = document.getElementById('resetNewPassword').value;
+    errEl.classList.add('hidden');
+
+    if (newPass.length < 6) {
+        errEl.textContent = 'Password must be at least 6 characters.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        await api(`/api/admin/users/${editingUserId}/password`, {
+            method: 'PATCH',
+            body: JSON.stringify({ password: newPass }),
+        });
+        document.getElementById('resetPasswordModal').classList.remove('open');
+        alert('Password updated successfully.');
     } catch (err) {
         errEl.textContent = err.message;
         errEl.classList.remove('hidden');

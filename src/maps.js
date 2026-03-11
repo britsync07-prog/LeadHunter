@@ -159,7 +159,7 @@ return emails.filter(e => {
     }
   }
 
-  async processResults(targetCount = 999) {
+  async processResults(targetCount = 999, onProgress = null) {
     const uniqueResults = this.results.filter(
       (business, index, self) =>
         index === self.findIndex((b) => b.name.toLowerCase() === business.name.toLowerCase())
@@ -176,7 +176,8 @@ return emails.filter(e => {
         if (!this.browser) break;
         detailPage = await this.browser.newPage();
         
-        await detailPage.goto(lead.link, { waitUntil: 'networkidle2', timeout: 25000 });
+        // Reduced timeout to 10s and no retries as requested
+        await detailPage.goto(lead.link, { waitUntil: 'networkidle2', timeout: 10000 });
         await new Promise(r => setTimeout(r, 1000));
 
         const deepData = await detailPage.evaluate(() => {
@@ -184,7 +185,6 @@ return emails.filter(e => {
                          document.querySelector('div.F7B61b')?.textContent || 
                          document.querySelector('span[aria-label*="stars"]')?.ariaLabel?.split(' ')[0];
 
-          // Robust Website Extractor
           const getWebsite = () => {
              const standard = document.querySelector('a[data-item-id="authority"]')?.href;
              if (standard) return standard;
@@ -226,15 +226,23 @@ return emails.filter(e => {
         };
 
         if (merged.website && merged.website !== 'N/A') {
-          merged.possibleEmails = await this.findEmails(merged.website);
+          try {
+            merged.possibleEmails = await this.findEmails(merged.website);
+          } catch (emailErr) {
+            console.warn(`   [Maps] Email finding failed for ${merged.website}: ${emailErr.message}`);
+          }
         }
 
         finalResults.push(merged);
         console.log(`   [Maps] (${i + 1}/${limitedResults.length}) Processed: ${merged.name}`);
 
+        if (onProgress) {
+          await onProgress(merged);
+        }
+
       } catch (err) {
-        console.error(`   [Maps] Error processing ${lead.name}: ${err.message}`);
-        finalResults.push({
+        console.error(`   [Maps] Skipping ${lead.name} due to timeout (10s) or error: ${err.message}`);
+        const errorLead = {
           id: i + 1,
           name: this.cleanText(lead.name),
           address: this.cleanText(lead.address),
@@ -245,7 +253,9 @@ return emails.filter(e => {
           possibleEmails: [],
           source: "Google Maps",
           scrapedAt: new Date().toISOString(),
-        });
+        };
+        finalResults.push(errorLead);
+        if (onProgress) await onProgress(errorLead);
       } finally {
         if (detailPage) try { await detailPage.close(); } catch(e) {}
       }

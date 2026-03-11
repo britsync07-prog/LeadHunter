@@ -1,45 +1,45 @@
-# Node modules
+# Node dependencies
 node_modules/
+package-lock.json
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Environment files
+.env
+.env.local
+.env.*.local
 
-# Application data
-data/sessions/
-data/users.json
-data/history.json
+# Build outputs
+dist/
+build/
 output/
+docs/
+
+# Database and Data (Keep directories but ignore files)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/*.json
+data/*.bak
+!data/.gitkeep
+
+# Scraping logs and progress
+*.log
+backend.log
+search_progress.json
+scrape_progress.json
+maps_progress.json
+browser-state.json
+browser-state-fingerprint.json
+cookies.txt
 
 # Python environment
 venv/
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Progress files
-search_progress.json
-scrape_progress.json
-
-# Environment variables
-.env
-
-# System files
+# IDE and System files
+.vscode/
+.idea/
 .DS_Store
-
-# SQLite runtime files
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-data/*.db
-data/*.db-wal
-data/*.db-shm
-data/sessions/
-data/users.json
-data/history.json
-data/categories.json
-output/
-
-
+Thumbs.db

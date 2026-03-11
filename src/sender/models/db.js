@@ -108,6 +108,7 @@ const initDb = () => {
       events TEXT, -- JSON string
       files TEXT,  -- JSON string
       leadsFound INTEGER DEFAULT 0,
+      phonesFound INTEGER DEFAULT 0,
       error TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -123,6 +124,31 @@ const initDb = () => {
     )
   `);
 
+  // Auto-Mail Templates Table (Admin Only)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auto_mail_templates (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      senderName TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      htmlContent TEXT NOT NULL,
+      smtpAccountIds TEXT, -- JSON array of SMTP IDs
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Master Leaded Table for Global Duplicate Filtering
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scraped_leads_master (
+      id TEXT PRIMARY KEY,
+      value TEXT UNIQUE, -- email or phone
+      type TEXT,         -- 'email' or 'phone'
+      jobId TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create indexes for fast analytical query performance
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_event_logs_campaignId ON event_logs(campaignId);
@@ -131,6 +157,7 @@ const initDb = () => {
     CREATE INDEX IF NOT EXISTS idx_smtp_accounts_userId ON smtp_accounts(userId);
     CREATE INDEX IF NOT EXISTS idx_jobs_userId ON jobs(userId);
     CREATE INDEX IF NOT EXISTS idx_job_categories_userId ON job_categories(userId);
+    CREATE INDEX IF NOT EXISTS idx_auto_mail_templates_userId ON auto_mail_templates(userId);
   `);
 
   // Safe schema migration for existing DBs
@@ -141,11 +168,15 @@ const initDb = () => {
   safeAlter(`ALTER TABLE users ADD COLUMN isAdmin INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE users ADD COLUMN isSuspended INTEGER DEFAULT 0`);
 
+  safeAlter(`ALTER TABLE jobs ADD COLUMN phonesFound INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE jobs ADD COLUMN autoMailConfig TEXT`);
+
   safeAlter(`ALTER TABLE campaigns ADD COLUMN abortReason TEXT`);
   safeAlter(`ALTER TABLE campaigns ADD COLUMN deliveredCount INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE campaigns ADD COLUMN bouncedCount INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE campaigns ADD COLUMN sentReportFile TEXT`);
   safeAlter(`ALTER TABLE campaigns ADD COLUMN failedReportFile TEXT`);
+  safeAlter(`ALTER TABLE campaigns ADD COLUMN config TEXT`); // JSON string
 
   safeAlter(`ALTER TABLE recipients ADD COLUMN error TEXT`);
 };

@@ -16,8 +16,9 @@ const verifySmtpConnection = async (smtpConfig) => {
 };
 
 export const getSmtpAccounts = (req, res) => {
-    if (!req.session?.user?.isAdmin) {
-        return res.status(403).json({ error: "Only admins can save Multiple SMTP credentials." });
+    const sessionUser = req.session?.user;
+    if (!sessionUser || !sessionUser.isAdmin) {
+        return res.status(403).json({ error: "Only admins can use Multiple SMTP Load Balancing." });
     }
 
     const userId = req.session.user.id;
@@ -31,7 +32,8 @@ export const getSmtpAccounts = (req, res) => {
 };
 
 export const addSmtpAccount = async (req, res) => {
-    if (!req.session?.user?.isAdmin) {
+    const sessionUser = req.session?.user;
+    if (!sessionUser || !sessionUser.isAdmin) {
         return res.status(403).json({ error: "Only admins can save Multiple SMTP credentials." });
     }
 
@@ -59,8 +61,9 @@ export const addSmtpAccount = async (req, res) => {
 };
 
 export const deleteSmtpAccount = (req, res) => {
-    if (!req.session?.user?.isAdmin) {
-        return res.status(403).json({ error: "Only admins can save Multiple SMTP credentials." });
+    const sessionUser = req.session?.user;
+    if (!sessionUser || !sessionUser.isAdmin) {
+        return res.status(403).json({ error: "Only admins can delete Multiple SMTP credentials." });
     }
 
     const { id } = req.params;

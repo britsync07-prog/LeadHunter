@@ -22,9 +22,10 @@ import juice from "juice";
 import rateLimit from "express-rate-limit"; // Security
 import compression from "compression"; // Performance
 import helmet from "helmet"; // Security
-import { authenticate, requireAuth, registerUser, changePassword, initAuth } from "./auth.js";
+import { authenticate, requireAuth, registerUser, changePassword, adminResetPassword, initAuth } from "./auth.js";
 import { JobQueue } from "./queue.js";
 import { expandNiches } from "./scraper.js";
+import * as autoMailController from "./sender/controllers/autoMailController.js";
 
 // Sender & Tracking Routes
 import trackingRoutes from "./sender/routes/trackingRoutes.js";
@@ -42,6 +43,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 const COUNTRY_API = "https://countriesnow.space/api/v0.1";
+
+app.set('trust proxy', true);
+
+// --- GLOBAL ERROR HANDLERS (Prevent Puppeteer fatal crashes) ---
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Fatal] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Fatal] Uncaught exception:', err);
+  // We don't exit here because we want to keep the server alive despite Puppeteer's async "Target closed" errors
+});
 
 const queue = new JobQueue(3);
 await queue.cleanupStaleJobs(); // --- CLEANUP STUCK JOBS ---
@@ -82,8 +95,8 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req
     const session = event.data.object;
     const userId = session.client_reference_id;
     let plan = 'premium';
-    if (session.amount_total === 900) plan = 'basic';
-    if (session.amount_total === 2900) plan = 'advance';
+    if (session.amount_total === 7900) plan = 'advance';
+    if (session.amount_total === 44900) plan = 'premium';
     if (userId) {
       db.prepare("UPDATE users SET subscriptionPlan = ?, trialEndsAt = NULL WHERE id = ?").run(plan, userId);
       console.log(`[Stripe Webhook] Upgraded user ${userId} to ${plan.toUpperCase()} plan via successful payment.`);
@@ -130,6 +143,7 @@ const authLimiter = rateLimit({
   message: { error: "Too many login/register attempts." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { ip: false },
 });
 
 const apiLimiter = rateLimit({
@@ -138,6 +152,7 @@ const apiLimiter = rateLimit({
   message: { error: "Too many API requests." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { ip: false },
 });
 
 app.use("/api/login", authLimiter);
@@ -156,6 +171,7 @@ const trackingLimiter = rateLimit({
   message: "Too many tracking requests.",
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { ip: false },
 });
 
 app.use("/track", trackingLimiter, trackingRoutes);
@@ -203,7 +219,12 @@ app.post("/api/external/jobs", requireApiKey, async (req, res) => {
     try {
       for (const state of states) {
         const stateCities = await getCitiesForState(country, state);
-        cities.push(...stateCities);
+        if (stateCities && stateCities.length > 0) {
+          cities.push(...stateCities);
+        } else {
+          // Robustness: If no cities found (e.g. state is actually a city like London), use the state name itself
+          cities.push(state);
+        }
       }
     } catch (e) {
       return res.status(502).json({ error: "Failed to fetch cities for states: " + e.message });
@@ -212,9 +233,14 @@ app.post("/api/external/jobs", requireApiKey, async (req, res) => {
 
   if (cities.length === 0) return res.status(400).json({ error: "No cities found or provided for the given location." });
 
+  const { autoMailConfig } = req.body || {};
+  if (autoMailConfig && !isAdmin) {
+    return res.status(403).json({ error: "Auto-Mail is an Admin-only feature." });
+  }
+
   const job = queue.addJob({
     id: crypto.randomUUID(),
-    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100 }
+    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100, autoMailConfig }
   }, "external_server");
 
   res.status(202).json({ jobId: job.id, status: job.status });
@@ -301,6 +327,19 @@ app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+app.patch("/api/admin/users/:id/password", requireAdmin, async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
+  const result = await adminResetPassword(req.params.id, password);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json({ success: true });
+});
+
+// --- ADMIN AUTO-MAIL ROUTES ---
+app.get("/api/admin/auto-mail-templates", requireAdmin, autoMailController.getTemplates);
+app.post("/api/admin/auto-mail-templates", requireAdmin, autoMailController.saveTemplate);
+app.delete("/api/admin/auto-mail-templates/:id", requireAdmin, autoMailController.deleteTemplate);
+
 app.patch("/api/admin/users/:id/suspend", requireAdmin, (req, res) => {
   const { suspended } = req.body;
   if (req.params.id === req.session.user.id) return res.status(400).json({ error: "Self-suspension blocked" });
@@ -343,9 +382,9 @@ app.get("/api/checkout/session", requireAuth, async (req, res) => {
       payment_method_types: ["card"],
       line_items: [{
         price_data: {
-          currency: "usd",
+          currency: "gbp",
           product_data: { name: `LeadHunter ${plan} Subscription` },
-          unit_amount: plan === 'basic' ? 900 : plan === 'advance' ? 2900 : 4900,
+          unit_amount: plan === 'advance' ? 7900 : 44900,
         },
         quantity: 1,
       }],
@@ -489,7 +528,7 @@ app.post("/api/categories", requireAuth, (req, res) => {
 });
 
 app.post("/api/jobs", requireAuth, async (req, res) => {
-  const { country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, category } = req.body || {};
+  const { country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, category, autoMailConfig } = req.body || {};
   const userPlan = req.session.user.subscriptionPlan || 'free';
   const isAdmin = !!req.session.user.isAdmin;
 
@@ -497,8 +536,12 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   const usage = queue.getUserUsage(req.session.user.username);
 
   if (!isAdmin) {
-    let dailyLimit = 100;
-    let monthlyLimit = 3000;
+    if (userPlan === 'expired' || userPlan === 'free') {
+      return res.status(403).json({ error: "Your trial has expired. Please update your plan to continue." });
+    }
+
+    let dailyLimit = 0;
+    let monthlyLimit = 0;
 
     if (userPlan === 'premium') {
       dailyLimit = 6000;
@@ -508,14 +551,9 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
       dailyLimit = 1000;
       monthlyLimit = 30000;
       if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Advance plan requires Maps+Both" });
-    } else if (userPlan === 'basic') {
-      dailyLimit = 300;
-      monthlyLimit = 9000;
-      if (includeGoogleMaps || scrapeMode !== 'emails') return res.status(403).json({ error: "Upgrade plan for Maps/Phones" });
     } else {
-      // free
-      dailyLimit = 100;
-      monthlyLimit = 3000;
+      // Any other plan (none) is treated as expired
+      return res.status(403).json({ error: "Active subscription required." });
     }
 
     if (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit) {
@@ -527,8 +565,11 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   // addJob handles concurrent-limit check internally — no queue, instant reject
   const effectivePlan = isAdmin ? 'admin' : userPlan;
+  if (autoMailConfig && !isAdmin) {
+    return res.status(403).json({ error: "Auto-Mail is an Admin-only feature." });
+  }
   const job = queue.addJob(
-    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin } },
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig } },
     req.session.user.username // username is the userId key used throughout the queue
   );
 
@@ -578,9 +619,18 @@ app.get("/api/jobs/:jobId/files/:fileName", requireAuth, (req, res) => {
   return res.download(filePath);
 });
 
-app.post("/api/jobs/:jobId/stop", requireAuth, (req, res) => {
-  if (queue.stopJob(req.params.jobId)) return res.json({ message: "Stopped" });
-  return res.status(404).json({ error: "Not found" });
+app.post("/api/jobs/:id/stop", requireAuth, (req, res) => {
+  const success = queue.stopJob(req.params.id);
+  res.json({ success });
+});
+
+app.post("/api/jobs/:id/restart", requireAuth, (req, res) => {
+  try {
+    const success = queue.restartJob(req.params.id);
+    res.json({ success });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/history", requireAuth, (req, res) => {

@@ -151,8 +151,8 @@ btnClearAudience.addEventListener('click', () => {
   renderAudiencePreview();
 });
 
-// --- MULTI-SMTP ADMIN LOGIC ---
-let isAdminUser = false;
+// --- MULTI-SMTP PREMIUM/ADMIN LOGIC ---
+let canUseMultiSmtp = false;
 let savedSmtpAccounts = [];
 const standardSmtpBlock = document.getElementById('standardSmtpBlock');
 const adminSmtpBlock = document.getElementById('adminSmtpBlock');
@@ -162,7 +162,7 @@ async function initSmtpUI() {
   try {
     const me = await fetchJson('/api/me');
     if (me && me.isAdmin) {
-      isAdminUser = true;
+      canUseMultiSmtp = true;
       standardSmtpBlock.style.display = 'none';
       adminSmtpBlock.style.display = 'block';
       await loadSmtpAccounts();
@@ -266,7 +266,7 @@ const validateForm = () => {
     subjectLineEl.value.trim() &&
     htmlTemplateEl.value.trim();
 
-  if (isAdminUser) {
+  if (canUseMultiSmtp) {
     const checkedSmtps = document.querySelectorAll('input[name="selectedSmtps"]:checked');
     isConfigFilled = isConfigFilled && checkedSmtps.length > 0;
   } else {
@@ -301,7 +301,7 @@ btnLaunchCampaign.addEventListener('click', async () => {
     recipients: validEmails
   };
 
-  if (isAdminUser) {
+  if (canUseMultiSmtp) {
     const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
     payload.smtpAccountIds = checked;
   } else {

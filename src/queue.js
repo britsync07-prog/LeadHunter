@@ -2,6 +2,8 @@ import { LeadScraper } from "./scraper.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import db from "./sender/models/db.js";
+import { createTransporter, sendEmail } from "./sender/services/mailer.js";
+import { resumeCampaign } from "./sender/controllers/campaignController.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export class JobQueue {
   constructor() {
     this.jobs = new Map(); // All jobs session
-    this.activeJobs = new Map(); // Map<jobId, { job, scraper, listeners }>
+    this.activeJobs = new Map(); // Map<jobId, { job, scraper, listeners, smtpPool, currentSmtpIndex }>
     this.userActiveJobCounts = new Map(); // Map<userId, count>
   }
 
@@ -25,21 +27,66 @@ export class JobQueue {
   async cleanupStaleJobs() {
     console.log("[System] Cleaning up stale jobs and campaigns from previous session...");
 
-    // 1. Cleanup Scraper Jobs
-    const result = db.prepare("UPDATE jobs SET status = 'failed', error = 'Server was restarted' WHERE status = 'running' OR status = 'queued'").run();
-    if (result.changes > 0) {
-      console.log(`[System] Marked ${result.changes} stale scraper jobs as failed.`);
-    }
-
-    // 2. Cleanup Sender Campaigns (if any were stuck in 'sending')
+    // 1. Resume Stale Scraper Jobs
     try {
-      const campResult = db.prepare("UPDATE campaigns SET status = 'aborted', abortReason = 'Server was restarted' WHERE status = 'sending'").run();
-      if (campResult.changes > 0) {
-        console.log(`[System] Aborted ${campResult.changes} stale email campaigns.`);
+      const staleJobs = db.prepare("SELECT * FROM jobs WHERE status IN ('running', 'queued')").all();
+      if (staleJobs.length > 0) {
+        console.log(`[System] Found ${staleJobs.length} interrupted scraper jobs. Resuming them...`);
+        for (const row of staleJobs) {
+          try {
+            const job = {
+              id: row.id,
+              userId: row.userId,
+              status: row.status,
+              params: JSON.parse(row.params || '{}'),
+              events: JSON.parse(row.events || '[]'),
+              files: JSON.parse(row.files || '[]'),
+              leadsFound: row.leadsFound || 0,
+              createdAt: row.createdAt,
+              listeners: new Set()
+            };
+            
+            this.jobs.set(job.id, job);
+            this.pushEvent(job, { type: "info", message: "Server restarted. Auto-resuming job..." });
+            this.runScraper(job);
+          } catch (err) {
+            console.error(`[System] Failed to resume job ${row.id}:`, err);
+            db.prepare("UPDATE jobs SET status = 'failed', error = 'Failed to resume' WHERE id = ?").run(row.id);
+          }
+        }
       }
     } catch (e) {
-      // Ignore if table doesn't exist yet
+      console.error("[System] Error resuming jobs:", e);
     }
+
+    // 2. Resume Sender Campaigns
+    try {
+      const staleCampaigns = db.prepare("SELECT id FROM campaigns WHERE status = 'sending'").all();
+      if (staleCampaigns.length > 0) {
+        console.log(`[System] Found ${staleCampaigns.length} interrupted campaigns. Resuming...`);
+        for (const camp of staleCampaigns) {
+          // Use a default hostUrl or wait for first request? 
+          // Better to just resume with a placeholder if needed, or assume localhost/3000
+          resumeCampaign(camp.id, `http://localhost:3000`); 
+        }
+      }
+    } catch (e) {
+      console.error("[System] Error resuming campaigns:", e);
+    }
+  }
+
+  restartJob(jobId) {
+    const job = this.getJob(jobId);
+    if (!job) throw new Error("Job not found");
+    if (this.activeJobs.has(jobId)) throw new Error("Job is already running");
+
+    job.status = "queued";
+    job.error = null;
+    this.pushEvent(job, { type: "info", message: "Manually restarting job..." });
+    db.prepare("UPDATE jobs SET status = 'queued', error = NULL WHERE id = ?").run(jobId);
+    
+    this.runScraper(job);
+    return true;
   }
 
   async loadHistory() {
@@ -117,9 +164,28 @@ export class JobQueue {
       }
     });
 
-    this.activeJobs.set(job.id, { job, scraper });
+    this.activeJobs.set(job.id, { job, scraper, smtpPool: [], currentSmtpIndex: 0 });
     const activeCount = (this.userActiveJobCounts.get(job.userId) || 0) + 1;
     this.userActiveJobCounts.set(job.userId, activeCount);
+
+    // Initialize Auto-Mail SMTP pool if configured
+    if (job.params.autoMailConfig && job.params.autoMailConfig.smtpAccountIds?.length > 0) {
+      try {
+        const ids = job.params.autoMailConfig.smtpAccountIds;
+        const placeholders = ids.map(() => '?').join(',');
+        const accounts = db.prepare(`SELECT * FROM smtp_accounts WHERE id IN (${placeholders})`).all(...ids);
+        const pool = accounts.map(acc => ({
+          user: acc.user,
+          transporter: createTransporter({ host: acc.host, port: acc.port, user: acc.user, pass: acc.pass })
+        }));
+        const active = this.activeJobs.get(job.id);
+        if (active) active.smtpPool = pool;
+        this.pushEvent(job, { type: "info", message: `Auto-Mail enabled with ${pool.length} SMTP account(s).` });
+      } catch (err) {
+        console.error(`[Queue] Failed to init SMTP pool for job ${job.id}:`, err);
+        this.pushEvent(job, { type: "info", message: `Failed to initialize Auto-Mail SMTP pool: ${err.message}` });
+      }
+    }
 
     job.status = "running";
     db.prepare("UPDATE jobs SET status = ? WHERE id = ?").run(job.status, job.id);
@@ -157,12 +223,13 @@ export class JobQueue {
       this.activeJobs.delete(job.id);
 
       db.prepare(`
-        UPDATE jobs SET status = ?, files = ?, leadsFound = ?, error = ?, events = ?
+        UPDATE jobs SET status = ?, files = ?, leadsFound = ?, phonesFound = ?, error = ?, events = ?
         WHERE id = ?
       `).run(
         job.status,
         JSON.stringify(job.files),
         job.leadsFound || 0,
+        job.phonesFound || 0,
         job.error || null,
         JSON.stringify(job.events),
         job.id
@@ -196,8 +263,32 @@ export class JobQueue {
     }
 
     if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved' || payload.type === 'business-processed') {
-      if (payload.type === 'business-processed') {
+      if (payload.type === 'lead-saved' && payload.email) {
         job.leadsFound = (job.leadsFound || 0) + 1;
+
+        // Trigger Auto-Mail if enabled
+        const active = this.activeJobs.get(job.id);
+        if (active && active.smtpPool?.length > 0 && job.params.autoMailConfig) {
+          const { senderName, subject, htmlContent } = job.params.autoMailConfig;
+          const smtp = active.smtpPool[active.currentSmtpIndex % active.smtpPool.length];
+          active.currentSmtpIndex++;
+
+          // Send email asynchronously (don't await)
+          sendEmail(smtp.transporter, { name: senderName, email: smtp.user }, payload.email, subject, htmlContent)
+            .then(res => {
+              if (res.ok) {
+                this.pushEvent(job, { type: "info", message: `Auto-Mail sent to ${payload.email} via ${smtp.user}` });
+              } else {
+                this.pushEvent(job, { type: "info", message: `Auto-Mail failed for ${payload.email}: ${res.error}` });
+              }
+            })
+            .catch(err => {
+              this.pushEvent(job, { type: "info", message: `Auto-Mail error for ${payload.email}: ${err.message}` });
+            });
+        }
+      }
+      if (payload.type === 'phone-saved' && payload.phone) {
+        job.phonesFound = (job.phonesFound || 0) + 1;
       }
 
       // --- PER-JOB LIMIT ENFORCEMENT ---

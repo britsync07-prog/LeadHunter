@@ -142,14 +142,29 @@ async function main() {
 
     let consecutiveErrors = 0;
 
+    const progressFile = path.join(outputDir, "scrape_progress.json");
+    let startCityIdx = 0;
+    let startNicheIdx = 0;
+    let startSiteIdx = 0;
+    if (fs.existsSync(progressFile)) {
+        try {
+            const prog = JSON.parse(fs.readFileSync(progressFile, "utf-8"));
+            startCityIdx = prog.cityIdx || 0;
+            startNicheIdx = prog.nicheIdx || 0;
+            startSiteIdx = prog.siteIdx || 0;
+            emit({ type: "log", message: `[Google] Auto-resuming from City ${startCityIdx}, Niche ${startNicheIdx}, Site ${startSiteIdx}` });
+        } catch (e) {}
+    }
+
     for (let cIdx = 0; cIdx < cities.length; cIdx++) {
+        if (cIdx < startCityIdx) continue;
         const city = cities[cIdx];
         const sanitizedCity = sanitizeFileName(city);
         const fileName = `${sanitizeFileName(country)}_${sanitizedCity}_leads.txt`;
         const emailFileName = `${sanitizeFileName(country)}_${sanitizedCity}_emails.txt`;
 
         const filePath = path.join(outputDir, fileName);
-        const emailFilePath = path.join(outputDir, emailFilePath);
+        const emailFilePath = path.join(outputDir, emailFileName);
 
         if (doEmails) {
             if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, `--- LEADS FOR ${city}, ${country} ---\n\n`, "utf-8");
@@ -163,9 +178,11 @@ async function main() {
         let savedCount = 0;
 
         for (let nIdx = 0; nIdx < expandedNiches.length; nIdx++) {
+            if (cIdx === startCityIdx && nIdx < startNicheIdx) continue;
             const niche = expandedNiches[nIdx];
 
             for (let sIdx = 0; sIdx < sites.length; sIdx++) {
+                if (cIdx === startCityIdx && nIdx === startNicheIdx && sIdx < startSiteIdx) continue;
                 const site = sites[sIdx];
 
                 if (doEmails) {
@@ -289,8 +306,17 @@ async function main() {
                         }
                     }
                 }
+
+                // Track progress after completing this site for the query
+                fs.writeFileSync(progressFile, JSON.stringify({ cityIdx: cIdx, nicheIdx: nIdx, siteIdx: sIdx + 1 }), "utf-8");
             }
+
+            // Track progress after completing this niche (reset site)
+            fs.writeFileSync(progressFile, JSON.stringify({ cityIdx: cIdx, nicheIdx: nIdx + 1, siteIdx: 0 }), "utf-8");
         }
+
+        // Track progress after completing this city (reset niche and site)
+        fs.writeFileSync(progressFile, JSON.stringify({ cityIdx: cIdx + 1, nicheIdx: 0, siteIdx: 0 }), "utf-8");
     }
 
     emit({ type: "job-complete", message: "Google scraping completed successfully." });

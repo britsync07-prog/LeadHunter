@@ -41,7 +41,12 @@ async function fetchJson(url, options) {
     } catch { }
     throw new Error(message);
   }
-  return response.json();
+  const data = await response.json();
+  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free')) {
+    window.location.href = '/expired.html';
+    return;
+  }
+  return data;
 }
 
 checkTemplateBtn.addEventListener("click", async () => {

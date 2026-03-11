@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trial Ended | LeadHunter Outreach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-blue': '#012169',
+                        'brand-red': '#C8102E',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #f8fafc;
+        }
+        .uk-gradient {
+            background: linear-gradient(135deg, #012169 0%, #000c2b 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <!-- Main Card -->
+        <div class="glass-card rounded-[40px] overflow-hidden shadow-2xl border-t-8 border-brand-red">
+            <div class="p-12 text-center">
+                <!-- Icon/Badge -->
+                <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-8">
+                    <svg class="w-10 h-10 text-brand-red" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+
+                <h1 class="text-4xl md:text-5xl font-black text-slate-900 mb-6 tracking-tight uppercase">TRIAL EXPIRED</h1>
+                <p class="text-xl text-slate-500 mb-10 font-medium">Your 3-day enterprise access to LeadHunter has concluded. To keep your B2B engine running, please select a plan.</p>
+
+                <!-- Pricing Quick View -->
+                <div class="grid sm:grid-cols-2 gap-4 mb-10">
+                    <div class="p-6 rounded-3xl bg-brand-blue/5 border border-brand-blue/10 shadow-lg">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-brand-blue mb-2">Advance</div>
+                        <div class="text-2xl font-black text-brand-blue">£79</div>
+                        <div class="text-[10px] text-brand-blue/60">1,000 leads/day</div>
+                    </div>
+                    <div class="p-6 rounded-3xl bg-slate-50 border border-slate-100">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Premium</div>
+                        <div class="text-2xl font-black text-slate-900">£449</div>
+                        <div class="text-[10px] text-slate-500">6,000 leads/day</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="/index.html#pricing" class="px-10 py-5 bg-brand-red text-white rounded-2xl font-black text-lg hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 transform hover:-translate-y-1">
+                        RENEW ACCESS
+                    </a>
+                    <button id="logoutBtn" class="px-10 py-5 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all">
+                        LOGOUT
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer Decorative -->
+            <div class="uk-gradient h-20 flex items-center justify-center">
+                <span class="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">LeadHunter Enterprise</span>
+            </div>
+        </div>
+        
+        <p class="text-center mt-8 text-slate-400 text-sm font-medium">Need help? <a href="#" class="text-brand-blue font-bold">Contact British Support</a></p>
+    </div>
+
+    <script>
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        });
+    </script>
+</body>
+</html>

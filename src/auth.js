@@ -55,8 +55,8 @@ export async function authenticate(username, password) {
     if (user.trialEndsAt) {
       const isTrialActive = new Date(user.trialEndsAt) > new Date();
       if (!isTrialActive && activePlan === 'premium') {
-        activePlan = 'free';
-        db.prepare("UPDATE users SET subscriptionPlan = 'free', trialEndsAt = NULL WHERE id = ?").run(user.id);
+        activePlan = 'expired';
+        db.prepare("UPDATE users SET subscriptionPlan = 'expired', trialEndsAt = NULL WHERE id = ?").run(user.id);
       }
     }
 
@@ -111,6 +111,17 @@ export async function changePassword(username, currentPassword, newPassword) {
   } catch (error) {
     console.error("[Auth] Password change error:", error);
     return { error: "Database error while updating password." };
+  }
+}
+
+export async function adminResetPassword(userId, newPassword) {
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedPassword, userId);
+    return { success: true };
+  } catch (error) {
+    console.error("[Auth] Admin password reset error:", error);
+    return { error: "Failed to reset password in database." };
   }
 }
 

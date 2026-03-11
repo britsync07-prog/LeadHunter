@@ -8,7 +8,12 @@ async function fetchJson(url) {
     }
     throw new Error(`Failed to fetch ${url}`);
   }
-  return res.json();
+  const data = await res.json();
+  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free')) {
+    window.location.href = '/expired.html';
+    return;
+  }
+  return data;
 }
 
 // Global state
@@ -39,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCategoryList();
   } catch (err) {
     console.error('Failed to load initial data:', err);
-    categoryListContainer.innerHTML = '<div class="empty-state">Failed to load categories.</div>';
+    categoryListContainer.innerHTML = '<div class="empty-state">Failed to load campaigns.</div>';
   }
 });
 
@@ -48,7 +53,7 @@ function renderCategoryList() {
   if (categories.length === 0) {
     categoryListContainer.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:13px; margin-bottom:12px;">No categories found.</div>
+        <div style="font-size:13px; margin-bottom:12px;">No campaigns found.</div>
         <a href="/dashboard.html" class="btn btn--primary btn--sm" style="text-decoration:none">Create one</a>
       </div>
     `;
@@ -100,7 +105,7 @@ function renderJobsList(categoryId) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <span>No jobs found for this category.</span>
+        <span>No jobs found for this campaign.</span>
       </div>
     `;
     return;
