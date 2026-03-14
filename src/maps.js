@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import fs from 'fs';
-import path from 'path';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 puppeteer.use(StealthPlugin());
 
@@ -20,7 +20,7 @@ class BusinessScraper {
 
   async init() {
     this.browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-notifications", "--lang=en-US"],
     });
     console.log("Browser initialized (Ultra Mode)");
@@ -108,54 +108,68 @@ class BusinessScraper {
   async findEmails(websiteUrl) {
     if (!websiteUrl || websiteUrl === 'N/A' || !websiteUrl.startsWith('http')) return [];
     
-    let page;
     try {
-      page = await this.browser.newPage();
-      await page.setRequestInterception(true);
-      page.on('request', (req) => {
-        if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-          req.abort();
-        } else {
-          req.continue();
+      const response = await axios.get(websiteUrl, {
+        timeout: 6000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
+        maxRedirects: 5,
+        maxContentLength: 1_500_000,
+        maxBodyLength: 1_500_000,
+        validateStatus: (status) => status < 500, // Accept 404s etc. to try and find emails anyway
+      });
+
+      const contentType = response.headers?.['content-type'] || '';
+      if (!contentType.includes('text/html')) return [];
+
+      const html = response.data;
+      if (typeof html !== 'string') return [];
+
+      const $ = cheerio.load(html);
+      const text = html;
+      const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+      const matches = text.match(emailRegex) || [];
+      
+      const mailtoLinks = [];
+      $('a[href^="mailto:"]').each((i, el) => {
+        const href = $(el).attr('href');
+        if (href) {
+          mailtoLinks.push(href.replace('mailto:', '').split('?')[0]);
         }
       });
 
-      await page.goto(websiteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-const emails = await page.evaluate(() => {
-  const text = document.documentElement.outerHTML;
-  const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
-  const matches = text.match(emailRegex) || [];
-  const mailtoLinks = Array.from(document.querySelectorAll('a[href^="mailto:"]'))
-                           .map(a => a.href.replace('mailto:', '').split('?')[0]);
-  return [...new Set([...matches, ...mailtoLinks])];
-});
+      const allEmails = [...new Set([...matches, ...mailtoLinks])];
 
-return emails.filter(e => {
-  const lower = e.toLowerCase();
+      return allEmails.filter(e => {
+        const lower = e.toLowerCase();
 
-  // 1. Basic format & length checks
-  if (lower.length < 5 || !lower.includes('.') || lower.includes(' ')) return false;
+        // 1. Basic format & length checks
+        if (lower.length < 5 || !lower.includes('.') || lower.includes(' ')) return false;
 
-  // 2. Filter out common file extensions
-  const badExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.pdf', '.css', '.js', '.ico', '.zip', '.mp4'];
-  if (badExtensions.some(ext => lower.endsWith(ext))) return false;
+        // 2. Filter out common file extensions
+        const badExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.woff', '.pdf', '.css', '.js', '.ico', '.zip', '.mp4'];
+        if (badExtensions.some(ext => lower.endsWith(ext))) return false;
 
-  // 3. Filter out placeholder emails
-  const badLocals = ['your', 'email', 'user', 'example', 'test', 'admin', 'info@example', 'mail@example', 'hello@example', 'name', 'support@domain'];
-  if (badLocals.some(bad => lower.startsWith(bad + '@'))) return false;
+        // 3. Filter out placeholder emails
+        const badLocals = ['your', 'email', 'user', 'example', 'test', 'admin', 'info@example', 'mail@example', 'hello@example', 'name', 'support@domain'];
+        if (badLocals.some(bad => lower.startsWith(bad + '@'))) return false;
 
-  // 4. Filter out version strings (e.g., jquery@1.14.0)
-  if (/@\d+\.\d+/.test(lower)) return false;
+        // 4. Filter out version strings (e.g., jquery@1.14.0)
+        if (/@\d+\.\d+/.test(lower)) return false;
 
-  // 5. Filter out junk/placeholder domains
-  const badDomains = ['sentry.io', 'wixpress', 'example.com', 'test.com', 'domain.com', 'yoursite.com', 'company.com', 'yourdomain.com', 'wordpress.com'];
-  if (badDomains.some(bad => lower.includes(bad))) return false;
+        // 5. Filter out junk/placeholder domains
+        const badDomains = ['sentry.io', 'wixpress', 'example.com', 'test.com', 'domain.com', 'yoursite.com', 'company.com', 'yourdomain.com', 'wordpress.com'];
+        if (badDomains.some(bad => lower.includes(bad))) return false;
 
-  return true;
-});
+        return true;
+      });
 
-    } finally {
-      if (page) try { await page.close(); } catch(e) {}
+    } catch (err) {
+      console.warn(`   [Maps] axios failed for ${websiteUrl}: ${err.message}`);
+      return [];
     }
   }
 
@@ -170,94 +184,33 @@ return emails.filter(e => {
 
     for (let i = 0; i < limitedResults.length; i++) {
       const lead = limitedResults[i];
-      let detailPage = null;
-      
-      try {
-        if (!this.browser) break;
-        detailPage = await this.browser.newPage();
-        
-        // Reduced timeout to 10s and no retries as requested
-        await detailPage.goto(lead.link, { waitUntil: 'networkidle2', timeout: 10000 });
-        await new Promise(r => setTimeout(r, 1000));
+      const merged = {
+        id: i + 1,
+        name: this.cleanText(lead.name),
+        address: this.cleanText(lead.address),
+        phone: this.cleanText(lead.phone),
+        website: lead.website || "N/A",
+        referenceLink: lead.link,
+        rating: this.cleanText(lead.rating),
+        possibleEmails: [],
+        source: "Google Maps",
+        scrapedAt: new Date().toISOString(),
+      };
 
-        const deepData = await detailPage.evaluate(() => {
-          const rating = document.querySelector('span.ceNzR')?.textContent || 
-                         document.querySelector('div.F7B61b')?.textContent || 
-                         document.querySelector('span[aria-label*="stars"]')?.ariaLabel?.split(' ')[0];
-
-          const getWebsite = () => {
-             const standard = document.querySelector('a[data-item-id="authority"]')?.href;
-             if (standard) return standard;
-             
-             const ariaWebsite = document.querySelector('a[aria-label*="Website"]')?.href;
-             if (ariaWebsite) return ariaWebsite;
-
-             const allLinks = Array.from(document.querySelectorAll('a'));
-             const found = allLinks.find(a => 
-               a.textContent?.toLowerCase().includes('website') || 
-               a.href?.includes('business.site') ||
-               a.getAttribute('data-value') === 'Website'
-             );
-             return found ? found.href : null;
-          };
-
-          return {
-            title: document.querySelector('h1.DUwDbe')?.textContent || document.querySelector('h1')?.textContent,
-            rating: rating,
-            category: document.querySelector('button[jsaction*="category"]')?.textContent,
-            phone: document.querySelector('button[data-item-id^="phone:tel:"]')?.textContent || 
-                   document.querySelector('[aria-label^="Phone:"]')?.textContent,
-            website: getWebsite(),
-            address: document.querySelector('button[data-item-id="address"]')?.textContent
-          };
-        });
-
-        const merged = {
-          id: i + 1,
-          name: this.cleanText(deepData.title || lead.name),
-          address: this.cleanText(deepData.address || lead.address),
-          phone: this.cleanText(deepData.phone || lead.phone),
-          website: deepData.website || lead.website || "N/A",
-          referenceLink: lead.link,
-          rating: this.cleanText(deepData.rating || lead.rating),
-          possibleEmails: [], 
-          source: "Google Maps",
-          scrapedAt: new Date().toISOString(),
-        };
-
-        if (merged.website && merged.website !== 'N/A') {
-          try {
-            merged.possibleEmails = await this.findEmails(merged.website);
-          } catch (emailErr) {
-            console.warn(`   [Maps] Email finding failed for ${merged.website}: ${emailErr.message}`);
-          }
+      if (merged.website && merged.website !== 'N/A') {
+        try {
+          // Keep website enrichment lightweight: HTTP request only, no browser.
+          merged.possibleEmails = await this.findEmails(merged.website);
+        } catch (emailErr) {
+          console.warn(`   [Maps] Email finding failed for ${merged.website}: ${emailErr.message}`);
         }
+      }
 
-        finalResults.push(merged);
-        console.log(`   [Maps] (${i + 1}/${limitedResults.length}) Processed: ${merged.name}`);
+      finalResults.push(merged);
+      console.log(`   [Maps] (${i + 1}/${limitedResults.length}) Processed: ${merged.name}`);
 
-        if (onProgress) {
-          await onProgress(merged);
-        }
-
-      } catch (err) {
-        console.error(`   [Maps] Skipping ${lead.name} due to timeout (10s) or error: ${err.message}`);
-        const errorLead = {
-          id: i + 1,
-          name: this.cleanText(lead.name),
-          address: this.cleanText(lead.address),
-          phone: this.cleanText(lead.phone),
-          website: lead.website,
-          referenceLink: lead.link,
-          rating: this.cleanText(lead.rating),
-          possibleEmails: [],
-          source: "Google Maps",
-          scrapedAt: new Date().toISOString(),
-        };
-        finalResults.push(errorLead);
-        if (onProgress) await onProgress(errorLead);
-      } finally {
-        if (detailPage) try { await detailPage.close(); } catch(e) {}
+      if (onProgress) {
+        await onProgress(merged);
       }
     }
 
