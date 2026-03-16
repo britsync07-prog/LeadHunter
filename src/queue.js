@@ -18,7 +18,7 @@ export class JobQueue {
   getPlanLimits(plan) {
     const p = (plan || 'free').toLowerCase().trim();
     if (p === 'admin') return { concurrentJobs: Infinity }; // Unlimited
-    if (p === 'premium') return { concurrentJobs: 5 };
+    if (p === 'premium') return { concurrentJobs: 1 };
     if (p === 'advance') return { concurrentJobs: 1 };
     if (p === 'basic') return { concurrentJobs: 1 };
     return { concurrentJobs: 1 }; // free / unknown — 1 job, instant reject if exceeded
@@ -311,9 +311,9 @@ export class JobQueue {
       let dailyLimit = 100;
       let monthlyLimit = 3000;
 
-      if (plan === 'premium') {
-        dailyLimit = 6000;
-        monthlyLimit = 180000;
+      if (plan === 'premium' || isAdmin) {
+        dailyLimit = Infinity;
+        monthlyLimit = Infinity;
       } else if (plan === 'advance') {
         dailyLimit = 1000;
         monthlyLimit = 30000;
@@ -330,8 +330,8 @@ export class JobQueue {
         usage: usage,
         plan: plan,
         isAdmin: isAdmin,
-        dailyLimit: isAdmin ? 'Unlimited' : dailyLimit,
-        monthlyLimit: isAdmin ? 'Unlimited' : monthlyLimit,
+        dailyLimit: (isAdmin || plan === 'premium') ? 'Unlimited' : dailyLimit,
+        monthlyLimit: (isAdmin || plan === 'premium') ? 'Unlimited' : monthlyLimit,
         time: new Date().toISOString()
       };
 

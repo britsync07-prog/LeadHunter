@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Plan Found | LeadHunter Outreach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-blue': '#012169',
+                        'brand-red': '#C8102E',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #f8fafc;
+        }
+        .uk-gradient {
+            background: linear-gradient(135deg, #012169 0%, #000c2b 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <!-- Main Card -->
+        <div class="glass-card rounded-[40px] overflow-hidden shadow-2xl border-t-8 border-brand-blue">
+            <div class="p-12 text-center">
+                <!-- Icon/Badge -->
+                <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-8">
+                    <svg class="w-10 h-10 text-brand-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                </div>
+
+                <h1 class="text-4xl md:text-5xl font-black text-slate-900 mb-6 tracking-tight uppercase">ACTIVE PLAN FOUND</h1>
+                <p class="text-xl text-slate-500 mb-10 font-medium">You are already subscribed to an equivalent or higher tier plan. There is no need to purchase this plan again.</p>
+
+                <!-- Plan Info -->
+                <div class="p-8 rounded-3xl bg-brand-blue/5 border border-brand-blue/10 shadow-lg mb-10">
+                    <div class="text-[10px] font-black uppercase tracking-widest text-brand-blue mb-2">Current Status</div>
+                    <div id="planDisplay" class="text-3xl font-black text-brand-blue uppercase tracking-tighter">Loading...</div>
+                    <div class="text-xs text-brand-blue/60 mt-2 italic font-medium">Your enterprise engine is already fully operational.</div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="/dashboard.html" id="backBtn" class="px-10 py-5 bg-brand-blue text-white rounded-2xl font-black text-lg hover:bg-brand-blue/90 transition-all shadow-xl shadow-brand-blue/20 transform hover:-translate-y-1">
+                        BACK TO DASHBOARD
+                    </a>
+                    <a href="/index.html#pricing" class="px-10 py-5 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all">
+                        VIEW ALL PLANS
+                    </a>
+                </div>
+            </div>
+
+            <!-- Footer Decorative -->
+            <div class="uk-gradient h-20 flex items-center justify-center">
+                <span class="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">LeadHunter Enterprise</span>
+            </div>
+        </div>
+        
+        <p class="text-center mt-8 text-slate-400 text-sm font-medium">Need assistance? <a href="#" class="text-brand-blue font-bold">Contact British Support</a></p>
+    </div>
+
+    <script>
+        // Fetch user data to show current plan
+        fetch('/api/me')
+            .then(res => res.json())
+            .then(user => {
+                const plan = user.subscriptionPlan || 'None';
+                document.getElementById('planDisplay').textContent = plan + ' ACTIVE';
+                
+                // If Advance user, redirect back to sender instead of dashboard
+                if (plan === 'advance' && !user.isAdmin) {
+                    document.getElementById('backBtn').href = '/sender.html';
+                    document.getElementById('backBtn').textContent = 'BACK TO SENDER';
+                }
+            })
+            .catch(() => {
+                document.getElementById('planDisplay').textContent = 'ACTIVE';
+            });
+    </script>
+</body>
+</html>

@@ -52,14 +52,7 @@ export async function authenticate(username, password) {
     }
 
     let activePlan = user.subscriptionPlan;
-    if (user.trialEndsAt) {
-      const isTrialActive = new Date(user.trialEndsAt) > new Date();
-      if (!isTrialActive && activePlan === 'premium') {
-        activePlan = 'expired';
-        db.prepare("UPDATE users SET subscriptionPlan = 'expired', trialEndsAt = NULL WHERE id = ?").run(user.id);
-      }
-    }
-
+    
     return {
       id: user.id,
       username: user.username,
@@ -81,15 +74,11 @@ export async function registerUser(username, email, password) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Calculate 3-Day Premium Trial
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 3);
-
     const newId = uuidv4();
     db.prepare(`
       INSERT INTO users (id, username, email, password, subscriptionPlan, trialEndsAt)
-      VALUES (?, ?, ?, ?, 'premium', ?)
-    `).run(newId, username, email, hashedPassword, trialEndsAt.toISOString());
+      VALUES (?, ?, ?, ?, 'none', NULL)
+    `).run(newId, username, email, hashedPassword);
 
     return { success: true, username };
   } catch (error) {

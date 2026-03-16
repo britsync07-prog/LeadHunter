@@ -164,7 +164,9 @@ const scheduleEndEl = document.getElementById('scheduleEnd');
 async function initSmtpUI() {
   try {
     const me = await fetchJson('/api/me');
-    if (me && me.isAdmin) {
+    const isPremiumOrAdvance = me && (me.subscriptionPlan === 'premium' || me.subscriptionPlan === 'advance' || me.isAdmin);
+
+    if (isPremiumOrAdvance) {
       canUseMultiSmtp = true;
       standardSmtpBlock.style.display = 'none';
       adminSmtpBlock.style.display = 'block';

@@ -17,8 +17,10 @@ const verifySmtpConnection = async (smtpConfig) => {
 
 export const getSmtpAccounts = (req, res) => {
     const sessionUser = req.session?.user;
-    if (!sessionUser || !sessionUser.isAdmin) {
-        return res.status(403).json({ error: "Only admins can use Multiple SMTP Load Balancing." });
+    const isPremiumOrAdvance = sessionUser && (sessionUser.subscriptionPlan === 'premium' || sessionUser.subscriptionPlan === 'advance' || sessionUser.isAdmin);
+
+    if (!isPremiumOrAdvance) {
+        return res.status(403).json({ error: "Only Premium and Advance users can use Multiple SMTP Load Balancing." });
     }
 
     const userId = req.session.user.id;
@@ -33,8 +35,10 @@ export const getSmtpAccounts = (req, res) => {
 
 export const addSmtpAccount = async (req, res) => {
     const sessionUser = req.session?.user;
-    if (!sessionUser || !sessionUser.isAdmin) {
-        return res.status(403).json({ error: "Only admins can save Multiple SMTP credentials." });
+    const isPremiumOrAdvance = sessionUser && (sessionUser.subscriptionPlan === 'premium' || sessionUser.subscriptionPlan === 'advance' || sessionUser.isAdmin);
+
+    if (!isPremiumOrAdvance) {
+        return res.status(403).json({ error: "Only Premium and Advance users can save Multiple SMTP credentials." });
     }
 
     const { host, port, user, pass } = req.body;
@@ -62,8 +66,10 @@ export const addSmtpAccount = async (req, res) => {
 
 export const deleteSmtpAccount = (req, res) => {
     const sessionUser = req.session?.user;
-    if (!sessionUser || !sessionUser.isAdmin) {
-        return res.status(403).json({ error: "Only admins can delete Multiple SMTP credentials." });
+    const isPremiumOrAdvance = sessionUser && (sessionUser.subscriptionPlan === 'premium' || sessionUser.subscriptionPlan === 'advance' || sessionUser.isAdmin);
+
+    if (!isPremiumOrAdvance) {
+        return res.status(403).json({ error: "Only Premium and Advance users can delete Multiple SMTP credentials." });
     }
 
     const { id } = req.params;

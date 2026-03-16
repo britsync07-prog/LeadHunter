@@ -9,8 +9,8 @@ async function fetchJson(url) {
     throw new Error(`Failed to fetch ${url}`);
   }
   const data = await res.json();
-  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free')) {
-    window.location.href = '/expired.html';
+  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free' || data.subscriptionPlan === 'none')) {
+    window.location.href = '/index.html#pricing';
     return;
   }
   return data;

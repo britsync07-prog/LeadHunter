@@ -17,8 +17,15 @@
 
   <!-- Auto-redirect if already logged in -->
   <script>
-    fetch('/api/me').then(res => {
-      if (res.ok) window.location.replace('/dashboard.html');
+    fetch('/api/me').then(async res => {
+      if (res.ok) {
+        const user = await res.json();
+        if (user.subscriptionPlan === 'none' || user.subscriptionPlan === 'expired') {
+          window.location.replace('/index.html#pricing');
+        } else {
+          window.location.replace('/dashboard.html');
+        }
+      }
     }).catch(() => { });
   </script>
 </head>
@@ -153,7 +160,18 @@
         });
 
         if (response.ok) {
-          window.location.href = "/dashboard.html";
+          // Verify plan after login
+          const meRes = await fetch("/api/me");
+          if (meRes.ok) {
+            const userData = await meRes.json();
+            if (userData.subscriptionPlan === 'none' || userData.subscriptionPlan === 'expired') {
+              window.location.href = "/index.html#pricing";
+            } else {
+              window.location.href = "/dashboard.html";
+            }
+          } else {
+            window.location.href = "/dashboard.html";
+          }
         } else {
           const result = await response.json();
           errorDiv.innerHTML = `<strong>Verification Failed</strong><br/>${result.error || "Incorrect credentials."}`;

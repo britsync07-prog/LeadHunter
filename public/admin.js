@@ -8,6 +8,7 @@ const PLAN_CONFIG = {
     premium: { cls: 'plan-premium', label: 'Premium' },
     advance: { cls: 'plan-advance', label: 'Advance' },
     basic: { cls: 'plan-basic', label: 'Basic' },
+    none: { cls: 'plan-none', label: 'Unpaid' },
     free: { cls: 'plan-free', label: 'Free Trial' },
     expired: { cls: 'plan-free', label: 'Expired' },
 };
@@ -82,7 +83,7 @@ function renderStats(users) {
     document.getElementById('statTotal').textContent = users.length;
     document.getElementById('statAdmins').textContent = users.filter(u => u.isAdmin).length;
     document.getElementById('statPremium').textContent = users.filter(u => u.subscriptionPlan === 'premium').length;
-    document.getElementById('statTrial').textContent = users.filter(u => u.trialEndsAt && new Date(u.trialEndsAt) > new Date()).length;
+    document.getElementById('statTrial').textContent = users.filter(u => u.subscriptionPlan === 'none' || u.subscriptionPlan === 'expired').length;
 }
 
 function planBadge(plan) {

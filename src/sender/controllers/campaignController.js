@@ -193,8 +193,11 @@ const executeCampaign = async ({
 
   try {
     for (const email of normalizedRecipients) {
-      // 0. Time Window Check (Admin Only)
-      if (isAdmin && timezone && startTime && endTime) {
+      // 0. Time Window Check (Admin/Premium/Advance Only)
+      const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(userId);
+      const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
+
+      if (isPremiumOrAdvance && timezone && startTime && endTime) {
         let inWindow = isWithinWindow(timezone, startTime, endTime);
         while (!inWindow) {
           console.log(`[Campaign ${campaignId}] Outside window (${startTime}-${endTime} ${timezone}). Pausing...`);
@@ -318,12 +321,14 @@ const launchCampaign = async (req, res) => {
     const normalizedRecipients = Array.from(new Set(recipients.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean)));
     if (normalizedRecipients.length === 0) return res.status(400).json({ error: 'No recipients.' });
 
-    const isAdmin = !!req.session?.user?.isAdmin;
+    const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(req.session.user.id);
+    const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
+    const isAdmin = !!user?.isAdmin;
     const userId = req.session?.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
     
     let smtpPool = [];
-    if (isAdmin && smtpAccountIds && smtpAccountIds.length > 0) {
+    if (isPremiumOrAdvance && smtpAccountIds && smtpAccountIds.length > 0) {
       smtpPool = await loadActiveSmtpPool(smtpAccountIds, userId);
       if (smtpPool.length === 0) return res.status(400).json({ error: 'No active SMTP.' });
     } else {
@@ -346,7 +351,7 @@ const launchCampaign = async (req, res) => {
 
     executeCampaign({
       campaignId, campaignName, userId, senderName, subject, htmlContent, normalizedRecipients, 
-      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds, isAdmin, 
+      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isPremiumOrAdvance, smtpAccountIds, isAdmin, 
       hostUrl: `${req.protocol}://${req.get('host')}`,
       timezone, startTime, endTime
     });
@@ -360,12 +365,13 @@ const resumeCampaign = async (campaignId, hostUrl) => {
   const campaign = db.prepare(`SELECT * FROM campaigns WHERE id = ?`).get(campaignId);
   if (!campaign || !campaign.config) return;
   const config = JSON.parse(campaign.config);
-  const user = db.prepare(`SELECT isAdmin FROM users WHERE id = ?`).get(campaign.userId);
+  const user = db.prepare(`SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?`).get(campaign.userId);
+  const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
   const isAdmin = !!user?.isAdmin;
 
   let smtpPool = [];
   try {
-    if (isAdmin && config.smtpAccountIds) {
+    if (isPremiumOrAdvance && config.smtpAccountIds) {
       smtpPool = await loadActiveSmtpPool(config.smtpAccountIds, campaign.userId);
     } else if (config.smtpHost) {
       const transporter = await verifySmtpConnection({ host: config.smtpHost, port: parseInt(config.smtpPort, 10), user: config.smtpUser, pass: config.smtpPass });
@@ -376,7 +382,7 @@ const resumeCampaign = async (campaignId, hostUrl) => {
     db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = NULL WHERE id = ?`).run(campaignId);
     executeCampaign({
       campaignId, campaignName: campaign.name, userId: campaign.userId, senderName: config.senderName, subject: config.subject, htmlContent: config.htmlContent, normalizedRecipients: config.normalizedRecipients,
-      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds: config.smtpAccountIds, isAdmin, hostUrl,
+      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isPremiumOrAdvance, smtpAccountIds: config.smtpAccountIds, isAdmin, hostUrl,
       timezone: config.timezone, startTime: config.startTime, endTime: config.endTime
     });
   } catch (err) {

@@ -85,7 +85,7 @@ function updatePhoneQueryPreview() {
 
 function getPlanLimits(plan) {
   const p = (plan || '').toLowerCase().trim();
-  if (p === 'premium') return { daily: 6000, monthly: 180000, concurrentJobs: 5 };
+  if (p === 'premium') return { daily: Infinity, monthly: Infinity, concurrentJobs: 1 };
   if (p === 'advance') return { daily: 1000, monthly: 30000, concurrentJobs: 1 };
   if (p === 'basic') return { daily: 300, monthly: 9000, concurrentJobs: 1 };
   return { daily: 100, monthly: 3000, concurrentJobs: 1 };
@@ -96,9 +96,26 @@ async function checkAuth() {
     const user = await fetchJson("/api/me");
     currentUser = user;
 
-    if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'free') {
-      window.location.href = "/expired.html";
+    if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'free' || user.subscriptionPlan === 'none') {
+      window.location.href = "/index.html#pricing";
       return;
+    }
+
+    // Advance users only get Sender (no Scraper)
+    if (user.subscriptionPlan === 'advance' && !user.isAdmin) {
+      const navScraper = document.getElementById('navScraper');
+      if (navScraper) navScraper.style.display = 'none';
+
+      const backToDashboardLinks = document.querySelectorAll('a[href="/dashboard.html"]');
+      backToDashboardLinks.forEach(link => {
+        link.href = "/sender.html";
+        link.innerHTML = link.innerHTML.replace("Dashboard", "Sender Panel");
+      });
+      
+      if (window.location.pathname.includes('/dashboard.html')) {
+        window.location.href = "/sender.html";
+        return;
+      }
     }
 
     userInfoEl.textContent = `Logged in as: ${user.username}`;

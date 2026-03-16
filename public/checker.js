@@ -42,8 +42,8 @@ async function fetchJson(url, options) {
     throw new Error(message);
   }
   const data = await response.json();
-  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free')) {
-    window.location.href = '/expired.html';
+  if (url === '/api/me' && (data.subscriptionPlan === 'expired' || data.subscriptionPlan === 'free' || data.subscriptionPlan === 'none')) {
+    window.location.href = '/index.html#pricing';
     return;
   }
   return data;

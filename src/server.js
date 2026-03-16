@@ -75,6 +75,14 @@ app.use(helmet({
 }));
 app.use(compression());
 
+// --- DISABLE CACHE FOR API ROUTES ---
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 // --- STRIPE WEBHOOK ---
 app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req, res) => {
   let event;
@@ -379,9 +387,9 @@ app.get("/api/checkout/session", requireAuth, async (req, res) => {
   const { plan } = req.query;
   if (!['basic', 'advance', 'premium'].includes(plan)) return res.status(400).json({ error: "Invalid plan" });
   const user = db.prepare("SELECT id, email, subscriptionPlan, trialEndsAt FROM users WHERE id = ?").get(req.session.user.id);
-  const tiers = { free: 0, basic: 1, advance: 2, premium: 3 };
-  if (!user.trialEndsAt && tiers[plan] <= (tiers[user.subscriptionPlan] || 0) && tiers[user.subscriptionPlan] > 0) {
-    return res.send(`<html><body><h2>Invalid Upgrade</h2><a href="/dashboard.html">Back</a></body></html>`);
+  const tiers = { none: 0, free: 0, basic: 1, advance: 2, premium: 3 };
+  if (tiers[plan] <= (tiers[user.subscriptionPlan] || 0) && tiers[user.subscriptionPlan] !== 'none' && tiers[user.subscriptionPlan] !== 'expired' && tiers[user.subscriptionPlan] !== 'free') {
+    return res.redirect("/already_have_plan.html");
   }
   try {
     const domain = `${req.protocol}://${req.get('host')}`;
@@ -543,21 +551,20 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   const usage = queue.getUserUsage(req.session.user.username);
 
   if (!isAdmin) {
-    if (userPlan === 'expired' || userPlan === 'free') {
-      return res.status(403).json({ error: "Your trial has expired. Please update your plan to continue." });
+    if (userPlan === 'expired' || userPlan === 'free' || userPlan === 'none') {
+      return res.status(403).json({ error: "Active subscription required. Please update your plan to continue." });
     }
 
     let dailyLimit = 0;
     let monthlyLimit = 0;
 
     if (userPlan === 'premium') {
-      dailyLimit = 6000;
-      monthlyLimit = 180000;
+      // Premium has unlimited leads
+      dailyLimit = Infinity;
+      monthlyLimit = Infinity;
       if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Premium plan requires Maps+Both" });
     } else if (userPlan === 'advance') {
-      dailyLimit = 1000;
-      monthlyLimit = 30000;
-      if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Advance plan requires Maps+Both" });
+      return res.status(403).json({ error: "The Scraper is not included in the Advance plan. Please upgrade to Premium to use this feature." });
     } else {
       // Any other plan (none) is treated as expired
       return res.status(403).json({ error: "Active subscription required." });

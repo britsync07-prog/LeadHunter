@@ -17,12 +17,15 @@
 
     <!-- Auto-redirect if already logged in -->
     <script>
-        fetch('/api/me').then(res => {
+        fetch('/api/me').then(async res => {
             if (res.ok) {
+                const user = await res.json();
                 const urlParams = new URLSearchParams(window.location.search);
                 const requestedPlan = urlParams.get('plan');
                 if (requestedPlan) {
                     window.location.replace(`/api/checkout/session?plan=${requestedPlan}`);
+                } else if (user.subscriptionPlan === 'none' || user.subscriptionPlan === 'expired') {
+                    window.location.replace('/index.html#pricing');
                 } else {
                     window.location.replace('/dashboard.html');
                 }
@@ -57,7 +60,7 @@
             class="bg-white/90 backdrop-blur-2xl border border-white/40 rounded-2xl p-8 shadow-[0_8px_40px_rgba(31,38,135,0.08)]">
             <div class="text-center mb-8">
                 <div class="text-2xl font-bold text-brand-text tracking-tight mb-2">Create an account</div>
-                <div class="text-sm font-medium text-brand-secondary">Start your free 3-day premium trial instantly
+                <div class="text-sm font-medium text-brand-secondary">Join our professional network
                 </div>
             </div>
 
@@ -176,8 +179,8 @@
                         // Send user to server to generate Stripe Checkout URL
                         window.location.href = `/api/checkout/session?plan=${requestedPlan}`;
                     } else {
-                        // Fallback to free 3-day premium dashboard
-                        window.location.href = "/dashboard.html";
+                        // Redirect to pricing page if no plan was pre-selected
+                        window.location.href = "/index.html#pricing";
                     }
                 } else {
                     const result = await response.json();

@@ -28,9 +28,8 @@ const initDb = () => {
       username TEXT UNIQUE NOT NULL,
       email TEXT UNIQUE,
       password TEXT NOT NULL,
-      subscriptionPlan TEXT DEFAULT 'free', -- 'free', 'basic', 'advance', 'premium'
-      trialEndsAt DATETIME,
-      stripeCustomerId TEXT,
+      subscriptionPlan TEXT DEFAULT 'none', -- 'none', 'basic', 'advance', 'premium'
+      trialEndsAt DATETIME,      stripeCustomerId TEXT,
       isAdmin INTEGER DEFAULT 0,
       isSuspended INTEGER DEFAULT 0,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
