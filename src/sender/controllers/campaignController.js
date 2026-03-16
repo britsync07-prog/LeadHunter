@@ -16,6 +16,47 @@ const SEND_DELAY_MS = 5000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Checks if the current time in the specified timezone is within the start/end window.
+ * Supports cross-midnight windows (e.g., 14:00 to 09:00).
+ */
+const isWithinWindow = (timezone, startStr, endStr) => {
+  if (!timezone || !startStr || !endStr) return true;
+
+  try {
+    const now = new Date();
+    // Use Intl to get the current hour/minute in the specific timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour').value, 10);
+    const minute = parseInt(parts.find(p => p.type === 'minute').value, 10);
+    const currentMinutes = hour * 60 + minute;
+
+    const [startH, startM] = startStr.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+
+    const [endH, endM] = endStr.split(':').map(Number);
+    const endMinutes = endH * 60 + endM;
+
+    if (startMinutes <= endMinutes) {
+      // Normal window (e.g., 09:00 to 17:00)
+      return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    } else {
+      // Cross-midnight window (e.g., 14:00 to 09:00)
+      return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+    }
+  } catch (err) {
+    console.error(`[Time Window Check] Error for ${timezone}:`, err.message);
+    return true; // Fallback to sending if timezone logic fails
+  }
+};
+
 const verifySmtpConnection = async (smtpConfig) => {
   const transporter = createTransporter(smtpConfig);
   try {
@@ -140,7 +181,10 @@ const executeCampaign = async ({
   canUseMultiSmtp,
   smtpAccountIds,
   isAdmin,
-  hostUrl
+  hostUrl,
+  timezone,
+  startTime,
+  endTime
 }) => {
   let deliveredCount = 0;
   let bouncedCount = 0;
@@ -149,6 +193,25 @@ const executeCampaign = async ({
 
   try {
     for (const email of normalizedRecipients) {
+      // 0. Time Window Check (Admin Only)
+      if (isAdmin && timezone && startTime && endTime) {
+        let inWindow = isWithinWindow(timezone, startTime, endTime);
+        while (!inWindow) {
+          console.log(`[Campaign ${campaignId}] Outside window (${startTime}-${endTime} ${timezone}). Pausing...`);
+          await sleep(60000); // Wait 1 minute and check again
+          inWindow = isWithinWindow(timezone, startTime, endTime);
+
+          // Check if campaign was aborted during wait
+          const current = db.prepare(`SELECT status FROM campaigns WHERE id = ?`).get(campaignId);
+          if (!current || current.status === 'aborted') {
+            aborted = true;
+            break;
+          }
+        }
+      }
+
+      if (aborted) break;
+
       const existing = db.prepare(`SELECT status FROM recipients WHERE campaignId = ? AND email = ?`).get(campaignId, email);
       if (existing && (existing.status === 'delivered' || existing.status === 'bounced')) {
         if (existing.status === 'delivered') deliveredCount++;
@@ -246,7 +309,11 @@ const executeCampaign = async ({
 
 const launchCampaign = async (req, res) => {
   try {
-    const { campaignName, senderName, subject, htmlContent, recipients, smtpHost, smtpPort, smtpUser, smtpPass, smtpAccountIds } = req.body;
+    const { 
+      campaignName, senderName, subject, htmlContent, recipients, 
+      smtpHost, smtpPort, smtpUser, smtpPass, smtpAccountIds,
+      timezone, startTime, endTime
+    } = req.body;
     if (!campaignName || !subject || !htmlContent || !recipients || recipients.length === 0) return res.status(400).json({ error: 'Missing data.' });
     const normalizedRecipients = Array.from(new Set(recipients.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean)));
     if (normalizedRecipients.length === 0) return res.status(400).json({ error: 'No recipients.' });
@@ -268,14 +335,20 @@ const launchCampaign = async (req, res) => {
     const campaignId = uuidv4();
     db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
       campaignId, userId, campaignName, 
-      JSON.stringify({ senderName, subject, htmlContent, normalizedRecipients, smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass })
+      JSON.stringify({ 
+        senderName, subject, htmlContent, normalizedRecipients, 
+        smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass,
+        timezone, startTime, endTime
+      })
     );
 
     res.status(202).json({ message: 'Campaign accepted.', campaignId, totalRecipients: normalizedRecipients.length });
 
     executeCampaign({
       campaignId, campaignName, userId, senderName, subject, htmlContent, normalizedRecipients, 
-      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds, isAdmin, hostUrl: `${req.protocol}://${req.get('host')}`
+      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds, isAdmin, 
+      hostUrl: `${req.protocol}://${req.get('host')}`,
+      timezone, startTime, endTime
     });
   } catch (error) {
     console.error('[Campaign Error]', error);
@@ -303,7 +376,8 @@ const resumeCampaign = async (campaignId, hostUrl) => {
     db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = NULL WHERE id = ?`).run(campaignId);
     executeCampaign({
       campaignId, campaignName: campaign.name, userId: campaign.userId, senderName: config.senderName, subject: config.subject, htmlContent: config.htmlContent, normalizedRecipients: config.normalizedRecipients,
-      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds: config.smtpAccountIds, isAdmin, hostUrl
+      smtpPool, currentSmtpIndex: 0, canUseMultiSmtp: isAdmin, smtpAccountIds: config.smtpAccountIds, isAdmin, hostUrl,
+      timezone: config.timezone, startTime: config.startTime, endTime: config.endTime
     });
   } catch (err) {
     console.error(`[Resume] Failed for ${campaignId}:`, err);

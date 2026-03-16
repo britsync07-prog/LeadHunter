@@ -319,6 +319,33 @@
           </div>
           <p class="text-[11px] text-slate-500 mt-2 leading-tight">Selected emails will rotate sequentially in a loop.
             Failed emails (4 consecutive send errors) automatically rest for 1 hour, then rejoin.</p>
+
+          <!-- ADMIN ONLY: Timezone & Sending Window -->
+          <div id="adminSchedulingBlock" style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed #cbd5e1;">
+            <h4 style="font-size: 14px; color: #1e293b; display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              Sending Window (Admin Only)
+            </h4>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Timezone</label>
+              <select id="scheduleTimezone" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm font-sans">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+            <div class="form-row" style="margin-bottom: 0;">
+              <div class="form-group half" style="margin-bottom: 0;">
+                <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Start Time</label>
+                <input type="time" id="scheduleStart" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm" value="09:00">
+              </div>
+              <div class="form-group half" style="margin-bottom: 0;">
+                <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">End Time</label>
+                <input type="time" id="scheduleEnd" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm" value="17:00">
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

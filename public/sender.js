@@ -157,6 +157,9 @@ let savedSmtpAccounts = [];
 const standardSmtpBlock = document.getElementById('standardSmtpBlock');
 const adminSmtpBlock = document.getElementById('adminSmtpBlock');
 const smtpAccountsList = document.getElementById('smtpAccountsList');
+const scheduleTimezoneEl = document.getElementById('scheduleTimezone');
+const scheduleStartEl = document.getElementById('scheduleStart');
+const scheduleEndEl = document.getElementById('scheduleEnd');
 
 async function initSmtpUI() {
   try {
@@ -165,6 +168,16 @@ async function initSmtpUI() {
       canUseMultiSmtp = true;
       standardSmtpBlock.style.display = 'none';
       adminSmtpBlock.style.display = 'block';
+      
+      // Populate Timezones
+      if (Intl.supportedValuesOf) {
+        const timezones = Intl.supportedValuesOf('timeZone');
+        const defaultTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        scheduleTimezoneEl.innerHTML = timezones.map(tz => `<option value="${tz}" ${tz === defaultTz ? 'selected' : ''}>${tz}</option>`).join('');
+      } else {
+        scheduleTimezoneEl.innerHTML = '<option value="UTC">UTC</option>';
+      }
+
       await loadSmtpAccounts();
     }
   } catch (err) {
@@ -304,6 +317,9 @@ btnLaunchCampaign.addEventListener('click', async () => {
   if (canUseMultiSmtp) {
     const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
     payload.smtpAccountIds = checked;
+    payload.timezone = scheduleTimezoneEl.value;
+    payload.startTime = scheduleStartEl.value;
+    payload.endTime = scheduleEndEl.value;
   } else {
     payload.smtpHost = smtpHostEl.value.trim();
     payload.smtpPort = parseInt(smtpPortEl.value.trim(), 10);
