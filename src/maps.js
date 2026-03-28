@@ -57,6 +57,34 @@ class BusinessScraper {
       
       await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 60000 });
 
+      // Handle Google Consent Dialog programmatically
+      try {
+        // Try multiple common selectors for the "Accept all" button
+        const selectors = [
+          'button[aria-label*="Accept all"]',
+          'button[aria-label*="Agree"]',
+          'form[action*="consent.google.com"] button',
+          'button::-p-text(Accept all)',
+          'button::-p-text(I agree)'
+        ];
+        
+        for (const selector of selectors) {
+          try {
+            const button = await page.waitForSelector(selector, { timeout: 2000 });
+            if (button) {
+              console.log(`[Maps] Consent dialog detected (${selector}), clicking accept...`);
+              await button.click();
+              await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+              break; 
+            }
+          } catch (e) {
+            // Check next selector
+          }
+        }
+      } catch (e) {
+        console.log("[Maps] No consent page found or error clicking, continuing...");
+      }
+
       console.log(`[Maps] Scrolling to find up to ${maxResults} leads...`);
       const links = await page.evaluate(async (max) => {
         const wrapper = document.querySelector('div[role="feed"]');

@@ -399,6 +399,18 @@ export async function googleSearch(
         waitUntil: "networkidle",
       });
 
+      // 处理 Google 同意对话框
+      try {
+        const consentButton = page.getByRole('button', { name: /Accept all|I agree|同意/i });
+        if (await consentButton.count() > 0) {
+          logger.info("检测到 Google 同意对话框，正在点击接受...");
+          await consentButton.click();
+          await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }).catch(() => {});
+        }
+      } catch (e) {
+        logger.info("未发现同意页面或点击失败，继续执行...");
+      }
+
       const sorryPatterns = [
         "google.com/sorry/index",
         "google.com/sorry",
