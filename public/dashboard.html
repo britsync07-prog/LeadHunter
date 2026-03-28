@@ -225,14 +225,20 @@ Gym Coach"
           <div id="states" class="city-grid"></div>
         </div>
 
-        <!-- Cities hidden: auto-scraped from selected states -->
-        <div class="location-section" style="display:none;">
+        <div class="location-section">
           <div class="section-header-row">
             <span class="section-label">Cities</span>
             <label class="check-all-label block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">
               <input type="checkbox" id="selectAllCities"> All
             </label>
           </div>
+          <div class="location-helper">Select specific cities if needed. Leave cities unchecked to use all cities from the selected states.</div>
+          <input
+            id="citySearch"
+            type="search"
+            class="location-search"
+            placeholder="Search cities..."
+            autocomplete="off">
           <div id="cities" class="city-grid"></div>
         </div>
       </div>
@@ -792,4 +798,4 @@ Gym Coach"
   });
 </script>
 
-<script type="module" src="app.js?v=2.2"></script>
+<script type="module" src="app.js?v=2.3"></script>

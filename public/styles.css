@@ -931,6 +931,30 @@ select option {
   letter-spacing: 0.05em;
 }
 
+.location-helper {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.location-search {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.location-search:focus {
+  outline: none;
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
 .badge-optional {
   font-size: 10px;
   font-weight: 500;
@@ -991,6 +1015,12 @@ select option {
 .city-grid input {
   accent-color: var(--blue-primary);
   cursor: pointer;
+}
+
+.city-grid .is-selected {
+  border-color: var(--blue-primary);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text-primary);
 }
 
 /* ============================================================

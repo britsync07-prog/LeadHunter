@@ -4,14 +4,15 @@ FROM mcr.microsoft.com/playwright:v1.50.1-jammy
 # Define working directory
 WORKDIR /usr/src/app
 
-# Install Python 3 and build tools for sqlite3 node-gyp rebuilding
-RUN apt-get update && apt-get install -y python3 python3-pip build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy package requirements first for layer caching
 COPY package*.json ./
 COPY requirements.txt ./
 COPY scripts/ ./scripts/
+
+# Install Python 3, build tooling, and Chrome/Puppeteer runtime libraries
+RUN apt-get update && apt-get install -y python3 python3-pip build-essential \
+    && ./scripts/install_browser_deps.sh \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install PM2 globally for production cluster mode
 RUN npm install pm2 -g

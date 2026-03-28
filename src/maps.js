@@ -5,6 +5,12 @@ import * as cheerio from 'cheerio';
 
 puppeteer.use(StealthPlugin());
 
+function envFlag(name, defaultValue = false) {
+  const value = process.env[name];
+  if (value == null) return defaultValue;
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
 class BusinessScraper {
   constructor() {
     this.browser = null;
@@ -19,11 +25,23 @@ class BusinessScraper {
   }
 
   async init() {
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN || undefined;
+    const launchArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-notifications",
+      "--disable-gpu",
+      "--no-zygote",
+      "--lang=en-US",
+    ];
+
     this.browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-notifications", "--lang=en-US"],
+      headless: !envFlag("PUPPETEER_HEADFUL", false),
+      executablePath,
+      args: launchArgs,
     });
-    console.log("Browser initialized (Ultra Mode)");
+    console.log(`Browser initialized (Ultra Mode)${executablePath ? ` using ${executablePath}` : ""}`);
   }
 
   async scrapeGoogleMaps(searchQuery, maxResults = 30) {

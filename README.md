@@ -28,9 +28,13 @@ LeadHunter is a powerful, full-stack lead generation and automated outreach plat
 - **Node.js**: v18+ recommended.
 - **Python**: v3.9+ (For the high-performance search engine).
 - **Chrome/Chromium**: Required for the Puppeteer scraping runtime.
+- **Linux browser libraries**: On Debian/Ubuntu, install them with `sudo ./scripts/install_browser_deps.sh`.
 
 ### 2. Installation
 ```bash
+# Install Linux browser runtime packages once (Debian/Ubuntu)
+sudo ./scripts/install_browser_deps.sh
+
 # Install Node & Python dependencies
 npm install
 ```

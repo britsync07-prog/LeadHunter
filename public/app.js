@@ -3,6 +3,7 @@ const stateContainer = document.getElementById("states");
 const cityContainer = document.getElementById("cities");
 const selectAllStates = document.getElementById("selectAllStates");
 const selectAllCities = document.getElementById("selectAllCities");
+const citySearchEl = document.getElementById("citySearch");
 const statusEl = document.getElementById("status");
 const statusIndicator = document.getElementById("statusIndicator");
 const eventsEl = document.getElementById("events");
@@ -38,6 +39,10 @@ let autoMailTemplates = [];
 let currentUser = null;
 let totalLeads = 0;
 let totalPhones = 0;
+let allCountryCities = [];
+let visibleCityOptions = [];
+let selectedCityValues = new Set();
+const stateCitiesCache = new Map();
 
 // Throttled UI State
 let _uiUpdateQueued = false;
@@ -467,19 +472,44 @@ function selectedValues(container) {
   return [...container.querySelectorAll("input[type='checkbox']:checked")].map((input) => input.value);
 }
 
-function renderCheckboxList(container, values, selectAllEl) {
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function syncSelectAllState(container, selectAllEl) {
+  if (!container || !selectAllEl) return;
+  const checkboxes = [...container.querySelectorAll("input[type='checkbox']")];
+  const checked = checkboxes.filter((cb) => cb.checked);
+  selectAllEl.checked = checkboxes.length > 0 && checked.length === checkboxes.length;
+  selectAllEl.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+}
+
+function renderCheckboxList(container, values, selectAllEl, checkedValues = []) {
   container.innerHTML = "";
-  if (selectAllEl) selectAllEl.checked = false; // Reset Select All when list changes
+  if (selectAllEl) {
+    selectAllEl.checked = false;
+    selectAllEl.indeterminate = false;
+  }
 
   if (!values || !values.length) {
     container.textContent = "No data available.";
     return;
   }
+  const selectedSet = new Set(checkedValues);
   values.forEach((value) => {
     const label = document.createElement("label");
-    label.innerHTML = `<input type = "checkbox" value = "${value}" /> ${value}`;
+    const safeValue = escapeHtml(value);
+    const isChecked = selectedSet.has(value);
+    label.className = isChecked ? "is-selected" : "";
+    label.innerHTML = `<input type="checkbox" value="${safeValue}" ${isChecked ? "checked" : ""} /> ${safeValue}`;
     container.appendChild(label);
   });
+  syncSelectAllState(container, selectAllEl);
 }
 
 function setupSelectAll(selectAllEl, container) {
@@ -489,12 +519,48 @@ function setupSelectAll(selectAllEl, container) {
     const checkboxes = container.querySelectorAll("input[type='checkbox']");
     checkboxes.forEach(cb => {
       cb.checked = isChecked;
+      const label = cb.closest("label");
+      if (label) label.classList.toggle("is-selected", isChecked);
+      if (container === cityContainer) {
+        if (isChecked) selectedCityValues.add(cb.value);
+        else selectedCityValues.delete(cb.value);
+      }
     });
+    selectAllEl.indeterminate = false;
+    if (container === stateContainer) {
+      refreshVisibleCities();
+    } else if (container === cityContainer) {
+      updatePhoneQueryPreview();
+    }
   });
 }
 
 setupSelectAll(selectAllStates, stateContainer);
 setupSelectAll(selectAllCities, cityContainer);
+
+stateContainer?.addEventListener("change", async (event) => {
+  const label = event.target?.closest?.("label");
+  if (label) label.classList.toggle("is-selected", !!event.target.checked);
+  syncSelectAllState(stateContainer, selectAllStates);
+  await refreshVisibleCities();
+});
+
+cityContainer?.addEventListener("change", (event) => {
+  const checkbox = event.target;
+  if (!checkbox || checkbox.type !== "checkbox") return;
+
+  if (checkbox.checked) selectedCityValues.add(checkbox.value);
+  else selectedCityValues.delete(checkbox.value);
+
+  const label = checkbox.closest("label");
+  if (label) label.classList.toggle("is-selected", checkbox.checked);
+  syncSelectAllState(cityContainer, selectAllCities);
+  updatePhoneQueryPreview();
+});
+
+citySearchEl?.addEventListener("input", () => {
+  renderVisibleCities();
+});
 
 // --- AUTO-MAIL (ADMIN) UI LOGIC ---
 async function initAutoMailUI() {
@@ -669,8 +735,12 @@ async function loadCountries() {
 async function loadLocationDetails(country) {
   try {
     const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}`);
+    allCountryCities = details.cities || [];
+    visibleCityOptions = [];
+    selectedCityValues = new Set();
+    if (citySearchEl) citySearchEl.value = "";
     renderCheckboxList(stateContainer, details.states || [], selectAllStates);
-    renderCheckboxList(cityContainer, details.cities || [], selectAllCities);
+    renderVisibleCities();
   } catch (error) {
     console.error(`Could not load locations for ${country}`, error);
   }
@@ -679,6 +749,52 @@ async function loadLocationDetails(country) {
 countryEl?.addEventListener("change", async () => {
   await loadLocationDetails(countryEl.value);
 });
+
+async function getCitiesForState(country, state) {
+  const cacheKey = `${country}::${state}`;
+  if (stateCitiesCache.has(cacheKey)) return stateCitiesCache.get(cacheKey);
+
+  const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`);
+  const cities = details.cities || [];
+  stateCitiesCache.set(cacheKey, cities);
+  return cities;
+}
+
+function renderVisibleCities() {
+  const query = citySearchEl?.value?.trim().toLowerCase() || "";
+  const filtered = visibleCityOptions.filter((city) => city.toLowerCase().includes(query));
+  renderCheckboxList(cityContainer, filtered, selectAllCities, [...selectedCityValues]);
+}
+
+async function refreshVisibleCities() {
+  const country = countryEl.value;
+  const states = selectedValues(stateContainer);
+  const previouslySelected = new Set(selectedCityValues);
+
+  if (!states.length) {
+    visibleCityOptions = [];
+    selectedCityValues.clear();
+    renderVisibleCities();
+    return;
+  }
+
+  try {
+    const cityLists = await Promise.all(states.map((state) => getCitiesForState(country, state).catch(() => [])));
+    visibleCityOptions = [...new Set(cityLists.flat())].sort((a, b) => a.localeCompare(b));
+  } catch (error) {
+    console.warn("Could not load cities for selected states.", error);
+    visibleCityOptions = [];
+  }
+
+  selectedCityValues = new Set([...previouslySelected].filter((city) => visibleCityOptions.includes(city)));
+
+  if (!visibleCityOptions.length) {
+    visibleCityOptions = [...new Set(allCountryCities)].sort((a, b) => a.localeCompare(b));
+    selectedCityValues = new Set([...previouslySelected].filter((city) => visibleCityOptions.includes(city)));
+  }
+
+  renderVisibleCities();
+}
 
 async function loadCategories() {
   try {
@@ -964,6 +1080,7 @@ document.getElementById("expandNiches")?.addEventListener("click", async () => {
 document.getElementById("run")?.addEventListener("click", async () => {
   const niches = nichesEl.value.split("\n").map((x) => x.trim()).filter(Boolean);
   const states = selectedValues(stateContainer);
+  let cities = selectedValues(cityContainer);
   const includeGoogleMaps = (googleMapsModeEl?.value || "yes") === "yes";
   const scrapeMode = getScrapeMode();
   const country = countryEl.value;
@@ -991,28 +1108,28 @@ document.getElementById("run")?.addEventListener("click", async () => {
     return;
   }
 
-  // === Auto-resolve all cities for the selected states ===
-  statusEl.textContent = "Resolving cities for selected states…";
-  let cities = [];
-  try {
-    const cityFetches = states.map(state =>
-      fetchJson(`/api/location?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`)
-        .then(d => d.cities || [])
-        .catch(() => [])
-    );
-    const results = await Promise.all(cityFetches);
-    cities = [...new Set(results.flat())];
-  } catch (err) {
-    console.warn("Could not auto-resolve cities, falling back to country-wide list.", err);
-  }
-
-  // Fallback: if state-level cities are empty, use all country cities
   if (!cities.length) {
+    statusEl.textContent = "Resolving cities for selected states…";
     try {
-      const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}`);
-      cities = details.cities || [];
+      const cityFetches = states.map((state) => getCitiesForState(country, state).catch(() => []));
+      const results = await Promise.all(cityFetches);
+      cities = [...new Set(results.flat())];
     } catch (err) {
-      console.warn("Fallback city fetch also failed.", err);
+      console.warn("Could not auto-resolve cities, falling back to country-wide list.", err);
+    }
+
+    if (!cities.length) {
+      cities = [...new Set(allCountryCities)];
+    }
+
+    if (!cities.length) {
+      try {
+        const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}`);
+        allCountryCities = details.cities || [];
+        cities = [...new Set(allCountryCities)];
+      } catch (err) {
+        console.warn("Fallback city fetch also failed.", err);
+      }
     }
   }
 
