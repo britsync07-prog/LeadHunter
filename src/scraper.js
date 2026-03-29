@@ -309,22 +309,7 @@ export class LeadScraper {
       const googleScriptPath = path.join(__dirname, "google_scraper.js");
       await runScraperProcess(process.execPath, [googleScriptPath], "Google", payload);
     } catch (err) {
-      this.onProgress({ type: "log", message: `Google failed: ${err.message}. Falling back to Python...` });
-      if (!this.isStopped) {
-        const venvPython = path.join(__dirname, "..", "venv", "bin", "python3");
-        const pythonCmd = fs.existsSync(venvPython) ? venvPython : "python3";
-        try {
-          await runScraperProcess(pythonCmd, [scriptPath], "Python", payload);
-        } catch (pyErr) {
-          // If Python fails with a missing module error, show a user-friendly message
-          if (pyErr.message.includes('Python dependency missing') || pyErr.message.includes('ModuleNotFoundError')) {
-            this.onProgress({ type: "log", message: `⚠️ ${pyErr.message}` });
-            this.onProgress({ type: "log", message: `ℹ️ Run this command on the server: pip3 install undetected-chromedriver selenium --break-system-packages` });
-          } else {
-            this.onProgress({ type: "log", message: `Python fallback also failed: ${pyErr.message}` });
-          }
-        }
-      }
+      this.onProgress({ type: "log", message: `Google Search phase failed: ${err.message}` });
     }
 
     const filesList = await fsPromises.readdir(outputDir);
