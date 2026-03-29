@@ -4,12 +4,14 @@ import { fileURLToPath } from "node:url";
 import db from "./sender/models/db.js";
 import { resumeCampaign } from "./sender/controllers/campaignController.js";
 import crypto from 'node:crypto';
+import { EventEmitter } from 'node:events';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export class JobQueue {
+export class JobQueue extends EventEmitter {
   constructor() {
+    super();
     this.jobs = new Map(); // All jobs session
     this.activeJobs = new Map(); // Map<jobId, { job, scraper, listeners, smtpPool, currentSmtpIndex }>
     this.userActiveJobCounts = new Map(); // Map<userId, count>
