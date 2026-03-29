@@ -24,6 +24,8 @@ const phoneQueryExampleEl = document.getElementById("phoneQueryExample");
 // Auto-Mail Elements
 const adminAutoMailCard = document.getElementById('adminAutoMailCard');
 const enableAutoMailEl = document.getElementById('enableAutoMail');
+const autoMailSettingsEl = document.getElementById('autoMailSettings');
+const smtpListEl = document.getElementById('autoMailSmtpList');
 const autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
 const btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
 let autoMailTemplates = [];
