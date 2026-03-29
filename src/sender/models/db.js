@@ -61,6 +61,8 @@ const initDb = () => {
       status TEXT DEFAULT 'pending', -- 'pending', 'sent', 'delivered', 'bounced'
       error TEXT,
       sentAt DATETIME,
+      currentStep INTEGER DEFAULT 0,
+      nextSendAt DATETIME,
       FOREIGN KEY (campaignId) REFERENCES campaigns(id) ON DELETE CASCADE
     )
   `);
@@ -178,6 +180,8 @@ const initDb = () => {
   safeAlter(`ALTER TABLE campaigns ADD COLUMN config TEXT`); // JSON string
 
   safeAlter(`ALTER TABLE recipients ADD COLUMN error TEXT`);
+  safeAlter(`ALTER TABLE recipients ADD COLUMN currentStep INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE recipients ADD COLUMN nextSendAt DATETIME`);
 };
 
 initDb();

@@ -26,6 +26,7 @@ import { authenticate, requireAuth, registerUser, changePassword, adminResetPass
 import { JobQueue } from "./queue.js";
 import { expandNiches } from "./scraper.js";
 import * as autoMailController from "./sender/controllers/autoMailController.js";
+import { processPendingEmails } from "./sender/controllers/campaignController.js";
 
 // Sender & Tracking Routes
 import trackingRoutes from "./sender/routes/trackingRoutes.js";
@@ -683,4 +684,11 @@ app.post("/api/check-template", requireAuth, async (req, res) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`Dashboard server running on http://${HOST}:${PORT}`);
+  
+  // Start the Email Scheduler Worker
+  setInterval(() => {
+    processPendingEmails(`http://${HOST}:${PORT}`).catch(err => {
+      console.error('[Email Scheduler Error]', err);
+    });
+  }, 60000); // Check every minute
 });

@@ -5,11 +5,13 @@ let currentRecipients = [];
 
 // DOM Elements
 const campaignNameEl = document.getElementById('campaignName');
-const senderNameEl = document.getElementById('senderName');
-const subjectLineEl = document.getElementById('subjectLine');
-const htmlTemplateEl = document.getElementById('htmlTemplate');
 const btnLaunchCampaign = document.getElementById('btnLaunchCampaign');
 const senderErrorBox = document.getElementById('senderErrorBox');
+
+const sequenceContainer = document.getElementById('sequenceContainer');
+const btnAddSequenceStep = document.getElementById('btnAddSequenceStep');
+
+let sequences = []; // Array of { delayDays, subject, htmlContent, senderName }
 
 // SMTP Elements
 const smtpHostEl = document.getElementById('smtpHost');
@@ -272,14 +274,96 @@ async function deleteSmtp(id) {
 window.submitNewSmtp = submitNewSmtp;
 window.deleteSmtp = deleteSmtp;
 
+// --- SEQUENCE BUILDER LOGIC ---
+function addSequenceStep() {
+    sequences.push({
+        id: Date.now().toString(),
+        delayDays: sequences.length === 0 ? 0 : 1,
+        senderName: '',
+        subject: '',
+        htmlContent: ''
+    });
+    renderSequences();
+    validateForm();
+}
+
+function removeSequenceStep(id) {
+    sequences = sequences.filter(s => s.id !== id);
+    if (sequences.length === 0) addSequenceStep();
+    else {
+        renderSequences();
+        validateForm();
+    }
+}
+
+function updateStepField(id, field, value) {
+    const step = sequences.find(s => s.id === id);
+    if (step) {
+        step[field] = value;
+        validateForm();
+    }
+}
+
+function renderSequences() {
+    if (!sequenceContainer) return;
+    sequenceContainer.innerHTML = '';
+    
+    sequences.forEach((step, index) => {
+        const stepIndex = index + 1;
+        const isFirst = index === 0;
+
+        const delayHtml = isFirst 
+            ? `<div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-100 px-2 py-1 rounded inline-block mb-3">Instantly sent on launch</div>`
+            : `<div class="flex items-center gap-2 mb-3 bg-blue-50 p-2 rounded border border-blue-100 w-fit">
+                 <label class="text-xs font-bold text-blue-800 uppercase tracking-widest">Wait</label>
+                 <input type="number" min="0" value="${step.delayDays}" onchange="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" oninput="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" class="w-16 px-2 py-1 border rounded text-sm text-center font-mono border-blue-200 outline-none focus:ring-1 focus:ring-blue-500">
+                 <span class="text-xs font-bold text-blue-800 uppercase tracking-widest">Days</span>
+               </div>`;
+
+        const html = `
+          <div class="relative border border-slate-200 rounded-lg p-3 bg-white shadow-sm mt-4">
+            <span class="absolute -top-3 -left-3 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">${stepIndex}</span>
+            <button onclick="window.removeSeqStep('${step.id}')" class="absolute -top-2 -right-2 w-5 h-5 bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-400 rounded-full flex items-center justify-center transition-all bg-white shadow-sm" title="Remove Step">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            
+            ${delayHtml}
+            
+            <div class="space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="Sender Name (e.g. John Doe)" value="${step.senderName.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'senderName', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
+                <input type="text" placeholder="Email Subject" value="${step.subject.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'subject', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
+              </div>
+              <textarea placeholder="HTML Email Content" rows="${isFirst ? 4 : 2}" oninput="window.updateSeqStep('${step.id}', 'htmlContent', this.value)" class="w-full px-2 py-1 border rounded text-xs font-mono border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">${step.htmlContent}</textarea>
+            </div>
+          </div>
+        `;
+        
+        sequenceContainer.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+// Attach globally for inline HTML
+window.removeSeqStep = removeSequenceStep;
+window.updateSeqStep = updateStepField;
+
+if (btnAddSequenceStep) {
+    btnAddSequenceStep.addEventListener('click', addSequenceStep);
+}
+
 // --- FORM VALIDATION ---
 const validateForm = () => {
   const hasValidRecipients = currentRecipients.some(r => r.valid);
 
-  let isConfigFilled = campaignNameEl.value.trim() &&
-    senderNameEl.value.trim() &&
-    subjectLineEl.value.trim() &&
-    htmlTemplateEl.value.trim();
+  let isConfigFilled = campaignNameEl.value.trim() !== '';
+
+  // Check sequences
+  for (const seq of sequences) {
+      if (!seq.senderName.trim() || !seq.subject.trim() || !seq.htmlContent.trim()) {
+          isConfigFilled = false;
+          break;
+      }
+  }
 
   if (canUseMultiSmtp) {
     const checkedSmtps = document.querySelectorAll('input[name="selectedSmtps"]:checked');
@@ -298,9 +382,14 @@ const validateForm = () => {
 // Initialize Admin UI on Load
 initSmtpUI();
 
-[campaignNameEl, senderNameEl, subjectLineEl, htmlTemplateEl, smtpHostEl, smtpPortEl, smtpUserEl, smtpPassEl].forEach(el => {
-  el.addEventListener('input', validateForm);
+[campaignNameEl, smtpHostEl, smtpPortEl, smtpUserEl, smtpPassEl].forEach(el => {
+  if (el) el.addEventListener('input', validateForm);
 });
+
+// Initialize with one step
+if (sequences.length === 0) {
+    addSequenceStep();
+}
 
 btnLaunchCampaign.addEventListener('click', async () => {
   btnLaunchCampaign.disabled = true;
@@ -310,9 +399,12 @@ btnLaunchCampaign.addEventListener('click', async () => {
 
   let payload = {
     campaignName: campaignNameEl.value.trim(),
-    senderName: senderNameEl.value.trim(),
-    subject: subjectLineEl.value.trim(),
-    htmlContent: htmlTemplateEl.value.trim(),
+    sequences: sequences.map(s => ({
+        delayDays: s.delayDays,
+        senderName: s.senderName.trim(),
+        subject: s.subject.trim(),
+        htmlContent: s.htmlContent.trim()
+    })),
     recipients: validEmails
   };
 
@@ -354,8 +446,8 @@ btnLaunchCampaign.addEventListener('click', async () => {
       csvDropZone.style.display = 'block';
       currentRecipients = [];
       campaignNameEl.value = '';
-      subjectLineEl.value = '';
-      htmlTemplateEl.value = '';
+      sequences = [];
+      addSequenceStep();
 
       btnLaunchCampaign.innerHTML = `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2Z"></path></svg> Launch Campaign`;
 

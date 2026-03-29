@@ -24,17 +24,10 @@ const phoneQueryExampleEl = document.getElementById("phoneQueryExample");
 // Auto-Mail Elements
 const adminAutoMailCard = document.getElementById('adminAutoMailCard');
 const enableAutoMailEl = document.getElementById('enableAutoMail');
-const autoMailSettingsEl = document.getElementById('autoMailSettings');
-const templateSelectEl = document.getElementById('autoMailTemplateSelect');
-const templateNameEl = document.getElementById('autoMailTemplateName');
-const senderNameEl = document.getElementById('autoMailSenderName');
-const subjectEl = document.getElementById('autoMailSubject');
-const htmlEl = document.getElementById('autoMailHtml');
-const smtpListEl = document.getElementById('autoMailSmtpList');
-const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
-const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
-
+const autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
+const btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
 let autoMailTemplates = [];
+let autoMailSequences = []; // Array of { templateId, delayDays, subject, htmlContent, senderName }
 
 let currentUser = null;
 let totalLeads = 0;
@@ -567,73 +560,106 @@ async function initAutoMailUI() {
     if (!adminAutoMailCard) return;
     adminAutoMailCard.style.display = 'block';
 
-    enableAutoMailEl.addEventListener('change', () => {
+    enableAutoMailEl.addEventListener('change', async () => {
         autoMailSettingsEl.style.display = enableAutoMailEl.checked ? 'block' : 'none';
         if (enableAutoMailEl.checked) {
-            loadAutoMailTemplates();
-            loadSenderSmtps();
-        }
-    });
-
-    templateSelectEl.addEventListener('change', () => {
-        const val = templateSelectEl.value;
-        if (val === 'new') {
-            resetAutoMailForm();
-        } else {
-            const t = autoMailTemplates.find(x => x.id === val);
-            if (t) populateAutoMailForm(t);
-        }
-    });
-
-    btnSaveTemplateEl.addEventListener('click', async () => {
-        const payload = {
-            id: templateSelectEl.value === 'new' ? null : templateSelectEl.value,
-            name: templateNameEl.value.trim(),
-            senderName: senderNameEl.value.trim(),
-            subject: subjectEl.value.trim(),
-            htmlContent: htmlEl.value.trim(),
-            smtpAccountIds: [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value)
-        };
-
-        if (!payload.name || !payload.senderName || !payload.subject || !payload.htmlContent) {
-            alert("Please fill in all template fields.");
-            return;
-        }
-
-        try {
-            btnSaveTemplateEl.disabled = true;
-            btnSaveTemplateEl.textContent = 'Saving...';
-            const res = await fetchJson('/api/admin/auto-mail-templates', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (res.success) {
-                alert("Template saved!");
-                await loadAutoMailTemplates();
-                templateSelectEl.value = res.id;
+            await Promise.all([loadAutoMailTemplates(), loadSenderSmtps()]);
+            // Initialize with one step if empty
+            if (autoMailSequences.length === 0) {
+                addSequenceStep();
             }
-        } catch (err) {
-            alert("Failed to save template: " + err.message);
-        } finally {
-            btnSaveTemplateEl.disabled = false;
-            btnSaveTemplateEl.textContent = 'Save Template';
         }
     });
 
-    btnDeleteTemplateEl.addEventListener('click', async () => {
-        const id = templateSelectEl.value;
-        if (id === 'new') return;
-        if (!confirm("Are you sure you want to delete this template?")) return;
+    btnAddAutoMailStep.addEventListener('click', () => {
+        addSequenceStep();
+    });
+}
 
-        try {
-            await fetchJson(`/api/admin/auto-mail-templates/${id}`, { method: 'DELETE' });
-            alert("Template deleted.");
-            await loadAutoMailTemplates();
-            resetAutoMailForm();
-        } catch (err) {
-            alert("Failed to delete template: " + err.message);
+function addSequenceStep() {
+    autoMailSequences.push({
+        id: Date.now().toString(),
+        templateId: '',
+        delayDays: autoMailSequences.length === 0 ? 0 : 1,
+        senderName: '',
+        subject: '',
+        htmlContent: ''
+    });
+    renderSequences();
+}
+
+function removeSequenceStep(id) {
+    autoMailSequences = autoMailSequences.filter(s => s.id !== id);
+    if (autoMailSequences.length === 0) addSequenceStep();
+    else renderSequences();
+}
+
+function handleStepTemplateChange(id, templateId) {
+    const step = autoMailSequences.find(s => s.id === id);
+    if (!step) return;
+    step.templateId = templateId;
+    if (templateId) {
+        const t = autoMailTemplates.find(x => x.id === templateId);
+        if (t) {
+            step.senderName = t.senderName || '';
+            step.subject = t.subject || '';
+            step.htmlContent = t.htmlContent || '';
         }
+    } else {
+        step.senderName = '';
+        step.subject = '';
+        step.htmlContent = '';
+    }
+    renderSequences();
+}
+
+function updateStepField(id, field, value) {
+    const step = autoMailSequences.find(s => s.id === id);
+    if (step) step[field] = value;
+}
+
+function renderSequences() {
+    autoMailSequenceContainer.innerHTML = '';
+    
+    autoMailSequences.forEach((step, index) => {
+        const stepIndex = index + 1;
+        const isFirst = index === 0;
+        
+        const templateOptions = '<option value="">-- Custom Email --</option>' + 
+            autoMailTemplates.map(t => `<option value="${t.id}" ${step.templateId === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+
+        const delayHtml = isFirst 
+            ? `<div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-100 px-2 py-1 rounded inline-block mb-3">Instantly sent on scrape</div>`
+            : `<div class="flex items-center gap-2 mb-3 bg-red-50 p-2 rounded border border-red-100 w-fit">
+                 <label class="text-xs font-bold text-red-800 uppercase tracking-widest">Wait</label>
+                 <input type="number" min="0" value="${step.delayDays}" onchange="updateStepField('${step.id}', 'delayDays', parseInt(this.value)||0)" class="w-16 px-2 py-1 border rounded text-sm text-center font-mono border-red-200 outline-none focus:ring-1 focus:ring-red-500">
+                 <span class="text-xs font-bold text-red-800 uppercase tracking-widest">Days</span>
+               </div>`;
+
+        const html = `
+          <div class="relative border border-red-200 rounded-lg p-3 bg-white shadow-sm mt-4">
+            <span class="absolute -top-3 -left-3 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">${stepIndex}</span>
+            <button onclick="removeSequenceStep('${step.id}')" class="absolute -top-2 -right-2 w-5 h-5 bg-white border border-red-200 text-red-400 hover:text-red-600 hover:border-red-400 rounded-full flex items-center justify-center transition-all bg-white shadow-sm" title="Remove Step">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            
+            ${delayHtml}
+            
+            <div class="space-y-2">
+              <select onchange="handleStepTemplateChange('${step.id}', this.value)" class="w-full px-2 py-1.5 border rounded-md text-sm font-mono border-red-200 bg-red-50 focus:outline-none">
+                ${templateOptions}
+              </select>
+              
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="Sender Name" value="${step.senderName.replace(/"/g, '&quot;')}" onchange="updateStepField('${step.id}', 'senderName', this.value)" class="w-full px-2 py-1 border rounded text-sm border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">
+                <input type="text" placeholder="Email Subject" value="${step.subject.replace(/"/g, '&quot;')}" onchange="updateStepField('${step.id}', 'subject', this.value)" class="w-full px-2 py-1 border rounded text-sm border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">
+              </div>
+              <textarea placeholder="HTML Email Content" rows="${isFirst ? 4 : 2}" onchange="updateStepField('${step.id}', 'htmlContent', this.value)" class="w-full px-2 py-1 border rounded text-xs font-mono border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">${step.htmlContent}</textarea>
+            </div>
+          </div>
+        `;
+        
+        autoMailSequenceContainer.insertAdjacentHTML('beforeend', html);
     });
 }
 
@@ -648,12 +674,8 @@ async function loadAutoMailTemplates() {
 }
 
 function renderAutoMailTemplates() {
-    const currentVal = templateSelectEl.value;
-    templateSelectEl.innerHTML = '<option value="new">+ Create New Template</option>' +
-        autoMailTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    if (autoMailTemplates.find(t => t.id === currentVal)) {
-        templateSelectEl.value = currentVal;
-    }
+    // Re-render sequences if template choices changed
+    if (autoMailSequences.length > 0) renderSequences();
 }
 
 async function loadSenderSmtps() {
@@ -665,13 +687,13 @@ async function loadSenderSmtps() {
             return;
         }
 
-        const selectedIds = templateSelectEl.value !== 'new' 
-            ? (autoMailTemplates.find(t => t.id === templateSelectEl.value)?.smtpAccountIds || [])
-            : [];
+        // We don't have a single set of selected IDs anymore tied to a form
+        // But we can check previously checked if we store it, or just empty
+        const currentChecked = [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value);
 
         smtpListEl.innerHTML = accounts.map(acc => `
             <label class="flex items-center gap-2 p-1.5 hover:bg-red-50 rounded cursor-pointer transition-colors">
-                <input type="checkbox" value="${acc.id}" class="w-3.5 h-3.5 text-red-600 rounded border-slate-300" ${selectedIds.includes(acc.id) ? 'checked' : ''}>
+                <input type="checkbox" value="${acc.id}" class="w-3.5 h-3.5 text-red-600 rounded border-slate-300" ${currentChecked.includes(acc.id) ? 'checked' : ''}>
                 <span class="text-[11px] font-medium text-slate-700 truncate">${acc.user} (${acc.host})</span>
             </label>
         `).join('');
@@ -680,25 +702,7 @@ async function loadSenderSmtps() {
     }
 }
 
-function resetAutoMailForm() {
-    templateNameEl.value = '';
-    senderNameEl.value = '';
-    subjectEl.value = '';
-    htmlEl.value = '';
-    smtpListEl.querySelectorAll('input').forEach(i => i.checked = false);
-}
-
-function populateAutoMailForm(t) {
-    templateNameEl.value = t.name;
-    senderNameEl.value = t.senderName;
-    subjectEl.value = t.subject;
-    htmlEl.value = t.htmlContent;
-    
-    const checkboxes = smtpListEl.querySelectorAll('input');
-    checkboxes.forEach(i => {
-        i.checked = t.smtpAccountIds.includes(i.value);
-    });
-}
+// Forms are gone
 
 async function fetchJson(url, options = {}) {
   // Always include session cookie for backend authentication
@@ -1157,14 +1161,20 @@ document.getElementById("run")?.addEventListener("click", async () => {
             return;
         }
         autoMailConfig = {
-            senderName: senderNameEl.value.trim(),
-            subject: subjectEl.value.trim(),
-            htmlContent: htmlEl.value.trim(),
+            sequences: autoMailSequences.map(s => ({
+                delayDays: s.delayDays,
+                senderName: s.senderName.trim(),
+                subject: s.subject.trim(),
+                htmlContent: s.htmlContent.trim()
+            })),
             smtpAccountIds
         };
-        if (!autoMailConfig.senderName || !autoMailConfig.subject || !autoMailConfig.htmlContent) {
-            alert("Please fill in all Auto-Mail template fields.");
-            return;
+        
+        for (const seq of autoMailConfig.sequences) {
+            if (!seq.senderName || !seq.subject || !seq.htmlContent) {
+                alert("Please fill in all details for all Auto-Mail sequence steps.");
+                return;
+            }
         }
     }
 

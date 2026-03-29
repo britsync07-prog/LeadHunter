@@ -2,8 +2,8 @@ import { LeadScraper } from "./scraper.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import db from "./sender/models/db.js";
-import { createTransporter, sendEmail } from "./sender/services/mailer.js";
 import { resumeCampaign } from "./sender/controllers/campaignController.js";
+import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,6 +134,18 @@ export class JobQueue {
       return job; // Return rejected job — caller sees status = 'failed'
     }
 
+    if (job.params.autoMailConfig && !job.campaignId) {
+      job.campaignId = "auto_" + job.id;
+      try {
+        db.prepare(`
+          INSERT INTO campaigns (id, userId, name, status, config) 
+          VALUES (?, ?, ?, 'sending', ?)
+        `).run(job.campaignId, job.userId, `Scraper Auto-Mail: ${Array.isArray(job.params.niches) ? job.params.niches.join(', ') : 'Jobs'}`, JSON.stringify(job.params.autoMailConfig));
+      } catch (e) {
+        console.error("Failed to insert auto mail campaign", e);
+      }
+    }
+
     // Persist to DB with pending status
     db.prepare(`
       INSERT INTO jobs (id, userId, status, params, events, files, leadsFound, createdAt)
@@ -167,25 +179,6 @@ export class JobQueue {
     this.activeJobs.set(job.id, { job, scraper, smtpPool: [], currentSmtpIndex: 0 });
     const activeCount = (this.userActiveJobCounts.get(job.userId) || 0) + 1;
     this.userActiveJobCounts.set(job.userId, activeCount);
-
-    // Initialize Auto-Mail SMTP pool if configured
-    if (job.params.autoMailConfig && job.params.autoMailConfig.smtpAccountIds?.length > 0) {
-      try {
-        const ids = job.params.autoMailConfig.smtpAccountIds;
-        const placeholders = ids.map(() => '?').join(',');
-        const accounts = db.prepare(`SELECT * FROM smtp_accounts WHERE id IN (${placeholders})`).all(...ids);
-        const pool = accounts.map(acc => ({
-          user: acc.user,
-          transporter: createTransporter({ host: acc.host, port: acc.port, user: acc.user, pass: acc.pass })
-        }));
-        const active = this.activeJobs.get(job.id);
-        if (active) active.smtpPool = pool;
-        this.pushEvent(job, { type: "info", message: `Auto-Mail enabled with ${pool.length} SMTP account(s).` });
-      } catch (err) {
-        console.error(`[Queue] Failed to init SMTP pool for job ${job.id}:`, err);
-        this.pushEvent(job, { type: "info", message: `Failed to initialize Auto-Mail SMTP pool: ${err.message}` });
-      }
-    }
 
     job.status = "running";
     db.prepare("UPDATE jobs SET status = ? WHERE id = ?").run(job.status, job.id);
@@ -267,24 +260,15 @@ export class JobQueue {
         job.leadsFound = (job.leadsFound || 0) + 1;
 
         // Trigger Auto-Mail if enabled
-        const active = this.activeJobs.get(job.id);
-        if (active && active.smtpPool?.length > 0 && job.params.autoMailConfig) {
-          const { senderName, subject, htmlContent } = job.params.autoMailConfig;
-          const smtp = active.smtpPool[active.currentSmtpIndex % active.smtpPool.length];
-          active.currentSmtpIndex++;
-
-          // Send email asynchronously (don't await)
-          sendEmail(smtp.transporter, { name: senderName, email: smtp.user }, payload.email, subject, htmlContent)
-            .then(res => {
-              if (res.ok) {
-                this.pushEvent(job, { type: "info", message: `Auto-Mail sent to ${payload.email} via ${smtp.user}` });
-              } else {
-                this.pushEvent(job, { type: "info", message: `Auto-Mail failed for ${payload.email}: ${res.error}` });
-              }
-            })
-            .catch(err => {
-              this.pushEvent(job, { type: "info", message: `Auto-Mail error for ${payload.email}: ${err.message}` });
-            });
+        if (job.params.autoMailConfig && job.campaignId) {
+           try {
+             const recId = crypto.randomUUID();
+             db.prepare(`UPDATE campaigns SET status='sending' WHERE id = ?`).run(job.campaignId);
+             db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`).run(recId, job.campaignId, payload.email);
+             this.pushEvent(job, { type: "info", message: `Auto-Mail sequence queued for ${payload.email}` });
+           } catch(err) {
+             this.pushEvent(job, { type: "info", message: `Failed to queue Auto-Mail for ${payload.email}: ${err.message}` });
+           }
         }
       }
       if (payload.type === 'phone-saved' && payload.phone) {

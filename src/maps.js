@@ -145,7 +145,11 @@ class BusinessScraper {
       return links;
 
     } catch (error) {
-      console.error("[Maps] Scrape Error:", error);
+      if (error.message?.includes('Target closed') || error.name === 'TargetCloseError' || error.message?.includes('Protocol error')) {
+        console.log("[Maps] Scrape interrupted or target closed.");
+      } else {
+        console.error("[Maps] Scrape Error:", error);
+      }
       if (page) try { await page.close(); } catch(e) {}
       return [];
     }
