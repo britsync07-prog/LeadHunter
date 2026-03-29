@@ -652,6 +652,83 @@ app.get("/api/history", requireAuth, (req, res) => {
   res.json(queue.getUserHistory(req.session.user.username));
 });
 
+// --- Scraper Campaign Data for Sender Target Audience ---
+app.get("/api/sender/scraper-campaigns", requireAuth, (req, res) => {
+  try {
+    const username = req.session.user.username;
+    const categories = queue.getCategories(username);
+    const history = queue.getUserHistory(username);
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const result = categories.map(cat => {
+      const jobs = history.filter(j => j.params.category === cat.id).map(job => {
+        const emailFiles = (job.files || []).filter(f =>
+          f.includes('_emails.txt') || f === 'all_emails.txt' || f === 'google_maps_emails.txt'
+        );
+        let emailCount = 0;
+        for (const fname of emailFiles) {
+          const fpath = path.join(__dirname, '..', 'output', job.id, fname);
+          if (fs.existsSync(fpath)) {
+            const lines = fs.readFileSync(fpath, 'utf-8').split('\n').filter(l => emailRe.test(l.trim()));
+            emailCount += lines.length;
+          }
+        }
+        return {
+          id: job.id,
+          status: job.status,
+          createdAt: job.createdAt,
+          country: job.params.country,
+          states: job.params.states || [],
+          cities: job.params.cities || [],
+          niches: job.params.niches || [],
+          emailCount
+        };
+      });
+      const totalEmails = jobs.reduce((a, j) => a + j.emailCount, 0);
+      return { id: cat.id, name: cat.name, jobs, totalEmails };
+    }).filter(c => c.jobs.length > 0);
+
+    res.json({ campaigns: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/sender/extract-job-emails", requireAuth, express.json(), (req, res) => {
+  try {
+    const { jobIds } = req.body || {};
+    if (!Array.isArray(jobIds) || jobIds.length === 0) return res.status(400).json({ error: 'jobIds required' });
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const username = req.session.user.username;
+    const history = queue.getUserHistory(username);
+    const emails = new Set();
+
+    for (const jobId of jobIds) {
+      const job = history.find(j => j.id === jobId);
+      if (!job) continue;
+      const emailFiles = (job.files || []).filter(f =>
+        f.includes('_emails.txt') || f === 'all_emails.txt' || f === 'google_maps_emails.txt'
+      );
+      for (const fname of emailFiles) {
+        const fpath = path.join(__dirname, '..', 'output', jobId, fname);
+        if (fs.existsSync(fpath)) {
+          const lines = fs.readFileSync(fpath, 'utf-8').split('\n');
+          for (const l of lines) {
+            const email = l.trim().toLowerCase();
+            if (emailRe.test(email)) emails.add(email);
+          }
+        }
+      }
+    }
+
+    res.json({ emails: [...emails] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/queue", requireAuth, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json(queue.getQueueStatus());

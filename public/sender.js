@@ -153,6 +153,151 @@ btnClearAudience.addEventListener('click', () => {
   renderAudiencePreview();
 });
 
+// --- SCRAPER CAMPAIGNS TAB LOGIC ---
+let scraperCampaignsData = [];
+const scraperCampaignSelect = document.getElementById('scraperCampaignSelect');
+const scraperJobsList = document.getElementById('scraperJobsList');
+const scraperSummaryBar = document.getElementById('scraperSummaryBar');
+const btnLoadScraperEmails = document.getElementById('btnLoadScraperEmails');
+
+window.switchAudienceTab = function(tab) {
+  const csvPanel = document.getElementById('tabCsvPanel');
+  const scraperPanel = document.getElementById('tabScraperPanel');
+  const csvBtn = document.getElementById('tabCsvBtn');
+  const scraperBtn = document.getElementById('tabScraperBtn');
+
+  if (tab === 'csv') {
+    csvPanel.style.display = 'block';
+    scraperPanel.style.display = 'none';
+    csvBtn.className = 'flex-1 py-1.5 text-xs font-semibold rounded-md transition-all bg-white shadow-sm text-brand-primary';
+    scraperBtn.className = 'flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-500 hover:text-brand-primary';
+  } else {
+    csvPanel.style.display = 'none';
+    scraperPanel.style.display = 'block';
+    csvBtn.className = 'flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-500 hover:text-brand-primary';
+    scraperBtn.className = 'flex-1 py-1.5 text-xs font-semibold rounded-md transition-all bg-white shadow-sm text-brand-primary';
+    loadScraperCampaigns();
+  }
+};
+
+async function loadScraperCampaigns() {
+  if (!scraperCampaignSelect) return;
+  scraperCampaignSelect.innerHTML = '<option value="">Loading...</option>';
+  scraperJobsList.style.display = 'none';
+  btnLoadScraperEmails.style.display = 'none';
+  scraperSummaryBar.style.display = 'none';
+
+  try {
+    const data = await fetchJson('/api/sender/scraper-campaigns');
+    scraperCampaignsData = data.campaigns || [];
+
+    if (scraperCampaignsData.length === 0) {
+      scraperCampaignSelect.innerHTML = '<option value="">No scraper campaigns found</option>';
+      return;
+    }
+
+    scraperCampaignSelect.innerHTML = '<option value="">-- Select a Campaign --</option>' +
+      scraperCampaignsData.map(c =>
+        `<option value="${c.id}">${c.name} (${c.totalEmails} emails, ${c.jobs.length} jobs)</option>`
+      ).join('');
+  } catch (err) {
+    scraperCampaignSelect.innerHTML = '<option value="">Failed to load campaigns</option>';
+  }
+}
+
+if (scraperCampaignSelect) {
+  scraperCampaignSelect.addEventListener('change', () => {
+    const selId = scraperCampaignSelect.value;
+    const campaign = scraperCampaignsData.find(c => c.id === selId);
+
+    if (!campaign) {
+      scraperJobsList.style.display = 'none';
+      btnLoadScraperEmails.style.display = 'none';
+      scraperSummaryBar.style.display = 'none';
+      return;
+    }
+
+    scraperJobsList.innerHTML = campaign.jobs.map(job => {
+      const date = new Date(job.createdAt).toLocaleDateString();
+      const loc = [job.country, ...(job.states || []).slice(0, 2)].filter(Boolean).join(', ');
+      const niches = (job.niches || []).slice(0, 2).join(', ');
+      return `
+        <label class="flex items-start gap-2.5 p-2.5 border border-slate-100 rounded-lg hover:bg-blue-50/50 cursor-pointer transition-all">
+          <input type="checkbox" class="scraper-job-cb mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300" value="${job.id}" data-emails="${job.emailCount}">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <span class="text-xs font-semibold text-slate-700 truncate">${loc || 'Unknown Location'}</span>
+              <span class="text-[10px] font-bold ${job.emailCount > 0 ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'} px-1.5 py-0.5 rounded-full whitespace-nowrap">${job.emailCount} emails</span>
+            </div>
+            <div class="text-[10px] text-slate-500 mt-0.5">${niches ? `Niches: ${niches}` : ''} &bull; ${date} &bull; <span class="capitalize">${job.status}</span></div>
+          </div>
+        </label>`;
+    }).join('');
+
+    scraperJobsList.style.display = 'flex';
+    scraperJobsList.style.flexDirection = 'column';
+
+    // Listen for checkbox changes to update summary
+    scraperJobsList.querySelectorAll('.scraper-job-cb').forEach(cb => {
+      cb.addEventListener('change', updateScraperSummary);
+    });
+
+    updateScraperSummary();
+  });
+}
+
+function updateScraperSummary() {
+  const checked = [...scraperJobsList.querySelectorAll('.scraper-job-cb:checked')];
+  const totalEmails = checked.reduce((a, cb) => a + parseInt(cb.dataset.emails || 0), 0);
+
+  if (checked.length > 0) {
+    scraperSummaryBar.textContent = `${checked.length} job(s) selected · ~${totalEmails} emails will be loaded.`;
+    scraperSummaryBar.style.display = 'block';
+    btnLoadScraperEmails.style.display = 'flex';
+  } else {
+    scraperSummaryBar.style.display = 'none';
+    btnLoadScraperEmails.style.display = 'none';
+  }
+}
+
+if (btnLoadScraperEmails) {
+  btnLoadScraperEmails.addEventListener('click', async () => {
+    const jobIds = [...scraperJobsList.querySelectorAll('.scraper-job-cb:checked')].map(cb => cb.value);
+    if (jobIds.length === 0) return;
+
+    const origText = btnLoadScraperEmails.innerHTML;
+    btnLoadScraperEmails.disabled = true;
+    btnLoadScraperEmails.innerHTML = '<svg width="14" height="14" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Loading...';
+
+    try {
+      const res = await fetchJson('/api/sender/extract-job-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobIds })
+      });
+
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      currentRecipients = (res.emails || []).map(email => ({
+        email,
+        valid: emailRe.test(email)
+      }));
+
+      // Switch back to CSV tab view to show the table
+      window.switchAudienceTab('csv');
+      // Hide the upload zone since we already have data
+      document.getElementById('csvDropZone').style.display = 'none';
+      renderAudiencePreview();
+    } catch (err) {
+      alert('Failed to load emails: ' + err.message);
+    } finally {
+      btnLoadScraperEmails.disabled = false;
+      btnLoadScraperEmails.innerHTML = origText;
+    }
+  });
+}
+
+
+
 // --- MULTI-SMTP PREMIUM/ADMIN LOGIC ---
 let canUseMultiSmtp = false;
 let savedSmtpAccounts = [];

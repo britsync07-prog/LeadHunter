@@ -359,23 +359,59 @@
           <h2 class="card-title font-semibold text-brand-text m-0 text-base">Target Audience</h2>
         </div>
 
-        <div class="upload-zone relative group overflow-hidden" id="csvDropZone">
-          <svg width="32" height="32" fill="none" class="group-hover:stroke-blue-500 transition-colors"
-            stroke="var(--blue-primary)" stroke-width="1.5" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-          <h4>Upload Recipients List</h4>
-          <p>Drag &amp; drop your <code>.csv</code> or <code>.txt</code> lead file here</p>
+        <!-- Audience Mode Tabs -->
+        <div class="flex gap-1 bg-slate-100 p-1 rounded-lg">
+          <button id="tabCsvBtn" onclick="window.switchAudienceTab('csv')"
+            class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all bg-white shadow-sm text-brand-primary">
+            📄 Upload CSV
+          </button>
+          <button id="tabScraperBtn" onclick="window.switchAudienceTab('scraper')"
+            class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-500 hover:text-brand-primary">
+            🔍 Scraper Campaigns
+          </button>
+        </div>
 
-          <!-- Native File Input Overlay -->
-          <input type="file" id="audienceFile" accept=".csv,.txt"
-            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50">
+        <!-- CSV Upload Tab -->
+        <div id="tabCsvPanel">
+          <div class="upload-zone relative group overflow-hidden" id="csvDropZone">
+            <svg width="32" height="32" fill="none" class="group-hover:stroke-blue-500 transition-colors"
+              stroke="var(--blue-primary)" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <h4>Upload Recipients List</h4>
+            <p>Drag &amp; drop your <code>.csv</code> or <code>.txt</code> lead file here</p>
+            <input type="file" id="audienceFile" accept=".csv,.txt"
+              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50">
+            <button
+              class="ui-btn-secondary btn-sm mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2 relative z-10 pointer-events-none"
+              id="btnBrowseFile">Browse Files</button>
+          </div>
+        </div>
 
-          <button
-            class="ui-btn-secondary btn-sm mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2 relative z-10 pointer-events-none"
-            id="btnBrowseFile">Browse Files</button>
+        <!-- Scraper Campaigns Tab -->
+        <div id="tabScraperPanel" style="display:none;">
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Select Campaign</label>
+              <select id="scraperCampaignSelect" class="w-full px-3 py-2 border rounded-md text-sm font-mono border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-brand-primary">
+                <option value="">-- Loading campaigns... --</option>
+              </select>
+            </div>
+
+            <div id="scraperJobsList" class="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1" style="display:none;">
+              <!-- Job checkboxes injected by JS -->
+            </div>
+
+            <div id="scraperSummaryBar" class="text-xs text-slate-500 italic" style="display:none;"></div>
+
+            <button id="btnLoadScraperEmails" style="display:none;"
+              class="w-full py-2 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Load Selected Jobs into Audience
+            </button>
+          </div>
         </div>
 
         <div id="audiencePreview" class="audience-preview" style="display:none;">
