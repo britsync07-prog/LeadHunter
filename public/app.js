@@ -685,18 +685,18 @@ function addSequenceStep() {
     renderSequences();
 }
 
-function removeSequenceStep(id) {
+window.removeSequenceStep = function(id) {
     autoMailSequences = autoMailSequences.filter(s => s.id !== id);
     if (autoMailSequences.length === 0) addSequenceStep();
     else renderSequences();
-}
+};
 
-function handleStepTemplateChange(id, templateId) {
+window.handleStepTemplateChange = function(id, templateId) {
     const step = autoMailSequences.find(s => s.id === id);
     if (!step) return;
     step.templateId = templateId;
     if (templateId) {
-        const t = autoMailTemplates.find(x => x.id === templateId);
+        const t = autoMailTemplates.find(x => String(x.id) === String(templateId));
         if (t) {
             step.senderName = t.senderName || '';
             step.subject = t.subject || '';
@@ -708,12 +708,12 @@ function handleStepTemplateChange(id, templateId) {
         step.htmlContent = '';
     }
     renderSequences();
-}
+};
 
-function updateStepField(id, field, value) {
+window.updateStepField = function(id, field, value) {
     const step = autoMailSequences.find(s => s.id === id);
     if (step) step[field] = value;
-}
+};
 
 function renderSequences() {
     autoMailSequenceContainer.innerHTML = '';
@@ -808,6 +808,45 @@ async function loadSenderSmtps() {
 }
 
 // Forms are gone
+
+window.submitNewSmtp = async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSaveSmtpDash');
+  const errEl = document.getElementById('addSmtpErrorDash');
+  if(!btn || !errEl) return;
+  
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.innerHTML = 'Verifying...';
+
+  try {
+    const payload = {
+      host: document.getElementById('newSmtpHost').value.trim(),
+      port: document.getElementById('newSmtpPort').value.trim(),
+      user: document.getElementById('newSmtpUser').value.trim(),
+      pass: document.getElementById('newSmtpPass').value.trim()
+    };
+
+    const res = await fetchJson('/api/sender/smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.success) {
+      document.getElementById('addSmtpFormObj').reset();
+      document.getElementById('addSmtpFormObj').style.display = 'none';
+      await loadSenderSmtps();
+    } else {
+      errEl.textContent = res.error || 'Failed to add account.';
+    }
+  } catch (err) {
+    errEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Verify & Save';
+  }
+};
 
 async function fetchJson(url, options = {}) {
   // Always include session cookie for backend authentication
