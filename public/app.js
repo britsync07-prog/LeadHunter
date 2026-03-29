@@ -28,6 +28,15 @@ const autoMailSettingsEl = document.getElementById('autoMailSettings');
 const smtpListEl = document.getElementById('autoMailSmtpList');
 const autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
 const btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
+
+const templateSelectEl = document.getElementById('autoMailTemplateSelect');
+const templateNameEl = document.getElementById('autoMailTemplateName');
+const senderNameEl = document.getElementById('autoMailSenderName');
+const subjectEl = document.getElementById('autoMailSubject');
+const htmlEl = document.getElementById('autoMailHtml');
+const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
+const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
+
 let autoMailTemplates = [];
 let autoMailSequences = []; // Array of { templateId, delayDays, subject, htmlContent, senderName }
 
@@ -576,6 +585,92 @@ async function initAutoMailUI() {
     btnAddAutoMailStep.addEventListener('click', () => {
         addSequenceStep();
     });
+
+    setupTemplateListeners();
+}
+
+function resetAutoMailForm() {
+    if(templateNameEl) templateNameEl.value = '';
+    if(senderNameEl) senderNameEl.value = '';
+    if(subjectEl) subjectEl.value = '';
+    if(htmlEl) htmlEl.value = '';
+}
+
+function populateAutoMailForm(t) {
+    if(templateNameEl) templateNameEl.value = t.name || '';
+    if(senderNameEl) senderNameEl.value = t.senderName || '';
+    if(subjectEl) subjectEl.value = t.subject || '';
+    if(htmlEl) htmlEl.value = t.htmlContent || '';
+}
+
+function setupTemplateListeners() {
+    if (templateSelectEl) {
+        templateSelectEl.addEventListener('change', () => {
+            const val = templateSelectEl.value;
+            if (val === 'new') {
+                resetAutoMailForm();
+            } else {
+                const t = autoMailTemplates.find(x => String(x.id) === String(val));
+                if (t) populateAutoMailForm(t);
+            }
+        });
+    }
+
+    if (btnSaveTemplateEl) {
+        btnSaveTemplateEl.addEventListener('click', async () => {
+            const payload = {
+                id: templateSelectEl.value === 'new' ? null : templateSelectEl.value,
+                name: templateNameEl.value.trim(),
+                senderName: senderNameEl.value.trim(),
+                subject: subjectEl.value.trim(),
+                htmlContent: htmlEl.value.trim(),
+                smtpAccountIds: []
+            };
+
+            if (!payload.name || !payload.senderName || !payload.subject || !payload.htmlContent) {
+                alert("Please fill in all template fields.");
+                return;
+            }
+
+            try {
+                btnSaveTemplateEl.disabled = true;
+                btnSaveTemplateEl.textContent = 'Saving...';
+                const res = await fetchJson('/api/admin/auto-mail-templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.success) {
+                    await loadAutoMailTemplates();
+                    templateSelectEl.value = res.id;
+                    const t = autoMailTemplates.find(x => String(x.id) === String(res.id));
+                    if (t) populateAutoMailForm(t);
+                }
+            } catch (err) {
+                alert("Failed to save template: " + err.message);
+            } finally {
+                btnSaveTemplateEl.disabled = false;
+                btnSaveTemplateEl.textContent = 'Save Template';
+            }
+        });
+    }
+
+    if (btnDeleteTemplateEl) {
+        btnDeleteTemplateEl.addEventListener('click', async () => {
+            const id = templateSelectEl.value;
+            if (id === 'new') return;
+            if (!confirm("Are you sure you want to delete this template?")) return;
+
+            try {
+                await fetchJson(`/api/admin/auto-mail-templates/${id}`, { method: 'DELETE' });
+                await loadAutoMailTemplates();
+                templateSelectEl.value = 'new';
+                resetAutoMailForm();
+            } catch (err) {
+                alert("Failed to delete template: " + err.message);
+            }
+        });
+    }
 }
 
 function addSequenceStep() {
@@ -676,6 +771,14 @@ async function loadAutoMailTemplates() {
 }
 
 function renderAutoMailTemplates() {
+    if (templateSelectEl) {
+        const currentVal = templateSelectEl.value;
+        templateSelectEl.innerHTML = '<option value="new">+ Create New Template</option>' +
+            autoMailTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        if (autoMailTemplates.find(t => String(t.id) === String(currentVal))) {
+            templateSelectEl.value = currentVal;
+        }
+    }
     // Re-render sequences if template choices changed
     if (autoMailSequences.length > 0) renderSequences();
 }
