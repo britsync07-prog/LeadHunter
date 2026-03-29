@@ -61,6 +61,11 @@ await queue.cleanupStaleJobs(); // --- CLEANUP STUCK JOBS ---
 await queue.loadHistory();
 await initAuth(); // Ensure DB is seeded and migrated
 
+// --- ENSURE ADMIN PERSISTENCE (VPS Fix) ---
+try {
+  db.prepare("UPDATE users SET isAdmin = 1 WHERE username = 'admin' AND isAdmin = 0").run();
+} catch (e) {}
+
 // --- GLOBAL MIDDLEWARE ---
 app.use((req, res, next) => {
   const start = Date.now();
@@ -762,10 +767,18 @@ app.post("/api/check-template", requireAuth, async (req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`Dashboard server running on http://${HOST}:${PORT}`);
   
-  // Start the Email Scheduler Worker
-  setInterval(() => {
+  const runScheduler = () => {
     processPendingEmails(`http://${HOST}:${PORT}`).catch(err => {
       console.error('[Email Scheduler Error]', err);
     });
-  }, 60000); // Check every minute
+  };
+
+  // 1. Instant Trigger from Queue
+  queue.on('auto-mail-queued', () => {
+    console.log('[Scheduler] Instant trigger received from Queue');
+    runScheduler();
+  });
+
+  // 2. Regular 60-second Interval (Fallback)
+  setInterval(runScheduler, 60000);
 });

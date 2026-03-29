@@ -265,6 +265,8 @@ export class JobQueue {
              const recId = crypto.randomUUID();
              db.prepare(`UPDATE campaigns SET status='sending' WHERE id = ?`).run(job.campaignId);
              db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`).run(recId, job.campaignId, payload.email);
+             console.log(`[Auto-Mail] Queued instant email for: ${payload.email}`);
+             this.emit('auto-mail-queued'); 
              this.pushEvent(job, { type: "info", message: `Auto-Mail sequence queued for ${payload.email}` });
            } catch(err) {
              this.pushEvent(job, { type: "info", message: `Failed to queue Auto-Mail for ${payload.email}: ${err.message}` });

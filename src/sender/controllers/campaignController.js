@@ -232,6 +232,8 @@ export const processPendingEmails = async (hostUrlFallback) => {
     const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
     const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, hostUrlFallback);
     
+    console.log(`[SMTP] Attempting send to ${rec.email} using ${activeSmtp.user} (Step ${rec.currentStep})`);
+    
     let result;
     if (isAdmin && rec.email.toLowerCase().endsWith('@gmail.com')) {
         try {
