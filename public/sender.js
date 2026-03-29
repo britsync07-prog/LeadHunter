@@ -276,9 +276,11 @@ window.deleteSmtp = deleteSmtp;
 
 // --- SEQUENCE BUILDER LOGIC ---
 function addSequenceStep() {
+    const defaultDepends = sequences.length > 0 ? sequences[sequences.length - 1].id : null;
     sequences.push({
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
         delayDays: sequences.length === 0 ? 0 : 1,
+        dependsOnId: defaultDepends,
         senderName: '',
         subject: '',
         htmlContent: ''
@@ -317,7 +319,10 @@ function renderSequences() {
             : `<div class="flex items-center gap-2 mb-3 bg-blue-50 p-2 rounded border border-blue-100 w-fit">
                  <label class="text-xs font-bold text-blue-800 uppercase tracking-widest">Wait</label>
                  <input type="number" min="0" value="${step.delayDays}" onchange="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" oninput="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" class="w-16 px-2 py-1 border rounded text-sm text-center font-mono border-blue-200 outline-none focus:ring-1 focus:ring-blue-500">
-                 <span class="text-xs font-bold text-blue-800 uppercase tracking-widest">Days</span>
+                 <span class="text-xs font-bold text-blue-800 uppercase tracking-widest whitespace-nowrap">Days After</span>
+                 <select onchange="window.updateSeqStep('${step.id}', 'dependsOnId', this.value)" class="w-32 px-2 py-1 border rounded text-sm font-mono border-blue-200 outline-none focus:ring-1 focus:ring-blue-500">
+                    ${sequences.slice(0, index).map((s, i) => `<option value="${s.id}" ${step.dependsOnId === s.id ? 'selected' : ''}>Step ${i + 1}</option>`).join('')}
+                 </select>
                </div>`;
 
         const html = `
@@ -341,6 +346,38 @@ function renderSequences() {
         
         sequenceContainer.insertAdjacentHTML('beforeend', html);
     });
+}
+
+function compileSequencePayload(seqs) {
+    if(!seqs || seqs.length === 0) return [];
+    const absDays = new Map();
+    absDays.set(seqs[0].id, 0);
+    seqs[0]._absoluteDays = 0;
+    
+    for (let i = 1; i < seqs.length; i++) {
+        const s = seqs[i];
+        const dependsOnAbs = absDays.has(s.dependsOnId) ? absDays.get(s.dependsOnId) : 0;
+        const total = dependsOnAbs + (parseInt(s.delayDays) || 0);
+        absDays.set(s.id, total);
+        s._absoluteDays = total;
+    }
+
+    const sorted = [...seqs].map(s => ({...s})).sort((a, b) => a._absoluteDays - b._absoluteDays);
+
+    const payload = [];
+    let currentAbs = 0;
+    for (const s of sorted) {
+        let relativeDelay = s._absoluteDays - currentAbs;
+        if(relativeDelay < 0) relativeDelay = 0;
+        payload.push({
+            delayDays: relativeDelay,
+            senderName: s.senderName.trim(),
+            subject: s.subject.trim(),
+            htmlContent: s.htmlContent.trim()
+        });
+        currentAbs += relativeDelay;
+    }
+    return payload;
 }
 
 // Attach globally for inline HTML
@@ -399,12 +436,7 @@ btnLaunchCampaign.addEventListener('click', async () => {
 
   let payload = {
     campaignName: campaignNameEl.value.trim(),
-    sequences: sequences.map(s => ({
-        delayDays: s.delayDays,
-        senderName: s.senderName.trim(),
-        subject: s.subject.trim(),
-        htmlContent: s.htmlContent.trim()
-    })),
+    sequences: compileSequencePayload(sequences),
     recipients: validEmails
   };
 
