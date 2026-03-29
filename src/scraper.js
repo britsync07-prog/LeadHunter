@@ -289,7 +289,17 @@ export class LeadScraper {
           }
         });
         this.child.on("close", (code) => {
-          if (code !== 0 && code !== null) { reject(new Error(stderr || `${name} failed with code ${code}`)); return; }
+          if (code !== 0 && code !== null) {
+            // Check if it's a missing Python package
+            let errMsg = stderr || `${name} failed with code ${code}`;
+            if (stderr.includes('ModuleNotFoundError') || stderr.includes('No module named')) {
+              const match = stderr.match(/No module named '([^']+)'/);
+              const mod = match ? match[1] : 'a required Python module';
+              errMsg = `Python dependency missing: "${mod}". Please run: pip3 install ${mod} --break-system-packages`;
+            }
+            reject(new Error(errMsg));
+            return;
+          }
           resolve(finalResult);
         });
       });
@@ -303,7 +313,17 @@ export class LeadScraper {
       if (!this.isStopped) {
         const venvPython = path.join(__dirname, "..", "venv", "bin", "python3");
         const pythonCmd = fs.existsSync(venvPython) ? venvPython : "python3";
-        await runScraperProcess(pythonCmd, [scriptPath], "Python", payload);
+        try {
+          await runScraperProcess(pythonCmd, [scriptPath], "Python", payload);
+        } catch (pyErr) {
+          // If Python fails with a missing module error, show a user-friendly message
+          if (pyErr.message.includes('Python dependency missing') || pyErr.message.includes('ModuleNotFoundError')) {
+            this.onProgress({ type: "log", message: `⚠️ ${pyErr.message}` });
+            this.onProgress({ type: "log", message: `ℹ️ Run this command on the server: pip3 install undetected-chromedriver selenium --break-system-packages` });
+          } else {
+            this.onProgress({ type: "log", message: `Python fallback also failed: ${pyErr.message}` });
+          }
+        }
       }
     }
 
