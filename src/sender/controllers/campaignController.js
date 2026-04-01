@@ -347,4 +347,17 @@ const resumeCampaign = async (campaignId, hostUrl) => {
   db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = NULL WHERE id = ?`).run(campaignId);
 };
 
-export { launchCampaign, resumeCampaign };
+const deleteCampaign = (req, res) => {
+  const { id } = req.params;
+  const userId = req.session.user?.id;
+  try {
+    db.prepare("DELETE FROM campaigns WHERE id = ? AND userId = ?").run(id, userId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Campaign Delete Error]', err);
+    res.status(500).json({ error: 'Failed to delete campaign.' });
+  }
+};
+
+export { launchCampaign, resumeCampaign, deleteCampaign };
+

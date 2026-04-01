@@ -2,9 +2,7 @@ import db from '../models/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const getTemplates = (req, res) => {
-    if (!req.session.user || !req.session.user.isAdmin) {
-        return res.status(403).json({ error: "Admin access required." });
-    }
+    // Authorization is handled globally by requirePremiumOrAdmin middleware in server.js
     const userId = req.session.user.id;
     try {
         const templates = db.prepare(`SELECT * FROM auto_mail_templates WHERE userId = ? ORDER BY createdAt DESC`).all(userId);
@@ -16,9 +14,7 @@ export const getTemplates = (req, res) => {
 };
 
 export const saveTemplate = (req, res) => {
-    if (!req.session.user || !req.session.user.isAdmin) {
-        return res.status(403).json({ error: "Admin access required." });
-    }
+    // Authorization is handled globally by requirePremiumOrAdmin middleware in server.js
     const { id, name, senderName, subject, htmlContent, smtpAccountIds } = req.body;
     const userId = req.session.user.id;
 
@@ -46,9 +42,7 @@ export const saveTemplate = (req, res) => {
 };
 
 export const deleteTemplate = (req, res) => {
-    if (!req.session.user || !req.session.user.isAdmin) {
-        return res.status(403).json({ error: "Admin access required." });
-    }
+    // Authorization is handled globally by requirePremiumOrAdmin middleware in server.js
     const { id } = req.params;
     const userId = req.session.user.id;
     try {
@@ -57,5 +51,48 @@ export const deleteTemplate = (req, res) => {
     } catch (error) {
         console.error('[AutoMail Controller] Error deleting template:', error);
         res.status(500).json({ error: 'Failed to delete template.' });
+    }
+};
+
+export const getSavedSequences = (req, res) => {
+    const userId = req.session.user.id;
+    try {
+        const sequences = db.prepare(`SELECT * FROM saved_sequences WHERE userId = ? ORDER BY createdAt DESC`).all(userId);
+        res.json({ sequences: sequences.map(s => ({ ...s, config: JSON.parse(s.config) })) });
+    } catch (error) {
+        console.error('[AutoMail] Error fetching saved sequences:', error);
+        res.status(500).json({ error: 'Failed to fetch saved sequences.' });
+    }
+};
+
+export const saveSequence = (req, res) => {
+    const { id, name, config } = req.body;
+    const userId = req.session.user.id;
+    if (!name || !config) return res.status(400).json({ error: 'Missing required sequence fields.' });
+
+    try {
+        if (id && id !== 'new') {
+            db.prepare(`UPDATE saved_sequences SET name=?, config=? WHERE id=? AND userId=?`).run(name, JSON.stringify(config), id, userId);
+            res.json({ success: true, id });
+        } else {
+            const newId = uuidv4();
+            db.prepare(`INSERT INTO saved_sequences (id, userId, name, config) VALUES (?, ?, ?, ?)`).run(newId, userId, name, JSON.stringify(config));
+            res.status(201).json({ success: true, id: newId });
+        }
+    } catch (error) {
+        console.error('[AutoMail] Error saving sequence:', error);
+        res.status(500).json({ error: 'Failed to save sequence.' });
+    }
+};
+
+export const deleteSequence = (req, res) => {
+    const { id } = req.params;
+    const userId = req.session.user.id;
+    try {
+        db.prepare(`DELETE FROM saved_sequences WHERE id = ? AND userId = ?`).run(id, userId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[AutoMail] Error deleting sequence:', error);
+        res.status(500).json({ error: 'Failed to delete sequence.' });
     }
 };

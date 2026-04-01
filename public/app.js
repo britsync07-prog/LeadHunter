@@ -37,8 +37,14 @@ const htmlEl = document.getElementById('autoMailHtml');
 const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
 const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
 
+const savedSequenceSelect = document.getElementById('savedSequenceSelect');
+const btnSaveSequence = document.getElementById('btnSaveSequence');
+const btnDeleteSequence = document.getElementById('btnDeleteSequence');
+const savedSequencesContainer = document.getElementById('savedSequencesContainer');
+
 let autoMailTemplates = [];
 let autoMailSequences = []; // Array of { templateId, delayDays, subject, htmlContent, senderName }
+let savedSequencesConfigs = [];
 
 let currentUser = null;
 let totalLeads = 0;
@@ -204,7 +210,7 @@ async function checkAuth() {
       attachToJob(user.activeJobId);
     }
 
-    if (user.isAdmin) {
+    if (user.isAdmin || user.subscriptionPlan === 'premium') {
         initAutoMailUI();
     }
 
@@ -573,8 +579,9 @@ async function initAutoMailUI() {
 
     enableAutoMailEl.addEventListener('change', async () => {
         autoMailSettingsEl.style.display = enableAutoMailEl.checked ? 'block' : 'none';
+        if (savedSequencesContainer) savedSequencesContainer.style.display = enableAutoMailEl.checked ? 'flex' : 'none';
         if (enableAutoMailEl.checked) {
-            await Promise.all([loadAutoMailTemplates(), loadSenderSmtps()]);
+            await Promise.all([loadAutoMailTemplates(), loadSenderSmtps(), loadSavedSequences()]);
             // Initialize with one step if empty
             if (autoMailSequences.length === 0) {
                 addSequenceStep();
@@ -587,6 +594,7 @@ async function initAutoMailUI() {
     });
 
     setupTemplateListeners();
+    setupSavedSequenceListeners();
 }
 
 function resetAutoMailForm() {
@@ -635,7 +643,7 @@ function setupTemplateListeners() {
             try {
                 btnSaveTemplateEl.disabled = true;
                 btnSaveTemplateEl.textContent = 'Saving...';
-                const res = await fetchJson('/api/admin/auto-mail-templates', {
+                const res = await fetchJson('/api/automail/templates', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -662,7 +670,7 @@ function setupTemplateListeners() {
             if (!confirm("Are you sure you want to delete this template?")) return;
 
             try {
-                await fetchJson(`/api/admin/auto-mail-templates/${id}`, { method: 'DELETE' });
+                await fetchJson(`/api/automail/templates/${id}`, { method: 'DELETE' });
                 await loadAutoMailTemplates();
                 templateSelectEl.value = 'new';
                 resetAutoMailForm();
@@ -802,13 +810,138 @@ function compileSequencePayload(sequences) {
 
 async function loadAutoMailTemplates() {
     try {
-        const data = await fetchJson('/api/admin/auto-mail-templates');
+        const data = await fetchJson('/api/automail/templates');
         autoMailTemplates = data.templates || [];
         renderAutoMailTemplates();
     } catch (err) {
         console.error("Failed to load auto-mail templates:", err);
     }
 }
+
+async function loadSavedSequences() {
+    try {
+        const data = await fetchJson('/api/automail/saved-sequences');
+        savedSequencesConfigs = data.sequences || [];
+        renderSavedSequencesDropdown();
+    } catch (err) {
+        console.error('Failed to load saved sequences', err);
+    }
+}
+
+function renderSavedSequencesDropdown() {
+    if (!savedSequenceSelect) return;
+    const currentVal = savedSequenceSelect.value;
+    savedSequenceSelect.innerHTML = '<option value="new">-- Custom Sequence --</option>';
+    savedSequencesConfigs.forEach(seq => {
+        savedSequenceSelect.innerHTML += `<option value="${seq.id}">${escapeHtml(seq.name)}</option>`;
+    });
+    if ([...savedSequenceSelect.options].some(o => o.value === currentVal)) {
+        savedSequenceSelect.value = currentVal;
+    }
+    if (btnDeleteSequence) btnDeleteSequence.style.display = savedSequenceSelect.value === 'new' ? 'none' : 'block';
+}
+
+function setupSavedSequenceListeners() {
+    if (savedSequenceSelect) {
+        savedSequenceSelect.addEventListener('change', () => {
+            const val = savedSequenceSelect.value;
+            if (btnDeleteSequence) btnDeleteSequence.style.display = val === 'new' ? 'none' : 'block';
+            if (val !== 'new') {
+                const seq = savedSequencesConfigs.find(s => s.id === val);
+                if (seq && seq.config) {
+                    // Rebuild the sequence steps array from saved compiled steps
+                    autoMailSequences = [];
+                    seq.config.sequences.forEach(s => {
+                        autoMailSequences.push({
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            templateId: s.templateId || '',
+                            delayDays: s.delayDays || 0,
+                            dependsOnId: null,
+                            senderName: s.senderName || '',
+                            subject: s.subject || '',
+                            htmlContent: s.htmlContent || ''
+                        });
+                    });
+                    // Link steps sequentially for the UI dependency dropdowns
+                    for (let i = 1; i < autoMailSequences.length; i++) {
+                        autoMailSequences[i].dependsOnId = autoMailSequences[i-1].id;
+                    }
+                    renderSequences();
+
+                    // Restore SMTP checkbox selections
+                    const smtpIds = seq.config.smtpAccountIds || [];
+                    if (smtpListEl) {
+                        smtpListEl.querySelectorAll("input[type='checkbox']").forEach(cb => {
+                            cb.checked = smtpIds.includes(cb.value);
+                            const label = cb.closest("label");
+                            if (label) label.classList.toggle("is-selected", cb.checked);
+                        });
+                    }
+                }
+            } else {
+                autoMailSequences = [];
+                addSequenceStep();
+            }
+        });
+    }
+
+    if (btnSaveSequence) {
+        btnSaveSequence.addEventListener('click', async () => {
+            const name = prompt("Enter a name for this outreach configuration:");
+            if (!name || !name.trim()) return;
+
+            const payloadConfig = {
+                sequences: compileSequencePayload(autoMailSequences),
+                smtpAccountIds: smtpListEl
+                    ? Array.from(smtpListEl.querySelectorAll("input[type='checkbox']:checked")).map(cb => cb.value)
+                    : []
+            };
+
+            try {
+                btnSaveSequence.disabled = true;
+                btnSaveSequence.textContent = "Saving...";
+                const existingId = savedSequenceSelect?.value !== 'new' ? savedSequenceSelect.value : null;
+                const res = await fetchJson('/api/automail/saved-sequences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: existingId, name: name.trim(), config: payloadConfig })
+                });
+                if (res.success) {
+                    await loadSavedSequences();
+                    if (savedSequenceSelect) {
+                        savedSequenceSelect.value = res.id;
+                        if (btnDeleteSequence) btnDeleteSequence.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                alert("Failed to save sequence config: " + err.message);
+            } finally {
+                btnSaveSequence.disabled = false;
+                btnSaveSequence.textContent = "Save Current";
+            }
+        });
+    }
+
+    if (btnDeleteSequence) {
+        btnDeleteSequence.addEventListener('click', async () => {
+            const id = savedSequenceSelect?.value;
+            if (!id || id === 'new') return;
+            if (!confirm("Delete this saved sequence? This cannot be undone.")) return;
+
+            try {
+                await fetchJson(`/api/automail/saved-sequences/${id}`, { method: 'DELETE' });
+                await loadSavedSequences();
+                if (savedSequenceSelect) savedSequenceSelect.value = 'new';
+                if (btnDeleteSequence) btnDeleteSequence.style.display = 'none';
+                autoMailSequences = [];
+                addSequenceStep();
+            } catch (err) {
+                alert("Failed to delete sequence: " + err.message);
+            }
+        });
+    }
+}
+
 
 function renderAutoMailTemplates() {
     if (templateSelectEl) {
@@ -1050,6 +1183,34 @@ if (addCategoryBtn) {
   });
 }
 
+const deleteCategoryBtn = document.getElementById("deleteCategoryBtn");
+if (deleteCategoryBtn) {
+  deleteCategoryBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const selectEl = document.getElementById("jobCategory");
+    const categoryId = selectEl?.value;
+    if (!categoryId) return alert("Please select a campaign to delete.");
+
+    const categoryName = selectEl.options[selectEl.selectedIndex].text;
+    if (!confirm(`Are you sure you want to delete the campaign category "${categoryName}"? Existing jobs in this category will NOT be deleted, but they will no longer be filtered by this name.`)) return;
+
+    try {
+      const res = await fetch(`/api/categories/${categoryId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await loadCategories();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete campaign");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting campaign");
+    }
+  });
+}
+
 // Add event listener to the history category filter
 const historyCategoryFilter = document.getElementById("historyCategoryFilter");
 if (historyCategoryFilter) {
@@ -1131,10 +1292,21 @@ async function loadHistory() {
   </div>
   `;
 
+      let analyticsHtml = "";
+      if (typeof job.totalEmailsSent !== 'undefined' && job.params.autoMailConfig && job.totalEmailsSent > 0) {
+        analyticsHtml = `<div class="history-analytics" style="margin-top: 6px; font-size: 11.5px; display: flex; align-items: center; gap: 12px; font-weight: 500; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+           <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Sent: <span style="color: #1e293b; font-weight: 700;">${job.totalEmailsSent}</span></span>
+           <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Delivered: <span style="color: #10b981; font-weight: 700;">${job.deliveredCount || 0}</span></span>
+           <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Opened: <span style="color: #8b5cf6; font-weight: 700;">${job.uniqueOpens || 0}</span></span>
+        </div>`;
+      }
+
       const isStoppable = job.status === "running";
       const isRestartable = job.status === "failed" || job.status === "stopped";
+      const isDeletable = job.status !== "running";
       const stopButton = isStoppable ? `<button class="stop-btn" onclick="stopJob('${job.id}')">&#x25A0; Stop</button>` : "";
       const restartButton = isRestartable ? `<button class="restart-btn" onclick="restartJob('${job.id}')" style="background:var(--blue-primary); color:white; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">&#x21BB; Restart</button>` : "";
+      const deleteButton = isDeletable ? `<button onclick="deleteJob('${job.id}')" style="background:none; color:#ef4444; border:1px solid #fca5a5; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Delete Job"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : "";
 
       const emailListId = `emails-${job.id}`;
 
@@ -1149,11 +1321,13 @@ async function loadHistory() {
                <span style="font-size:0.9em; color:var(--text-muted)">${citiesText}</span>
             </div>
             <div class="history-niches">${params.niches.join(" &middot; ")}</div>
+            ${analyticsHtml}
           </div>
     <div class="history-actions">
       <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
       ${stopButton}
       ${restartButton}
+      ${deleteButton}
       <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
     </div>
         </div>
@@ -1202,6 +1376,17 @@ window.stopJob = async function (jobId) {
     updateQueueStatus();
   } catch (error) {
     alert("Failed to stop job: " + error.message);
+  }
+};
+
+window.deleteJob = async function (jobId) {
+  if (!confirm("Are you sure you want to delete this job and all its history? This action cannot be undone.")) return;
+  try {
+    await fetchJson(`/api/jobs/${jobId}`, { method: "DELETE" });
+    loadHistory();
+    updateQueueStatus();
+  } catch (error) {
+    alert("Failed to delete job: " + error.message);
   }
 };
 
@@ -1338,7 +1523,7 @@ document.getElementById("run")?.addEventListener("click", async () => {
     const jobCategory = document.getElementById("jobCategory")?.value;
 
     let autoMailConfig = null;
-    if (currentUser?.isAdmin && enableAutoMailEl?.checked) {
+    if ((currentUser?.isAdmin || currentUser?.subscriptionPlan === 'premium') && enableAutoMailEl?.checked) {
         const smtpAccountIds = [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value);
         if (smtpAccountIds.length === 0) {
             alert("Please select at least one SMTP account for Auto-Mail.");

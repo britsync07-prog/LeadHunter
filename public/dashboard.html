@@ -200,9 +200,14 @@ Gym Coach"
           <div class="flex justify-between items-center mb-1.5 flex-wrap gap-2">
             <label for="jobCategory" class="block text-xs font-semibold text-brand-muted uppercase tracking-wide">Campaign <span class="badge-optional"
                 style="font-weight:normal;">optional</span></label>
-            <button id="addCategoryBtn"
-              class="text-[10px] lg:text-xs px-2 py-1 text-brand-primary hover:bg-brand-primary/10 rounded border border-transparent transition-colors cursor-pointer">+
-              New Campaign</button>
+            <div class="flex gap-1.5">
+              <button id="addCategoryBtn"
+                class="text-[10px] lg:text-xs px-2 py-1 text-brand-primary hover:bg-brand-primary/10 rounded border border-transparent transition-colors cursor-pointer">+
+                New</button>
+              <button id="deleteCategoryBtn"
+                class="text-[10px] lg:text-xs px-2 py-1 text-red-500 hover:bg-red-50 rounded border border-transparent transition-colors cursor-pointer" title="Delete Selected Campaign">
+                Delete</button>
+            </div>
           </div>
           <select id="jobCategory"
             class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm">
@@ -385,20 +390,29 @@ Gym Coach"
         </div>
       </div>
       
-      <!-- Auto-Mail Card (Admin Only) -->
-      <div id="adminAutoMailCard" class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm" style="display:none; border-color: #fecaca;">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-red-700 font-semibold border-red-200">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Auto-Mail Card -->
+      <div id="adminAutoMailCard" class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm" style="display:none; border-color: #e2e8f0;">
+        <div class="pb-3 border-b flex items-center gap-2.5 text-slate-800 font-semibold border-slate-200">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500">
             <path d="m22 2-7 20-4-9-9-4Z"></path>
             <path d="M22 2 11 13"></path>
           </svg>
-          <h2 class="font-semibold m-0 text-base">Auto-Mail (Admin Only)</h2>
+          <h2 class="font-semibold m-0 text-base">Integrated Auto-Mail</h2>
         </div>
 
         <div class="space-y-4">
           <div class="flex items-center gap-2">
             <input type="checkbox" id="enableAutoMail" class="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
             <label for="enableAutoMail" class="text-xs font-bold text-red-800 uppercase tracking-wide cursor-pointer">Enable Automated Outreach</label>
+          </div>
+
+          <!-- Saved Sequences Toolbar -->
+          <div class="items-center gap-3 bg-red-50 p-3 rounded-lg border border-red-200 mt-2" id="savedSequencesContainer" style="display:none; flex-wrap:wrap;">
+            <select id="savedSequenceSelect" class="flex-1 px-3 py-1.5 border rounded-lg text-sm bg-white border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500 min-w-[200px]">
+              <option value="new">-- Custom Sequence --</option>
+            </select>
+            <button id="btnSaveSequence" class="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold border-none rounded-lg hover:bg-red-700 transition-colors">Save Current</button>
+            <button id="btnDeleteSequence" class="px-3 py-1.5 bg-white text-red-600 text-sm font-semibold border border-red-200 rounded-lg hover:bg-red-50 transition-colors" style="display:none;">Delete</button>
           </div>
 
           <div id="autoMailSettings" style="display:none;" class="space-y-4 pt-2 border-t border-red-200">

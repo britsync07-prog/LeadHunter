@@ -206,6 +206,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requirePremiumOrAdmin(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Not authenticated" });
+  const user = db.prepare("SELECT isAdmin, subscriptionPlan FROM users WHERE id = ?").get(req.session.user.id);
+  if (!user || (!user.isAdmin && user.subscriptionPlan !== 'premium')) return res.status(403).json({ error: "Premium or Admin access required" });
+  next();
+}
+
 // --- EXTERNAL API KEY MIDDLEWARE ---
 const EXTERNAL_API_KEY = process.env.EXTERNAL_API_KEY || "your-secure-api-key";
 function requireApiKey(req, res, next) {
@@ -356,10 +363,14 @@ app.patch("/api/admin/users/:id/password", requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// --- ADMIN AUTO-MAIL ROUTES ---
-app.get("/api/admin/auto-mail-templates", requireAdmin, autoMailController.getTemplates);
-app.post("/api/admin/auto-mail-templates", requireAdmin, autoMailController.saveTemplate);
-app.delete("/api/admin/auto-mail-templates/:id", requireAdmin, autoMailController.deleteTemplate);
+// --- PREMIUM AUTO-MAIL ROUTES ---
+app.get("/api/automail/templates", requirePremiumOrAdmin, autoMailController.getTemplates);
+app.post("/api/automail/templates", requirePremiumOrAdmin, autoMailController.saveTemplate);
+app.delete("/api/automail/templates/:id", requirePremiumOrAdmin, autoMailController.deleteTemplate);
+
+app.get("/api/automail/saved-sequences", requirePremiumOrAdmin, autoMailController.getSavedSequences);
+app.post("/api/automail/saved-sequences", requirePremiumOrAdmin, autoMailController.saveSequence);
+app.delete("/api/automail/saved-sequences/:id", requirePremiumOrAdmin, autoMailController.deleteSequence);
 
 app.patch("/api/admin/users/:id/suspend", requireAdmin, (req, res) => {
   const { suspended } = req.body;
@@ -548,6 +559,24 @@ app.post("/api/categories", requireAuth, (req, res) => {
   res.status(201).json({ category: queue.addCategory(name.trim(), req.session.user.username) });
 });
 
+app.delete("/api/categories/:id", requireAuth, (req, res) => {
+  try {
+    queue.deleteCategory(req.params.id, req.session.user.username);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/jobs/:id", requireAuth, (req, res) => {
+  try {
+    queue.deleteJob(req.params.id, req.session.user.username);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.post("/api/jobs", requireAuth, async (req, res) => {
   const { country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, category, autoMailConfig } = req.body || {};
   const userPlan = req.session.user.subscriptionPlan || 'free';
@@ -585,11 +614,11 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   // addJob handles concurrent-limit check internally — no queue, instant reject
   const effectivePlan = isAdmin ? 'admin' : userPlan;
-  if (autoMailConfig && !isAdmin) {
-    return res.status(403).json({ error: "Auto-Mail is an Admin-only feature." });
+  if (autoMailConfig && !isAdmin && userPlan !== 'premium') {
+    return res.status(403).json({ error: "Auto-Mail requires a Premium or Admin account." });
   }
   const job = queue.addJob(
-    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig } },
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig, dbUserId: req.session.user.id } },
     req.session.user.username // username is the userId key used throughout the queue
   );
 
@@ -767,10 +796,18 @@ app.post("/api/check-template", requireAuth, async (req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`Dashboard server running on http://${HOST}:${PORT}`);
   
-  const runScheduler = () => {
-    processPendingEmails(`http://${HOST}:${PORT}`).catch(err => {
+  let isSchedulerRunning = false;
+  const runScheduler = async () => {
+    if (isSchedulerRunning) return;
+    isSchedulerRunning = true;
+    try {
+      const publicUrl = process.env.PUBLIC_URL || `http://${HOST}:${PORT}`;
+      await processPendingEmails(publicUrl);
+    } catch (err) {
       console.error('[Email Scheduler Error]', err);
-    });
+    } finally {
+      isSchedulerRunning = false;
+    }
   };
 
   // 1. Instant Trigger from Queue

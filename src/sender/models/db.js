@@ -125,7 +125,7 @@ const initDb = () => {
     )
   `);
 
-  // Auto-Mail Templates Table (Admin Only)
+  // Auto-Mail Templates Table
   db.exec(`
     CREATE TABLE IF NOT EXISTS auto_mail_templates (
       id TEXT PRIMARY KEY,
@@ -135,6 +135,17 @@ const initDb = () => {
       subject TEXT NOT NULL,
       htmlContent TEXT NOT NULL,
       smtpAccountIds TEXT, -- JSON array of SMTP IDs
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Saved Auto-Mail Sequences
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS saved_sequences (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL, -- JSON string storing { sequences: [], smtpAccountIds: [] }
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);

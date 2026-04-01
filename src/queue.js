@@ -139,10 +139,11 @@ export class JobQueue extends EventEmitter {
     if (job.params.autoMailConfig && !job.campaignId) {
       job.campaignId = "auto_" + job.id;
       try {
+        const actualDbUserId = job.params.dbUserId || job.userId;
         db.prepare(`
           INSERT INTO campaigns (id, userId, name, status, config) 
           VALUES (?, ?, ?, 'sending', ?)
-        `).run(job.campaignId, job.userId, `Scraper Auto-Mail: ${Array.isArray(job.params.niches) ? job.params.niches.join(', ') : 'Jobs'}`, JSON.stringify(job.params.autoMailConfig));
+        `).run(job.campaignId, actualDbUserId, `Scraper Auto-Mail: ${Array.isArray(job.params.niches) ? job.params.niches.join(', ') : 'Jobs'}`, JSON.stringify(job.params.autoMailConfig));
       } catch (e) {
         console.error("Failed to insert auto mail campaign", e);
       }
@@ -418,13 +419,33 @@ export class JobQueue extends EventEmitter {
   }
 
   getUserHistory(userId) {
-    const rows = db.prepare("SELECT * FROM jobs WHERE userId = ? ORDER BY createdAt DESC").all(userId);
-    return rows.map(row => ({
-      ...row,
-      params: JSON.parse(row.params),
-      events: JSON.parse(row.events),
-      files: JSON.parse(row.files)
-    }));
+    const rows = db.prepare(`
+      SELECT j.*, 
+             c.status as campaignStatus, 
+             c.deliveredCount, 
+             c.bouncedCount,
+             (SELECT COUNT(*) FROM recipients r WHERE r.campaignId = c.id) as totalEmailsSent,
+             (SELECT COUNT(DISTINCT eventType || recipientId) FROM event_logs e WHERE e.campaignId = c.id AND e.eventType = 'OPEN') as uniqueOpens
+      FROM jobs j
+      LEFT JOIN campaigns c ON c.id = 'auto_' || j.id
+      WHERE j.userId = ? 
+      ORDER BY j.createdAt DESC
+    `).all(userId);
+
+    return rows.map(row => {
+      const { campaignStatus, deliveredCount, bouncedCount, totalEmailsSent, uniqueOpens, ...jobData } = row;
+      return {
+        ...jobData,
+        campaignStatus,
+        deliveredCount,
+        bouncedCount,
+        totalEmailsSent,
+        uniqueOpens,
+        params: JSON.parse(jobData.params),
+        events: JSON.parse(jobData.events),
+        files: JSON.parse(jobData.files)
+      };
+    });
   }
 
   getQueueStatus() {
@@ -443,5 +464,22 @@ export class JobQueue extends EventEmitter {
 
   getCategories(userId) {
     return db.prepare("SELECT * FROM job_categories WHERE userId = ? ORDER BY name ASC").all(userId);
+  }
+
+  deleteCategory(id, userId) {
+    db.prepare("DELETE FROM job_categories WHERE id = ? AND userId = ?").run(id, userId);
+  }
+
+  deleteJob(jobId, userId) {
+    // Prevent deletion of a currently running job
+    if (this.activeJobs.has(jobId)) {
+      throw new Error("Cannot delete a running job. Stop it first.");
+    }
+    // Delete campaign associated with the job (cascades recipients + event_logs)
+    db.prepare("DELETE FROM campaigns WHERE id = ?").run(`auto_${jobId}`);
+    // Delete the job itself
+    db.prepare("DELETE FROM jobs WHERE id = ? AND userId = ?").run(jobId, userId);
+    // Remove from in-memory map if it exists
+    this.jobs.delete(jobId);
   }
 }

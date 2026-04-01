@@ -733,8 +733,15 @@ const loadHistory = async () => {
         <td class="px-5 py-4 text-center font-mono">${camp.bouncedCount || 0}</td>
         <td class="px-5 py-4 text-brand-muted text-xs">${dateStr}</td>
         <td class="px-5 py-4">
-          ${camp.abortReason ? `<div class="text-xs text-red-500 max-w-xs break-words">${camp.abortReason}</div>` : `<span class="text-xs text-brand-muted">No errors logged</span>`}
-          ${downloadsHtml}
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex-1">
+              ${camp.abortReason ? `<div class="text-xs text-red-500 max-w-xs break-words">${camp.abortReason}</div>` : `<span class="text-xs text-brand-muted">No errors logged</span>`}
+              ${downloadsHtml}
+            </div>
+            <button onclick="window.deleteCampaign('${camp.id}')" class="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer" title="Delete Campaign">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+          </div>
         </td>
       `;
       historyTableBody.appendChild(tr);
@@ -746,6 +753,21 @@ const loadHistory = async () => {
     }
   }
 };
+
+async function deleteCampaign(id) {
+  if (!confirm('Are you sure you want to delete this campaign? This will permanently remove its history and tracking logs.')) return;
+  try {
+    const res = await fetchJson(`/api/sender/campaigns/${id}`, { method: 'DELETE' });
+    if (res.success) {
+      loadHistory();
+      loadKPIs();
+    }
+  } catch (err) {
+    alert('Failed to delete campaign: ' + err.message);
+  }
+}
+
+window.deleteCampaign = deleteCampaign;
 
 if (btnRefreshHistory) {
   btnRefreshHistory.addEventListener('click', loadKPIs);
