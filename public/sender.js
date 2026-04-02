@@ -602,6 +602,8 @@ const validateForm = () => {
   btnLaunchCampaign.disabled = !(hasValidRecipients && isConfigFilled);
 };
 
+window.validateForm = validateForm;
+
 // Initialize Admin UI on Load
 initSmtpUI();
 
@@ -615,31 +617,30 @@ if (sequences.length === 0) {
 }
 
 btnLaunchCampaign.addEventListener('click', async () => {
-  btnLaunchCampaign.disabled = true;
-  senderErrorBox.style.display = 'none';
-
-  const validEmails = currentRecipients.filter(r => r.valid).map(r => r.email);
-
-  let payload = {
-    campaignName: campaignNameEl.value.trim(),
-    sequences: compileSequencePayload(sequences),
-    recipients: validEmails
-  };
-
-  if (canUseMultiSmtp) {
-    const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
-    payload.smtpAccountIds = checked;
-    payload.timezone = scheduleTimezoneEl.value;
-    payload.startTime = scheduleStartEl.value;
-    payload.endTime = scheduleEndEl.value;
-  } else {
-    payload.smtpHost = smtpHostEl.value.trim();
-    payload.smtpPort = parseInt(smtpPortEl.value.trim(), 10);
-    payload.smtpUser = smtpUserEl.value.trim();
-    payload.smtpPass = smtpPassEl.value.trim();
-  }
-
   try {
+    btnLaunchCampaign.disabled = true;
+    senderErrorBox.style.display = 'none';
+
+    const validEmails = currentRecipients.filter(r => r.valid).map(r => r.email);
+    const payload = {
+      campaignName: campaignNameEl.value.trim(),
+      sequences: compileSequencePayload(sequences),
+      recipients: validEmails
+    };
+
+    if (canUseMultiSmtp) {
+      const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
+      payload.smtpAccountIds = checked;
+      payload.timezone = scheduleTimezoneEl?.value || 'UTC';
+      payload.startTime = scheduleStartEl?.value || '09:00';
+      payload.endTime = scheduleEndEl?.value || '17:00';
+    } else {
+      payload.smtpHost = smtpHostEl.value.trim();
+      payload.smtpPort = parseInt(smtpPortEl.value.trim(), 10);
+      payload.smtpUser = smtpUserEl.value.trim();
+      payload.smtpPass = smtpPassEl.value.trim();
+    }
+
     btnLaunchCampaign.innerHTML = `<svg width="18" height="18" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Launching...`;
 
     // 1. Dispatch the payload to the Native SMTP Endpoint
@@ -667,19 +668,18 @@ btnLaunchCampaign.addEventListener('click', async () => {
       sequences = [];
       addSequenceStep();
 
-      btnLaunchCampaign.innerHTML = `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2Z"></path></svg> Launch Campaign`;
-
       // Refresh KPIs and History after launch
       loadKPIs();
+      loadCampaignHistory();
     }
 
   } catch (error) {
     senderErrorBox.className = 'error-box';
     senderErrorBox.innerHTML = `<strong>Launch Failed:</strong><br>${error.message}`;
     senderErrorBox.style.display = 'block';
-
-    btnLaunchCampaign.disabled = false;
+  } finally {
     btnLaunchCampaign.innerHTML = `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2Z"></path></svg> Launch Campaign`;
+    validateForm();
   }
 });
 

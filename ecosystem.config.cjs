@@ -16,9 +16,11 @@ module.exports = {
             max_memory_restart: '2G',
             env: {
                 NODE_ENV: 'production',
+                HOST: '0.0.0.0',
                 PORT: 3000,
                 LOG_LEVEL: 'info',
                 PUBLIC_URL: 'https://leadhunter.uk'
+                // Set SESSION_SECRET and TRACKING_HMAC_SECRET in the real host env.
             }
         }
     ]

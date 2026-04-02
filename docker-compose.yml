@@ -10,9 +10,13 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - PUBLIC_URL=https://leadhunter.uk
       - LOG_LEVEL=info
-      # - SESSION_SECRET=your-random-generated-secret-here
-      # - TRACKING_HMAC_SECRET=your-secure-tracking-secret-here
+      # - SESSION_SECRET=replace-with-a-long-random-secret
+      # - TRACKING_HMAC_SECRET=replace-with-a-long-random-tracking-secret
+      # - EXTERNAL_API_KEY=replace-if-you-use-the-external-api
+      # - STRIPE_SECRET_KEY=replace-if-billing-is-enabled
+      # - STRIPE_WEBHOOK_SECRET=replace-if-billing-is-enabled
     volumes:
       # Persist SQLite databases across container rebuilds
       - ./data:/usr/src/app/data

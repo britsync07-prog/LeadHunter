@@ -58,7 +58,9 @@ process.on('uncaughtException', (err) => {
 });
 
 const queue = new JobQueue(3);
-await queue.cleanupStaleJobs(); // --- CLEANUP STUCK JOBS ---
+if (process.env.SKIP_STARTUP_RECOVERY !== '1') {
+  await queue.cleanupStaleJobs(); // --- CLEANUP STUCK JOBS ---
+}
 await queue.loadHistory();
 await initAuth(); // Ensure DB is seeded and migrated
 
