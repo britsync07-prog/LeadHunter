@@ -128,8 +128,10 @@ function setCampaignEditorDisabled(disabled) {
   addStepBtn.disabled = disabled || mode === 'view';
   sequenceEditor.querySelectorAll('input, textarea, button').forEach((el) => {
     if (el === addStepBtn) return;
-    el.disabled = disabled || mode === 'view';
-    el.classList.toggle('bg-slate-100', disabled || mode === 'view');
+    const isToggleButton = el.matches('[data-toggle-index]');
+    const shouldDisable = isToggleButton ? false : (disabled || mode === 'view');
+    el.disabled = shouldDisable;
+    el.classList.toggle('bg-slate-100', shouldDisable);
   });
 }
 
