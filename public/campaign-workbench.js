@@ -431,7 +431,7 @@ function renderSequences() {
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <button type="button" data-toggle-index="${index}" class="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium hover:bg-slate-100">
+          <button type="button" onclick="window.toggleSequenceStep(${index})" data-toggle-index="${index}" class="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium hover:bg-slate-100">
             ${state.expandedSteps.has(index) ? 'Collapse' : 'Expand'}
           </button>
           <button ${mode === 'view' ? 'disabled' : ''} type="button" data-remove-index="${index}" class="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-40">Delete Step</button>
@@ -460,18 +460,6 @@ function renderSequences() {
     </div>
   `).join('');
 
-  sequenceEditor.querySelectorAll('[data-toggle-index]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.toggleIndex);
-      if (state.expandedSteps.has(index)) {
-        state.expandedSteps.delete(index);
-      } else {
-        state.expandedSteps.add(index);
-      }
-      renderSequences();
-    });
-  });
-
   sequenceEditor.querySelectorAll('[data-remove-index]').forEach((button) => {
     button.addEventListener('click', () => {
       state.sequences = collectSequenceState();
@@ -485,6 +473,16 @@ function renderSequences() {
     });
   });
 }
+
+window.toggleSequenceStep = function toggleSequenceStep(index) {
+  if (state.expandedSteps.has(index)) {
+    state.expandedSteps.delete(index);
+  } else {
+    state.expandedSteps.add(index);
+  }
+  renderSequences();
+  setCampaignEditorDisabled(type === 'job' && !state.detail?.job?.campaign);
+};
 
 function fillForm(detail) {
   const campaign = type === 'job' ? detail.job.campaign : detail.campaign;
