@@ -1,6 +1,6 @@
 import express from 'express';
 import { getCampaignAnalytics, getAccountAnalytics, getCampaignHistory } from '../controllers/analyticsController.js';
-import { launchCampaign, getCampaignDetails, updateCampaign, deleteCampaign } from '../controllers/campaignController.js';
+import { launchCampaign, getCampaignDetails, updateCampaign, pauseCampaign, resumeCampaignRoute, deleteCampaign } from '../controllers/campaignController.js';
 import { getSmtpAccounts, addSmtpAccount, deleteSmtpAccount } from '../controllers/smtpController.js';
 
 const router = express.Router();
@@ -14,6 +14,8 @@ router.get('/analytics/:campaignId', getCampaignAnalytics);
 router.post('/campaigns', express.json({ limit: '50mb' }), launchCampaign);
 router.get('/campaigns/:id', getCampaignDetails);
 router.patch('/campaigns/:id', express.json({ limit: '50mb' }), updateCampaign);
+router.post('/campaigns/:id/pause', pauseCampaign);
+router.post('/campaigns/:id/resume', resumeCampaignRoute);
 router.delete('/campaigns/:id', deleteCampaign);
 
 // --- Admin Multi-SMTP Endpoints ---

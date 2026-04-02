@@ -862,6 +862,8 @@ const loadHistory = async () => {
         statusBadge = '<span class="status-badge valid">Completed</span>';
       } else if (camp.status === 'aborted') {
         statusBadge = '<span class="status-badge invalid">Aborted</span>';
+      } else if (camp.status === 'paused') {
+        statusBadge = '<span class="status-badge" style="background:#fff7ed;color:#c2410c;">Paused</span>';
       } else if (camp.status === 'sending') {
         statusBadge = '<span class="status-badge pending">Sending...</span>';
       } else {
@@ -882,6 +884,16 @@ const loadHistory = async () => {
         `;
       }
 
+      const pauseResumeButton = camp.status === 'sending'
+        ? `<button onclick="window.pauseCampaign('${camp.id}')" class="text-slate-500 hover:text-orange-600 p-1.5 rounded-md hover:bg-orange-50 transition-colors cursor-pointer" title="Pause Campaign">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+          </button>`
+        : camp.status === 'paused'
+          ? `<button onclick="window.resumeCampaign('${camp.id}')" class="text-slate-500 hover:text-emerald-600 p-1.5 rounded-md hover:bg-emerald-50 transition-colors cursor-pointer" title="Resume Campaign">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>`
+          : '';
+
       tr.innerHTML = `
         <td class="px-5 py-4 font-medium text-brand-text">${camp.name}</td>
         <td class="px-5 py-4">${statusBadge}</td>
@@ -900,6 +912,7 @@ const loadHistory = async () => {
               ${downloadsHtml}
             </div>
             <div class="flex items-center gap-1.5">
+              ${pauseResumeButton}
               <button onclick="window.openCampaignWorkbench('sender', '${camp.id}', 'view')" class="text-slate-500 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer" title="View Details">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
               </button>
@@ -936,7 +949,33 @@ async function deleteCampaign(id) {
   }
 }
 
+async function pauseCampaign(id) {
+  try {
+    const res = await fetchJson(`/api/sender/campaigns/${id}/pause`, { method: 'POST' });
+    if (res.success) {
+      loadHistory();
+      loadKPIs();
+    }
+  } catch (err) {
+    alert('Failed to pause campaign: ' + err.message);
+  }
+}
+
+async function resumeCampaign(id) {
+  try {
+    const res = await fetchJson(`/api/sender/campaigns/${id}/resume`, { method: 'POST' });
+    if (res.success) {
+      loadHistory();
+      loadKPIs();
+    }
+  } catch (err) {
+    alert('Failed to resume campaign: ' + err.message);
+  }
+}
+
 window.deleteCampaign = deleteCampaign;
+window.pauseCampaign = pauseCampaign;
+window.resumeCampaign = resumeCampaign;
 window.openCampaignWorkbench = openCampaignWorkbench;
 
 if (btnRefreshHistory) {

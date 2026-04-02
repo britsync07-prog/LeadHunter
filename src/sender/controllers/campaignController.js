@@ -510,6 +510,59 @@ const resumeCampaign = async (campaignId, hostUrl) => {
   db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = NULL WHERE id = ?`).run(campaignId);
 };
 
+const pauseCampaign = (req, res) => {
+  const { id } = req.params;
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+  try {
+    const existing = db.prepare(`SELECT id, userId, status FROM campaigns WHERE id = ?`).get(id);
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Campaign not found.' });
+    }
+
+    db.prepare(`UPDATE campaigns SET status = 'paused', abortReason = ? WHERE id = ? AND userId = ?`)
+      .run('Paused by user', id, userId);
+    res.json({ success: true, campaign: getCampaignDetail(id) });
+  } catch (err) {
+    console.error('[Campaign Pause Error]', err);
+    res.status(500).json({ error: 'Failed to pause campaign.' });
+  }
+};
+
+const resumeCampaignRoute = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+  try {
+    const existing = db.prepare(`SELECT id, userId, config FROM campaigns WHERE id = ?`).get(id);
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Campaign not found.' });
+    }
+
+    let config = {};
+    try {
+      config = JSON.parse(existing.config || '{}');
+    } catch {}
+
+    db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = NULL WHERE id = ? AND userId = ?`)
+      .run(id, userId);
+
+    const hostUrl = config.publicBaseUrl || process.env.PUBLIC_URL || 'http://localhost:3000';
+    process.nextTick(() => {
+      processPendingEmails(hostUrl).catch((err) => {
+        console.error('[Campaign Resume Error]', err);
+      });
+    });
+
+    res.json({ success: true, campaign: getCampaignDetail(id) });
+  } catch (err) {
+    console.error('[Campaign Resume Route Error]', err);
+    res.status(500).json({ error: 'Failed to resume campaign.' });
+  }
+};
+
 const deleteCampaign = (req, res) => {
   const { id } = req.params;
   const userId = req.session.user?.id;
@@ -522,4 +575,4 @@ const deleteCampaign = (req, res) => {
   }
 };
 
-export { launchCampaign, getCampaignDetails, updateCampaign, resumeCampaign, deleteCampaign };
+export { launchCampaign, getCampaignDetails, updateCampaign, resumeCampaign, pauseCampaign, resumeCampaignRoute, deleteCampaign };

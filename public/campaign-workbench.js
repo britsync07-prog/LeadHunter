@@ -179,7 +179,7 @@ function renderRecipients(campaign) {
         </div>
         <div class="text-right">
           <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">${recipient.status}</div>
-          ${recipient.error ? `<div class="text-xs text-red-500 mt-1 max-w-[220px]">${recipient.error}</div>` : ''}
+          ${recipient.error ? `<div class="text-xs ${recipient.status === 'pending' ? 'text-amber-600' : 'text-red-500'} mt-1 max-w-[220px]">${recipient.status === 'pending' ? `Waiting: ${recipient.error}` : recipient.error}</div>` : ''}
         </div>
       </div>
     </div>
