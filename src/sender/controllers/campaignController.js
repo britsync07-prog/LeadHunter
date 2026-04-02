@@ -17,6 +17,10 @@ const SEND_DELAY_MS = 5000;
 const SMTP_RETRY_DELAY_MS = 15 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const logSender = (message, meta = null) => {
+  const suffix = meta ? ` ${JSON.stringify(meta)}` : '';
+  console.log(`[Sender] ${message}${suffix}`);
+};
 
 const isWithinWindow = (timezone, startStr, endStr) => {
   if (!timezone || !startStr || !endStr) return true;
@@ -110,6 +114,7 @@ const scheduleCampaignRetry = (campaignId, reason, delayMs = SMTP_RETRY_DELAY_MS
     SET nextSendAt = ?, error = ?
     WHERE campaignId = ? AND status = 'pending'
   `).run(retryAt, reason, campaignId);
+  logSender('Campaign retry scheduled', { campaignId, retryAt, reason });
   return retryAt;
 };
 
@@ -200,11 +205,15 @@ export const processPendingEmails = async (hostUrlFallback) => {
     ORDER BY r.nextSendAt ASC LIMIT 50
   `).all();
 
+  logSender('Scheduler picked pending recipients', { count: pendings.length });
+  if (pendings.length === 0) return;
+
   for (const rec of pendings) {
     const config = JSON.parse(rec.config || '{}');
     const trackingBaseUrl = config.publicBaseUrl || hostUrlFallback;
     const normalizedEmail = normalizeRecipientEmail(rec.email);
     if (!normalizedEmail) {
+      logSender('Recipient email invalid', { campaignId: rec.campaignId, recipientId: rec.id, email: rec.email });
       db.prepare(`UPDATE recipients SET status = 'bounced', error = ? WHERE id = ?`)
         .run('Invalid email format', rec.id);
       markCampaignIfFinished(rec.campaignId);
@@ -226,6 +235,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
     }];
     
     if (rec.currentStep >= sequences.length) {
+      logSender('Recipient already completed sequence', { campaignId: rec.campaignId, recipientId: rec.id, currentStep: rec.currentStep });
       db.prepare(`UPDATE recipients SET status = 'delivered' WHERE id = ?`).run(rec.id);
       markCampaignIfFinished(rec.campaignId);
       continue;
@@ -235,6 +245,13 @@ export const processPendingEmails = async (hostUrlFallback) => {
 
     if (isPremiumOrAdvance && config.timezone && config.startTime && config.endTime) {
       if (!isWithinWindow(config.timezone, config.startTime, config.endTime)) {
+        logSender('Outside sending window, skipping for now', {
+          campaignId: rec.campaignId,
+          recipientId: rec.id,
+          timezone: config.timezone,
+          startTime: config.startTime,
+          endTime: config.endTime
+        });
         continue;
       }
     }
@@ -259,6 +276,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
         const transporter = await verifySmtpConnection({ host: config.smtpHost, port: parseInt(config.smtpPort, 10), user: config.smtpUser, pass: config.smtpPass });
         smtpPool = [{ dbId: 'adhoc', user: config.smtpUser, transporter, consecutiveFails: 0 }];
       } catch (e) {
+        logSender('Direct SMTP verification failed', { campaignId: rec.campaignId, smtpUser: config.smtpUser, error: e.message });
         scheduleCampaignRetry(rec.campaignId, 'SMTP verification failed: ' + e.message);
         continue;
       }
@@ -272,7 +290,14 @@ export const processPendingEmails = async (hostUrlFallback) => {
     const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
     const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, trackingBaseUrl);
     
-    console.log(`[SMTP] Attempting send to ${rec.email} using ${activeSmtp.user} (Step ${rec.currentStep})`);
+    logSender('Attempting send', {
+      campaignId: rec.campaignId,
+      campaignName: rec.campaignName,
+      recipientId: rec.id,
+      email: rec.email,
+      smtpUser: activeSmtp.user,
+      step: rec.currentStep
+    });
     
     const result = await sendEmail(
       activeSmtp.transporter,
@@ -283,6 +308,12 @@ export const processPendingEmails = async (hostUrlFallback) => {
     );
 
     if (result.ok) {
+      logSender('Send succeeded', {
+        campaignId: rec.campaignId,
+        recipientId: rec.id,
+        email: rec.email,
+        step: rec.currentStep
+      });
       if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
         db.prepare(`UPDATE smtp_accounts SET consecutiveFails = 0 WHERE id = ?`).run(activeSmtp.dbId);
       }
@@ -295,12 +326,26 @@ export const processPendingEmails = async (hostUrlFallback) => {
         nextDate.setHours(nextDate.getHours() + (nextDelayDays * 24));
         db.prepare(`UPDATE recipients SET currentStep = ?, nextSendAt = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(nextStep, nextDate.toISOString(), rec.id);
+        logSender('Queued next follow-up step', {
+          campaignId: rec.campaignId,
+          recipientId: rec.id,
+          nextStep,
+          nextSendAt: nextDate.toISOString()
+        });
       } else {
         db.prepare(`UPDATE recipients SET status = 'delivered', currentStep = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(nextStep, rec.id);
+        logSender('Recipient completed final step', { campaignId: rec.campaignId, recipientId: rec.id });
       }
     } else {
       const errorMsg = result.error || 'Unknown error';
+      logSender('Send failed', {
+        campaignId: rec.campaignId,
+        recipientId: rec.id,
+        email: rec.email,
+        smtpUser: activeSmtp.user,
+        error: errorMsg
+      });
       if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
           activeSmtp.consecutiveFails += 1;
           db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ? WHERE id = ?`).run(activeSmtp.consecutiveFails, activeSmtp.dbId);
@@ -351,6 +396,7 @@ const launchCampaign = async (req, res) => {
     const publicBaseUrl = `${forwardedProto || req.protocol}://${req.get('host')}`;
 
     const campaignId = uuidv4();
+    logSender('Campaign queued', { campaignId, campaignName, recipientCount: normalizedRecipients.length, immediate: true });
     db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
       campaignId, userId, campaignName, 
       JSON.stringify({ 

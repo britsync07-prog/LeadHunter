@@ -930,9 +930,11 @@ app.listen(PORT, HOST, () => {
     if (isSchedulerRunning) return;
     isSchedulerRunning = true;
     try {
+      console.log('[Scheduler] Running sender pending-email sweep');
       const fallbackHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
       const publicUrl = process.env.PUBLIC_URL || `http://${fallbackHost}:${PORT}`;
       await processPendingEmails(publicUrl);
+      console.log('[Scheduler] Sender pending-email sweep finished');
     } catch (err) {
       console.error('[Email Scheduler Error]', err);
     } finally {
