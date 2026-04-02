@@ -725,6 +725,14 @@ const loadKPIs = async () => {
   loadHistory();
 };
 
+function openCampaignWorkbench(type, id, mode = 'view') {
+  const url = new URL('/campaign-workbench.html', window.location.origin);
+  url.searchParams.set('type', type);
+  url.searchParams.set('id', id);
+  url.searchParams.set('mode', mode);
+  window.location.href = url.toString();
+}
+
 const loadHistory = async () => {
   try {
     const data = await fetchJson('/api/sender/analytics/history');
@@ -734,7 +742,7 @@ const loadHistory = async () => {
     historyTableBody.innerHTML = '';
 
     if (data.history.length === 0) {
-      historyTableBody.innerHTML = `<tr><td colspan="6" class="px-5 py-6 text-center text-brand-muted">No campaigns found</td></tr>`;
+      historyTableBody.innerHTML = `<tr><td colspan="7" class="px-5 py-6 text-center text-brand-muted">No campaigns found</td></tr>`;
       return;
     }
 
@@ -770,18 +778,31 @@ const loadHistory = async () => {
       tr.innerHTML = `
         <td class="px-5 py-4 font-medium text-brand-text">${camp.name}</td>
         <td class="px-5 py-4">${statusBadge}</td>
+        <td class="px-5 py-4 text-center font-mono">${camp.totalSent || 0}</td>
         <td class="px-5 py-4 text-center font-mono">${camp.deliveredCount || 0}</td>
         <td class="px-5 py-4 text-center font-mono">${camp.bouncedCount || 0}</td>
         <td class="px-5 py-4 text-brand-muted text-xs">${dateStr}</td>
         <td class="px-5 py-4">
           <div class="flex items-center justify-between gap-2">
             <div class="flex-1">
+              <div class="text-xs text-brand-muted mb-2 flex flex-wrap gap-3">
+                <span>Opens: <strong class="text-brand-text">${camp.uniqueOpens || 0}</strong></span>
+                <span>Clicks: <strong class="text-brand-text">${camp.uniqueClicks || 0}</strong></span>
+              </div>
               ${camp.abortReason ? `<div class="text-xs text-red-500 max-w-xs break-words">${camp.abortReason}</div>` : `<span class="text-xs text-brand-muted">No errors logged</span>`}
               ${downloadsHtml}
             </div>
-            <button onclick="window.deleteCampaign('${camp.id}')" class="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer" title="Delete Campaign">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="window.openCampaignWorkbench('sender', '${camp.id}', 'view')" class="text-slate-500 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer" title="View Details">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+              <button onclick="window.openCampaignWorkbench('sender', '${camp.id}', 'edit')" class="text-slate-500 hover:text-amber-600 p-1.5 rounded-md hover:bg-amber-50 transition-colors cursor-pointer" title="Edit Campaign">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+              </button>
+              <button onclick="window.deleteCampaign('${camp.id}')" class="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer" title="Delete Campaign">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              </button>
+            </div>
           </div>
         </td>
       `;
@@ -790,7 +811,7 @@ const loadHistory = async () => {
   } catch (err) {
     console.error("Failed to load history:", err);
     if (historyTableBody) {
-      historyTableBody.innerHTML = `<tr><td colspan="6" class="px-5 py-6 text-center text-red-500">Failed to load history</td></tr>`;
+      historyTableBody.innerHTML = `<tr><td colspan="7" class="px-5 py-6 text-center text-red-500">Failed to load history</td></tr>`;
     }
   }
 };
@@ -809,6 +830,7 @@ async function deleteCampaign(id) {
 }
 
 window.deleteCampaign = deleteCampaign;
+window.openCampaignWorkbench = openCampaignWorkbench;
 
 if (btnRefreshHistory) {
   btnRefreshHistory.addEventListener('click', loadKPIs);

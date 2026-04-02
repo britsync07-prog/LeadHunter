@@ -422,26 +422,59 @@ export class JobQueue extends EventEmitter {
   getUserHistory(userId) {
     const rows = db.prepare(`
       SELECT j.*, 
+             c.name as campaignName,
              c.status as campaignStatus, 
-             c.deliveredCount, 
-             c.bouncedCount,
-             (SELECT COUNT(*) FROM recipients r WHERE r.campaignId = c.id) as totalEmailsSent,
-             (SELECT COUNT(DISTINCT eventType || recipientId) FROM event_logs e WHERE e.campaignId = c.id AND e.eventType = 'OPEN') as uniqueOpens
+             COALESCE(recipient_totals.totalEmailsSent, 0) as totalEmailsSent,
+             COALESCE(lifecycle_totals.deliveredCount, 0) as deliveredCount,
+             COALESCE(lifecycle_totals.bouncedCount, 0) as bouncedCount,
+             COALESCE(event_totals.uniqueOpens, 0) as uniqueOpens,
+             COALESCE(event_totals.uniqueClicks, 0) as uniqueClicks
       FROM jobs j
       LEFT JOIN campaigns c ON c.id = 'auto_' || j.id
+      LEFT JOIN (
+        SELECT campaignId, COUNT(*) as totalEmailsSent
+        FROM recipients
+        GROUP BY campaignId
+      ) recipient_totals ON recipient_totals.campaignId = c.id
+      LEFT JOIN (
+        SELECT campaignId,
+               SUM(CASE WHEN eventType = 'DELIVERED' THEN 1 ELSE 0 END) as deliveredCount,
+               SUM(CASE WHEN eventType = 'BOUNCED' THEN 1 ELSE 0 END) as bouncedCount
+        FROM (
+          SELECT campaignId, eventType, recipientId
+          FROM event_logs
+          WHERE eventType IN ('DELIVERED', 'BOUNCED')
+          GROUP BY campaignId, eventType, recipientId
+        )
+        GROUP BY campaignId
+      ) lifecycle_totals ON lifecycle_totals.campaignId = c.id
+      LEFT JOIN (
+        SELECT campaignId,
+               SUM(CASE WHEN eventType = 'OPEN' THEN 1 ELSE 0 END) as uniqueOpens,
+               SUM(CASE WHEN eventType = 'CLICK' THEN 1 ELSE 0 END) as uniqueClicks
+        FROM (
+          SELECT campaignId, eventType, recipientId
+          FROM event_logs
+          WHERE eventType IN ('OPEN', 'CLICK')
+          GROUP BY campaignId, eventType, recipientId
+        )
+        GROUP BY campaignId
+      ) event_totals ON event_totals.campaignId = c.id
       WHERE j.userId = ? 
       ORDER BY j.createdAt DESC
     `).all(userId);
 
     return rows.map(row => {
-      const { campaignStatus, deliveredCount, bouncedCount, totalEmailsSent, uniqueOpens, ...jobData } = row;
+      const { campaignName, campaignStatus, deliveredCount, bouncedCount, totalEmailsSent, uniqueOpens, uniqueClicks, ...jobData } = row;
       return {
         ...jobData,
+        campaignName,
         campaignStatus,
         deliveredCount,
         bouncedCount,
         totalEmailsSent,
         uniqueOpens,
+        uniqueClicks,
         params: JSON.parse(jobData.params),
         events: JSON.parse(jobData.events),
         files: JSON.parse(jobData.files)

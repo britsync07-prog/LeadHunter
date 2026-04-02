@@ -27,6 +27,7 @@ import { JobQueue } from "./queue.js";
 import { expandNiches } from "./scraper.js";
 import * as autoMailController from "./sender/controllers/autoMailController.js";
 import { processPendingEmails } from "./sender/controllers/campaignController.js";
+import { getCampaignDetail, normalizeCampaignConfigInput, normalizeStringArray } from "./sender/services/campaignInspector.js";
 
 // Sender & Tracking Routes
 import trackingRoutes from "./sender/routes/trackingRoutes.js";
@@ -577,6 +578,107 @@ app.delete("/api/jobs/:id", requireAuth, (req, res) => {
   }
 });
 
+app.get("/api/jobs/:id", requireAuth, (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM jobs WHERE id = ? AND userId = ?").get(req.params.id, req.session.user.username);
+    if (!row) return res.status(404).json({ error: "Job not found" });
+
+    const params = JSON.parse(row.params || '{}');
+    const events = JSON.parse(row.events || '[]');
+    const files = JSON.parse(row.files || '[]');
+    const category = params.category
+      ? db.prepare("SELECT id, name FROM job_categories WHERE id = ? AND userId = ?").get(params.category, req.session.user.username)
+      : null;
+    const campaign = getCampaignDetail(`auto_${row.id}`);
+
+    res.json({
+      job: {
+        ...row,
+        params,
+        events,
+        files,
+        category,
+        campaign
+      }
+    });
+  } catch (err) {
+    console.error("[Job Detail Error]", err);
+    res.status(500).json({ error: "Failed to load job details" });
+  }
+});
+
+app.patch("/api/jobs/:id", requireAuth, express.json({ limit: "50mb" }), (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM jobs WHERE id = ? AND userId = ?").get(req.params.id, req.session.user.username);
+    if (!row) return res.status(404).json({ error: "Job not found" });
+
+    const params = JSON.parse(row.params || '{}');
+    const nextParams = { ...params };
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'country')) nextParams.country = String(req.body.country || '').trim();
+    if (Object.prototype.hasOwnProperty.call(req.body, 'states')) nextParams.states = normalizeStringArray(req.body.states);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'cities')) nextParams.cities = normalizeStringArray(req.body.cities);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'niches')) nextParams.niches = normalizeStringArray(req.body.niches);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'sites')) nextParams.sites = normalizeStringArray(req.body.sites);
+    if (Object.prototype.hasOwnProperty.call(req.body, 'category')) nextParams.category = String(req.body.category || '').trim();
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'includeGoogleMaps')) {
+      nextParams.includeGoogleMaps = !!req.body.includeGoogleMaps;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'includeSocial')) {
+      nextParams.includeSocial = !!req.body.includeSocial;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'scrapeMode')) {
+      nextParams.scrapeMode = String(req.body.scrapeMode || params.scrapeMode || 'both').trim();
+    }
+
+    const linkedCampaignId = `auto_${row.id}`;
+    const existingCampaign = db.prepare("SELECT id, userId, name, config FROM campaigns WHERE id = ? AND userId = ?").get(linkedCampaignId, req.session.user.id);
+    if (existingCampaign) {
+      let existingConfig = {};
+      try {
+        existingConfig = JSON.parse(existingCampaign.config || '{}');
+      } catch {
+        existingConfig = {};
+      }
+      const nextCampaignName = typeof req.body.campaignName === 'string' && req.body.campaignName.trim()
+        ? req.body.campaignName.trim()
+        : existingCampaign.name;
+      const nextConfig = normalizeCampaignConfigInput({
+        ...req.body,
+        publicBaseUrl: existingConfig.publicBaseUrl
+      }, existingConfig);
+
+      db.prepare("UPDATE campaigns SET name = ?, config = ? WHERE id = ? AND userId = ?")
+        .run(nextCampaignName, JSON.stringify(nextConfig), linkedCampaignId, req.session.user.id);
+      nextParams.autoMailConfig = nextConfig;
+    }
+
+    db.prepare("UPDATE jobs SET params = ? WHERE id = ? AND userId = ?")
+      .run(JSON.stringify(nextParams), req.params.id, req.session.user.username);
+
+    const updated = db.prepare("SELECT * FROM jobs WHERE id = ? AND userId = ?").get(req.params.id, req.session.user.username);
+    const category = nextParams.category
+      ? db.prepare("SELECT id, name FROM job_categories WHERE id = ? AND userId = ?").get(nextParams.category, req.session.user.username)
+      : null;
+
+    res.json({
+      success: true,
+      job: {
+        ...updated,
+        params: JSON.parse(updated.params || '{}'),
+        events: JSON.parse(updated.events || '[]'),
+        files: JSON.parse(updated.files || '[]'),
+        category,
+        campaign: getCampaignDetail(linkedCampaignId)
+      }
+    });
+  } catch (err) {
+    console.error("[Job Update Error]", err);
+    res.status(400).json({ error: err.message || "Failed to update job" });
+  }
+});
+
 app.post("/api/jobs", requireAuth, async (req, res) => {
   const { country, cities, states = [], niches, includeGoogleMaps = true, includeSocial = false, scrapeMode = 'both', sites, category, autoMailConfig } = req.body || {};
   const userPlan = req.session.user.subscriptionPlan || 'free';
@@ -665,6 +767,18 @@ app.get("/api/jobs/:jobId/files/:fileName", requireAuth, (req, res) => {
   const filePath = path.join(__dirname, "..", "output", job.id, req.params.fileName);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
   return res.download(filePath);
+});
+
+app.get("/api/jobs/:jobId/files/:fileName/raw", requireAuth, (req, res) => {
+  const job = queue.getJob(req.params.jobId);
+  if (!job || !job.files.includes(req.params.fileName)) return res.status(404).json({ error: "Not found" });
+  const filePath = path.join(__dirname, "..", "output", job.id, req.params.fileName);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing" });
+  const ext = path.extname(req.params.fileName).toLowerCase();
+  if (ext === '.csv') res.type('text/csv; charset=utf-8');
+  else if (ext === '.json') res.type('application/json; charset=utf-8');
+  else res.type('text/plain; charset=utf-8');
+  return res.sendFile(filePath);
 });
 
 app.post("/api/jobs/:id/stop", requireAuth, (req, res) => {
@@ -800,7 +914,8 @@ app.listen(PORT, HOST, () => {
     if (isSchedulerRunning) return;
     isSchedulerRunning = true;
     try {
-      const publicUrl = process.env.PUBLIC_URL || `http://${HOST}:${PORT}`;
+      const fallbackHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+      const publicUrl = process.env.PUBLIC_URL || `http://${fallbackHost}:${PORT}`;
       await processPendingEmails(publicUrl);
     } catch (err) {
       console.error('[Email Scheduler Error]', err);

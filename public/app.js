@@ -53,6 +53,7 @@ let allCountryCities = [];
 let visibleCityOptions = [];
 let selectedCityValues = new Set();
 const stateCitiesCache = new Map();
+let historyCategories = [];
 
 // Throttled UI State
 let _uiUpdateQueued = false;
@@ -1069,6 +1070,7 @@ async function refreshVisibleCities() {
 async function loadCategories() {
   try {
     const { categories } = await fetchJson("/api/categories");
+    historyCategories = categories || [];
     const selectEl = document.getElementById("jobCategory");
     if (selectEl) {
       const currentVal = selectEl.value;
@@ -1092,6 +1094,22 @@ async function loadCategories() {
     console.error("Could not load categories", err);
   }
 }
+
+function getCategoryName(categoryId) {
+  if (!categoryId) return "Uncategorized";
+  const match = historyCategories.find((cat) => cat.id === categoryId);
+  return match ? match.name : "Uncategorized";
+}
+
+function openCampaignWorkbench(type, id, mode = 'view') {
+  const url = new URL('/campaign-workbench.html', window.location.origin);
+  url.searchParams.set('type', type);
+  url.searchParams.set('id', id);
+  url.searchParams.set('mode', mode);
+  window.location.href = url.toString();
+}
+
+window.openCampaignWorkbench = openCampaignWorkbench;
 
 // Handle Add Category Button
 const addCategoryBtn = document.getElementById("addCategoryBtn");
@@ -1190,6 +1208,7 @@ async function loadHistory() {
       div.className = "history-item";
       const date = new Date(job.createdAt).toLocaleString();
       const params = job.params;
+      const categoryName = getCategoryName(params.category);
       const citiesList = params.cities || [];
       const statesList = params.states || [];
 
@@ -1247,6 +1266,7 @@ async function loadHistory() {
            <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Sent: <span style="color: #1e293b; font-weight: 700;">${job.totalEmailsSent}</span></span>
            <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Delivered: <span style="color: #10b981; font-weight: 700;">${job.deliveredCount || 0}</span></span>
            <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Opened: <span style="color: #8b5cf6; font-weight: 700;">${job.uniqueOpens || 0}</span></span>
+           <span style="color: #64748b; display: flex; align-items: center; gap: 4px;">Clicked: <span style="color: #0f766e; font-weight: 700;">${job.uniqueClicks || 0}</span></span>
         </div>`;
       }
 
@@ -1255,6 +1275,8 @@ async function loadHistory() {
       const isDeletable = job.status !== "running";
       const stopButton = isStoppable ? `<button class="stop-btn" onclick="stopJob('${job.id}')">&#x25A0; Stop</button>` : "";
       const restartButton = isRestartable ? `<button class="restart-btn" onclick="restartJob('${job.id}')" style="background:var(--blue-primary); color:white; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">&#x21BB; Restart</button>` : "";
+      const detailsButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'view')" style="background:none; color:#2563eb; border:1px solid #bfdbfe; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="View Job Details"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>`;
+      const editButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'edit')" style="background:none; color:#d97706; border:1px solid #fcd34d; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Edit Job / Auto-Mail"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></button>`;
       const deleteButton = isDeletable ? `<button onclick="deleteJob('${job.id}')" style="background:none; color:#ef4444; border:1px solid #fca5a5; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Delete Job"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : "";
 
       const emailListId = `emails-${job.id}`;
@@ -1269,6 +1291,10 @@ async function loadHistory() {
                <strong>${locationText}</strong><br>
                <span style="font-size:0.9em; color:var(--text-muted)">${citiesText}</span>
             </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+              <span style="font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:999px;">Campaign: ${categoryName}</span>
+              ${job.campaignName ? `<span style="font-size:11px; font-weight:700; color:#7c3aed; background:#f5f3ff; border:1px solid #ddd6fe; padding:2px 8px; border-radius:999px;">Auto-Mail: ${job.campaignName}</span>` : ''}
+            </div>
             <div class="history-niches">${params.niches.join(" &middot; ")}</div>
             ${analyticsHtml}
           </div>
@@ -1276,6 +1302,8 @@ async function loadHistory() {
       <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
       ${stopButton}
       ${restartButton}
+      ${detailsButton}
+      ${editButton}
       ${deleteButton}
       <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
     </div>

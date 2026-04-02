@@ -230,7 +230,7 @@ export class LeadScraper {
     }
   }
 
-  async run({ jobId, country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, userPlan = 'basic' }) {
+  async run({ jobId, country, cities, states = [], niches, includeGoogleMaps = true, includeSocial = false, scrapeMode = 'emails', sites, userPlan = 'basic' }) {
     if (sites && sites.length) this.sites = sites;
 
     const __filename = fileURLToPath(import.meta.url);

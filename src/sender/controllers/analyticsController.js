@@ -8,19 +8,26 @@ const getCampaignAnalytics = (req, res) => {
   const { campaignId } = req.params;
 
   try {
-    // 1. Fetch Total Recipients and Delivery/Bounce counts
-    // Using a single pass over the recipients table
     const recipientStats = db.prepare(`
       SELECT 
-        COUNT(id) as totalSent,
-        SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as deliveredCount,
-        SUM(CASE WHEN status = 'bounced' THEN 1 ELSE 0 END) as bouncedCount
+        COUNT(id) as totalSent
       FROM recipients
       WHERE campaignId = ?
     `).get(campaignId);
 
-    // 2. Fetch Unique Event Logs (Opens, Clicks, Visits)
-    // COUNT(DISTINCT recipientId) ensures we only count "Unique Opens/Clicks" instead of gross opens
+    const lifecycleStats = db.prepare(`
+      SELECT
+        SUM(CASE WHEN eventType = 'DELIVERED' THEN 1 ELSE 0 END) as deliveredCount,
+        SUM(CASE WHEN eventType = 'BOUNCED' THEN 1 ELSE 0 END) as bouncedCount
+      FROM (
+        SELECT eventType, recipientId
+        FROM event_logs
+        WHERE campaignId = ?
+          AND eventType IN ('DELIVERED', 'BOUNCED')
+        GROUP BY eventType, recipientId
+      )
+    `).get(campaignId);
+
     const eventStats = db.prepare(`
       SELECT 
         SUM(CASE WHEN eventType = 'OPEN' THEN 1 ELSE 0 END) as uniqueOpens,
@@ -38,8 +45,8 @@ const getCampaignAnalytics = (req, res) => {
     const campaignMeta = db.prepare(`SELECT status, abortReason FROM campaigns WHERE id = ?`).get(campaignId);
 
     const sent = recipientStats.totalSent || 0;
-    const delivered = recipientStats.deliveredCount || 0;
-    const bounced = recipientStats.bouncedCount || 0;
+    const delivered = lifecycleStats.deliveredCount || 0;
+    const bounced = lifecycleStats.bouncedCount || 0;
 
     const opens = eventStats.uniqueOpens || 0;
     const clicks = eventStats.uniqueClicks || 0;
@@ -91,12 +98,24 @@ const getAccountAnalytics = (req, res) => {
   try {
     const recipientStats = db.prepare(`
       SELECT 
-        COUNT(r.id) as totalSent,
-        SUM(CASE WHEN r.status = 'delivered' THEN 1 ELSE 0 END) as deliveredCount,
-        SUM(CASE WHEN r.status = 'bounced' THEN 1 ELSE 0 END) as bouncedCount
+        COUNT(r.id) as totalSent
       FROM recipients r
       JOIN campaigns c ON r.campaignId = c.id
       WHERE c.userId = ?
+    `).get(userId);
+
+    const lifecycleStats = db.prepare(`
+      SELECT
+        SUM(CASE WHEN eventType = 'DELIVERED' THEN 1 ELSE 0 END) as deliveredCount,
+        SUM(CASE WHEN eventType = 'BOUNCED' THEN 1 ELSE 0 END) as bouncedCount
+      FROM (
+        SELECT e.eventType, e.recipientId
+        FROM event_logs e
+        JOIN campaigns c ON e.campaignId = c.id
+        WHERE c.userId = ?
+          AND e.eventType IN ('DELIVERED', 'BOUNCED')
+        GROUP BY e.eventType, e.recipientId
+      )
     `).get(userId);
 
     const eventStats = db.prepare(`
@@ -114,8 +133,8 @@ const getAccountAnalytics = (req, res) => {
     `).get(userId);
 
     const sent = recipientStats?.totalSent || 0;
-    const delivered = recipientStats?.deliveredCount || 0;
-    const bounced = recipientStats?.bouncedCount || 0;
+    const delivered = lifecycleStats?.deliveredCount || 0;
+    const bounced = lifecycleStats?.bouncedCount || 0;
 
     const opens = eventStats?.uniqueOpens || 0;
     const clicks = eventStats?.uniqueClicks || 0;
@@ -153,17 +172,49 @@ const getCampaignHistory = (req, res) => {
   try {
     const history = db.prepare(`
       SELECT 
-        id, 
-        name, 
-        status, 
-        abortReason, 
-        deliveredCount, 
-        bouncedCount, 
-        createdAt,
-        sentReportFile,
-        failedReportFile
-      FROM campaigns
-      WHERE userId = ?
+        c.id, 
+        c.name, 
+        c.status, 
+        c.abortReason, 
+        COALESCE(recipient_totals.totalSent, 0) as totalSent,
+        COALESCE(lifecycle_totals.deliveredCount, 0) as deliveredCount, 
+        COALESCE(lifecycle_totals.bouncedCount, 0) as bouncedCount, 
+        COALESCE(event_totals.uniqueOpens, 0) as uniqueOpens,
+        COALESCE(event_totals.uniqueClicks, 0) as uniqueClicks,
+        c.createdAt,
+        c.sentReportFile,
+        c.failedReportFile
+      FROM campaigns c
+      LEFT JOIN (
+        SELECT campaignId, COUNT(*) as totalSent
+        FROM recipients
+        GROUP BY campaignId
+      ) recipient_totals ON recipient_totals.campaignId = c.id
+      LEFT JOIN (
+        SELECT campaignId,
+               SUM(CASE WHEN eventType = 'DELIVERED' THEN 1 ELSE 0 END) as deliveredCount,
+               SUM(CASE WHEN eventType = 'BOUNCED' THEN 1 ELSE 0 END) as bouncedCount
+        FROM (
+          SELECT campaignId, eventType, recipientId
+          FROM event_logs
+          WHERE eventType IN ('DELIVERED', 'BOUNCED')
+          GROUP BY campaignId, eventType, recipientId
+        )
+        GROUP BY campaignId
+      ) lifecycle_totals ON lifecycle_totals.campaignId = c.id
+      LEFT JOIN (
+        SELECT campaignId,
+               SUM(CASE WHEN eventType = 'OPEN' THEN 1 ELSE 0 END) as uniqueOpens,
+               SUM(CASE WHEN eventType = 'CLICK' THEN 1 ELSE 0 END) as uniqueClicks
+        FROM (
+          SELECT campaignId, eventType, recipientId
+          FROM event_logs
+          WHERE eventType IN ('OPEN', 'CLICK')
+          GROUP BY campaignId, eventType, recipientId
+        )
+        GROUP BY campaignId
+      ) event_totals ON event_totals.campaignId = c.id
+      WHERE c.userId = ?
       ORDER BY createdAt DESC
     `).all(userId);
 

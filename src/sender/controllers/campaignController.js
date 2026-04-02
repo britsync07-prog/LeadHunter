@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import { getCampaignDetail, normalizeCampaignConfigInput } from '../services/campaignInspector.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -187,6 +188,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
 
   for (const rec of pendings) {
     const config = JSON.parse(rec.config || '{}');
+    const trackingBaseUrl = config.publicBaseUrl || hostUrlFallback;
     const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(rec.userId);
     const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
     const isAdmin = !!user?.isAdmin;
@@ -230,7 +232,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
     }
 
     const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
-    const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, hostUrlFallback);
+    const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, trackingBaseUrl);
     
     console.log(`[SMTP] Attempting send to ${rec.email} using ${activeSmtp.user} (Step ${rec.currentStep})`);
     
@@ -272,6 +274,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
         db.prepare(`UPDATE recipients SET status = 'delivered', currentStep = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(nextStep, rec.id);
       }
+    } else {
       const errorMsg = result.error || 'Unknown error';
       if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
           activeSmtp.consecutiveFails += 1;
@@ -319,13 +322,16 @@ const launchCampaign = async (req, res) => {
       }];
     }
 
+    const forwardedProto = req.get('x-forwarded-proto');
+    const publicBaseUrl = `${forwardedProto || req.protocol}://${req.get('host')}`;
+
     const campaignId = uuidv4();
     db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
       campaignId, userId, campaignName, 
       JSON.stringify({ 
         sequences: finalSequences, normalizedRecipients, 
         smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass,
-        timezone, startTime, endTime
+        timezone, startTime, endTime, publicBaseUrl
       })
     );
     
@@ -340,6 +346,62 @@ const launchCampaign = async (req, res) => {
   } catch (error) {
     console.error('[Campaign Error]', error);
     if (!res.headersSent) res.status(500).json({ error: error.message || 'Internal Error.' });
+  }
+};
+
+const getCampaignDetails = (req, res) => {
+  const { id } = req.params;
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+  try {
+    const detail = getCampaignDetail(id);
+    if (!detail || detail.userId !== userId) {
+      return res.status(404).json({ error: 'Campaign not found.' });
+    }
+
+    res.json({ campaign: detail });
+  } catch (error) {
+    console.error('[Campaign Detail Error]', error);
+    res.status(500).json({ error: 'Failed to load campaign details.' });
+  }
+};
+
+const updateCampaign = (req, res) => {
+  const { id } = req.params;
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
+  try {
+    const existing = db.prepare(`SELECT id, userId, config FROM campaigns WHERE id = ?`).get(id);
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Campaign not found.' });
+    }
+
+    let existingConfig = {};
+    try {
+      existingConfig = JSON.parse(existing.config || '{}');
+    } catch {
+      existingConfig = {};
+    }
+
+    const nextName = typeof req.body.campaignName === 'string' ? req.body.campaignName.trim() : '';
+    const config = normalizeCampaignConfigInput({
+      ...req.body,
+      publicBaseUrl: existingConfig.publicBaseUrl || req.body.publicBaseUrl
+    }, existingConfig);
+
+    if (!nextName) {
+      return res.status(400).json({ error: 'Campaign name is required.' });
+    }
+
+    db.prepare(`UPDATE campaigns SET name = ?, config = ? WHERE id = ? AND userId = ?`)
+      .run(nextName, JSON.stringify(config), id, userId);
+
+    res.json({ success: true, campaign: getCampaignDetail(id) });
+  } catch (error) {
+    console.error('[Campaign Update Error]', error);
+    res.status(400).json({ error: error.message || 'Failed to update campaign.' });
   }
 };
 
@@ -359,5 +421,4 @@ const deleteCampaign = (req, res) => {
   }
 };
 
-export { launchCampaign, resumeCampaign, deleteCampaign };
-
+export { launchCampaign, getCampaignDetails, updateCampaign, resumeCampaign, deleteCampaign };

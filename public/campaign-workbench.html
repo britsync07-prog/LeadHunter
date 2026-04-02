@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campaign Workbench</title>
+  <link rel="icon" type="image/x-icon" href="/vite.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js"></script>
+  <link rel="stylesheet" href="styles.css?v=light">
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-7xl mx-auto px-4 py-6 lg:px-6">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-6">
+      <div>
+        <a id="backLink" href="/sender.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Back</a>
+        <h1 id="pageTitle" class="text-2xl font-semibold mt-2">Campaign Workbench</h1>
+        <p id="pageSubtitle" class="text-sm text-slate-500 mt-1">Loading…</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="modeToggleBtn" class="px-4 py-2 rounded-md border border-slate-300 bg-white text-sm font-medium hover:bg-slate-100">Switch Mode</button>
+        <button id="saveBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">Save Changes</button>
+      </div>
+    </div>
+
+    <div id="alertBox" class="hidden mb-4 rounded-md border px-4 py-3 text-sm"></div>
+
+    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-xs uppercase tracking-wider text-slate-500">Total Sent</div>
+        <div id="statSent" class="mt-2 text-2xl font-semibold">0</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-xs uppercase tracking-wider text-slate-500">Delivery Rate</div>
+        <div id="statDeliveryRate" class="mt-2 text-2xl font-semibold">0%</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-xs uppercase tracking-wider text-slate-500">Open Rate</div>
+        <div id="statOpenRate" class="mt-2 text-2xl font-semibold">0%</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-xs uppercase tracking-wider text-slate-500">Click Rate</div>
+        <div id="statClickRate" class="mt-2 text-2xl font-semibold">0%</div>
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-6">
+      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-semibold">Overview</h2>
+            <p class="text-sm text-slate-500">Edit follow-ups, labels, and sending settings.</p>
+          </div>
+          <span id="statusPill" class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600">-</span>
+        </div>
+        <div class="p-5 space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Campaign Name</span>
+              <input id="campaignNameInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+            <label class="block" id="categoryFieldWrap">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Scraper Campaign</span>
+              <input id="categoryNameInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Timezone</span>
+              <input id="timezoneInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" placeholder="e.g. Europe/London" />
+            </label>
+            <div class="grid grid-cols-2 gap-4">
+              <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Start</span>
+                <input id="startTimeInput" type="time" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+              </label>
+              <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">End</span>
+                <input id="endTimeInput" type="time" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+              </label>
+            </div>
+          </div>
+
+          <label class="block" id="nichesFieldWrap">
+            <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Niches</span>
+            <textarea id="nichesInput" rows="3" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" placeholder="One niche per line"></textarea>
+          </label>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="locationFieldWrap">
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Country</span>
+              <input id="countryInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Cities</span>
+              <input id="citiesInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" placeholder="Comma separated" />
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">SMTP Host</span>
+              <input id="smtpHostInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">SMTP Port</span>
+              <input id="smtpPortInput" type="number" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">SMTP User</span>
+              <input id="smtpUserInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+            <label class="block">
+              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">SMTP Pass</span>
+              <input id="smtpPassInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
+            </label>
+          </div>
+
+          <label class="block">
+            <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Saved SMTP IDs</span>
+            <input id="smtpAccountIdsInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" placeholder="Comma separated SMTP account IDs" />
+          </label>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-semibold">Follow-up Flow</h2>
+              <p class="text-sm text-slate-500">Add, remove, and reorder future sequence steps.</p>
+            </div>
+            <button id="addStepBtn" class="px-3 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-100">Add Step</button>
+          </div>
+          <div id="sequenceEditor" class="p-5 space-y-4"></div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200">
+            <h2 class="text-base font-semibold">Recipients Snapshot</h2>
+          </div>
+          <div id="recipientList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200">
+            <h2 class="text-base font-semibold">Recent Tracking Events</h2>
+          </div>
+          <div id="eventList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200">
+            <h2 class="text-base font-semibold">Generated Files</h2>
+          </div>
+          <div id="fileList" class="divide-y divide-slate-100"></div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+            <h2 id="previewTitle" class="text-base font-semibold text-slate-500">No file selected</h2>
+            <a id="previewDownloadLink" href="#" target="_blank" class="hidden px-3 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100">Download</a>
+          </div>
+          <div id="filePreview" class="max-h-[480px] overflow-auto p-5 text-sm text-slate-500">Select a file above to preview it here.</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="campaign-workbench.js"></script>
+</body>
+</html>
