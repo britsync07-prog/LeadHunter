@@ -251,10 +251,6 @@ export class LeadScraper {
 
     if (this.isStopped) return { files: [], expandedNiches: expandedNichesList, sites: this.sites };
 
-    this.onProgress({ type: "log", message: "Starting Google Search phase..." });
-
-    const payload = { outputDir, country, cities, states, niches, includeGoogleMaps: false, sites: this.sites, scrapeMode };
-
     const runScraperProcess = (cmd, args, name, payloadData) => {
       return new Promise((resolve, reject) => {
         // Use stdin to pass large payloads to avoid E2BIG (ARG_MAX limit)
@@ -281,7 +277,10 @@ export class LeadScraper {
             if (!trimmed) continue;
             try {
               const event = JSON.parse(trimmed);
-              if (event.type === "result" || event.type === "job-complete" || event.type === "job-completed") { finalResult = event; continue; }
+              if (event.type === "result" || event.type === "job-complete" || event.type === "job-completed") {
+                finalResult = event;
+                continue;
+              }
               this.onProgress(event);
             } catch {
               this.onProgress({ type: "log", message: `[${name}] ${trimmed}` });
@@ -290,7 +289,6 @@ export class LeadScraper {
         });
         this.child.on("close", (code) => {
           if (code !== 0 && code !== null) {
-            // Check if it's a missing Python package
             let errMsg = stderr || `${name} failed with code ${code}`;
             if (stderr.includes('ModuleNotFoundError') || stderr.includes('No module named')) {
               const match = stderr.match(/No module named '([^']+)'/);
@@ -305,11 +303,26 @@ export class LeadScraper {
       });
     };
 
-    try {
-      const googleScriptPath = path.join(__dirname, "google_scraper.js");
-      await runScraperProcess(process.execPath, [googleScriptPath], "Google", payload);
-    } catch (err) {
-      this.onProgress({ type: "log", message: `Google Search phase failed: ${err.message}` });
+    if (includeSocial && !this.isStopped) {
+      this.onProgress({ type: "log", message: "Starting Social Search phase (DuckDuckGo)..." });
+      const socialScriptPath = path.join(__dirname, "social_scraper.js");
+      const socialPayload = { outputDir, country, cities, niches: expandedNichesList, sites: this.sites };
+      try {
+        await runScraperProcess(process.execPath, [socialScriptPath], "Social", socialPayload);
+      } catch (err) {
+        this.onProgress({ type: "log", message: `Social Search phase failed: ${err.message}` });
+      }
+    }
+
+    if (!includeGoogleMaps && !includeSocial && !this.isStopped) {
+      this.onProgress({ type: "log", message: "Starting Google Search phase..." });
+      const payload = { outputDir, country, cities, states, niches: expandedNichesList, includeGoogleMaps: false, sites: this.sites, scrapeMode };
+      try {
+        const googleScriptPath = path.join(__dirname, "google_scraper.js");
+        await runScraperProcess(process.execPath, [googleScriptPath], "Google", payload);
+      } catch (err) {
+        this.onProgress({ type: "log", message: `Google Search phase failed: ${err.message}` });
+      }
     }
 
     const filesList = await fsPromises.readdir(outputDir);

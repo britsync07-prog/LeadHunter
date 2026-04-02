@@ -185,8 +185,45 @@
     <div class="campaign-builder-split">
       <!-- LEFT: Configuration -->
       <div class="builder-config border rounded-xl overflow-hidden h-fit flex flex-col gap-4 p-5">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-brand-text font-semibold border-slate-200">
+        <div class="pb-3 border-b flex items-center justify-between gap-2.5 border-slate-200">
           <h2 class="card-title font-semibold text-brand-text m-0 text-base">Compose Campaign</h2>
+          <div id="savedSequencesContainer" class="flex items-center gap-2">
+            <select id="savedSequenceSelect" class="px-3 py-1.5 border rounded-md text-xs font-mono border-slate-200 bg-white shadow-sm focus:ring-1 focus:ring-brand-primary outline-none">
+              <option value="new">-- Custom Sequence --</option>
+            </select>
+            <button id="btnSaveSequence" class="p-1.5 text-brand-primary hover:bg-brand-primary/10 rounded-md transition-all border border-slate-200 shadow-sm" title="Save Current Sequence">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            </button>
+            <button id="btnDeleteSequence" style="display:none;" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all border border-slate-200 shadow-sm" title="Delete Sequence">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Manage Templates Section -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Manage Email Templates</label>
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-2">
+              <select id="autoMailTemplateSelect" class="flex-1 px-3 py-2 border rounded-md text-xs font-mono border-slate-200 bg-white">
+                <option value="new">+ Create New Template</option>
+              </select>
+              <button id="btnDeleteTemplate" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Delete Template">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 gap-2">
+              <input type="text" id="autoMailTemplateName" placeholder="Template Name (e.g. Real Estate Intro)" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="autoMailSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
+                <input type="text" id="autoMailSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
+              </div>
+              <textarea id="autoMailHtml" placeholder="HTML Content" rows="2" class="w-full px-3 py-2 border rounded-md text-[10px] font-mono border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none"></textarea>
+            </div>
+            <div class="flex justify-end pt-1">
+               <button id="btnSaveAutoMailTemplate" class="bg-brand-primary hover:bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shadow-sm">Save Template</button>
+            </div>
+          </div>
         </div>
 
         <div class="form-group">

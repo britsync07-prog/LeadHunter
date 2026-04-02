@@ -195,6 +195,7 @@ export class JobQueue extends EventEmitter {
         states: job.params.states,
         niches: job.params.niches,
         includeGoogleMaps: job.params.includeGoogleMaps !== false,
+        includeSocial: job.params.includeSocial === true,
         scrapeMode: job.params.scrapeMode || 'emails',
         sites: job.params.sites,
         userPlan: job.params.userPlan

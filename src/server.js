@@ -578,7 +578,7 @@ app.delete("/api/jobs/:id", requireAuth, (req, res) => {
 });
 
 app.post("/api/jobs", requireAuth, async (req, res) => {
-  const { country, cities, states = [], niches, includeGoogleMaps = true, scrapeMode = 'emails', sites, category, autoMailConfig } = req.body || {};
+  const { country, cities, states = [], niches, includeGoogleMaps = true, includeSocial = false, scrapeMode = 'both', sites, category, autoMailConfig } = req.body || {};
   const userPlan = req.session.user.subscriptionPlan || 'free';
   const isAdmin = !!req.session.user.isAdmin;
 
@@ -597,7 +597,6 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
       // Premium has unlimited leads
       dailyLimit = Infinity;
       monthlyLimit = Infinity;
-      if (!includeGoogleMaps || scrapeMode !== 'both') return res.status(403).json({ error: "Premium plan requires Maps+Both" });
     } else if (userPlan === 'advance') {
       return res.status(403).json({ error: "The Scraper is not included in the Advance plan. Please upgrade to Premium to use this feature." });
     } else {
@@ -618,7 +617,7 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "Auto-Mail requires a Premium or Admin account." });
   }
   const job = queue.addJob(
-    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig, dbUserId: req.session.user.id } },
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, includeSocial, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig, dbUserId: req.session.user.id } },
     req.session.user.username // username is the userId key used throughout the queue
   );
 

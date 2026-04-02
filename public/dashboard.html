@@ -259,133 +259,49 @@ Gym Coach"
           <h2 class="font-semibold text-brand-text m-0 text-base">Scrape Mode</h2>
         </div>
 
-        <div class="mode-grid">
-          <label
-            class="mode-card mode-card--active text-xs font-semibold text-brand-muted uppercase tracking-wide"
-            for="modeEmails">
-            <input type="radio" id="modeEmails" name="scrapeMode" value="emails" checked="">
-            <div class="mode-icon mode-icon--email">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2"></rect>
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
-              </svg>
-            </div>
-            <div class="mode-label">Emails Only</div>
-            <div class="mode-desc">Scrape email addresses</div>
-          </label>
-
-          <label class="mode-card text-xs font-semibold text-brand-muted uppercase tracking-wide"
-            for="modePhones">
-            <input type="radio" id="modePhones" name="scrapeMode" value="phones">
-            <div class="mode-icon mode-icon--phone">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path
-                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.39 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l1.86-1.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z">
-                </path>
-              </svg>
-            </div>
-            <div class="mode-label">Phone / WhatsApp</div>
-            <div class="mode-desc">Find numbers by country code</div>
-          </label>
-
-          <label class="mode-card text-xs font-semibold text-brand-muted uppercase tracking-wide"
-            for="modeBoth">
-            <input type="radio" id="modeBoth" name="scrapeMode" value="both">
-            <div class="mode-icon mode-icon--both">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2"></rect>
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07" class="hidden-partial"></path>
-              </svg>
-            </div>
-            <div class="mode-label">Both</div>
-            <div class="mode-desc">Emails + phone numbers</div>
-          </label>
-        </div>
-
-        <!-- Live query preview shown when phone mode selected -->
-        <div id="phoneQueryPreview" class="phone-query-preview" style="display:none">
-          <div class="pqp-label">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
-            Phone query example:
+        <!-- Source Selection -->
+        <div class="border-t pt-4 mt-2">
+          <label class="block text-xs font-semibold text-brand-muted mb-3 uppercase tracking-wide">Data Sources</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all border-slate-200 bg-white shadow-sm" id="mapsSourceLabel">
+              <input type="checkbox" id="includeGoogleMaps" checked class="w-5 h-5 text-brand-primary rounded border-slate-300 focus:ring-brand-primary cursor-pointer">
+              <div class="flex flex-col">
+                <span class="text-sm font-bold text-brand-text">Google Maps</span>
+                <span class="text-[10px] text-brand-muted font-medium">Business Names & Phones</span>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all border-slate-200 bg-white shadow-sm" id="socialSourceLabel">
+              <input type="checkbox" id="includeSocial" class="w-5 h-5 text-brand-primary rounded border-slate-300 focus:ring-brand-primary cursor-pointer">
+              <div class="flex flex-col">
+                <span class="text-sm font-bold text-brand-text">Social (Emails Only)</span>
+                <span class="text-[10px] text-brand-muted font-medium">LinkedIn, FB, IG, etc.</span>
+              </div>
+            </label>
           </div>
-          <code id="phoneQueryExample">site:linkedin.com/in Fitness Trainer "London" ("07" OR "+44")</code>
         </div>
 
-        <!-- Maps toggle -->
-        <div id="mapsToggleWrap" style="margin-top:14px;">
-          <label for="googleMapsMode"
-            class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Google Maps
-            Search</label>
-          <select id="googleMapsMode"
-            class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm">
-            <option value="yes">Yes, include Google Maps</option>
-            <option value="no">No, skip Google Maps</option>
-          </select>
-          <p id="mapsModeHint" class="hint-text">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M12 16v-4M12 8h.01"></path>
-            </svg>
-            Choose <strong>No</strong> to speed up scraping and skip Maps requests.
-          </p>
-        </div>
-
-        <!-- Social Media Priority -->
-        <div class="sm-priority-wrap" style="margin-top:16px;">
-          <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide"
-            style="display:flex; justify-content:space-between; align-items:center;">
-            Social Media Priority
-            <span class="hint-text" style="margin:0; font-size:9px;">Waitlist skipped if selected</span>
-          </label>
-          <div class="checkbox-group" id="smGroup"
-            style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);">
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary);">
-              <input type="checkbox" id="smLeaveIt" checked=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;">
-              <strong>Leave it to us</strong> <span style="color:var(--text-muted); font-size:10px;">(Default
-                rotation)</span>
-            </label>
-            <div style="height:1px; background:var(--border); margin:2px 0;"></div>
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary); opacity:0.5;"
-              class="sm-option">
-              <input type="checkbox" value="facebook.com" class="sm-site" disabled=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;"> Facebook
-            </label>
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary); opacity:0.5;"
-              class="sm-option">
-              <input type="checkbox" value="instagram.com" class="sm-site" disabled=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;"> Instagram
-            </label>
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary); opacity:0.5;"
-              class="sm-option">
-              <input type="checkbox" value="linkedin.com/in" class="sm-site" disabled=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;"> LinkedIn
-            </label>
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary); opacity:0.5;"
-              class="sm-option">
-              <input type="checkbox" value="twitter.com" class="sm-site" disabled=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;"> Twitter
-            </label>
-            <label
-              style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; color:var(--text-primary); opacity:0.5;"
-              class="sm-option">
-              <input type="checkbox" value="reddit.com" class="sm-site" disabled=""
-                style="accent-color:var(--blue-primary); width:14px; height:14px;"> Reddit
-            </label>
+        <!-- Social Site Selection (Conditional) -->
+        <div id="socialSiteSelection" class="mt-4" style="display:none;">
+          <label class="block text-xs font-semibold text-brand-muted mb-2 uppercase tracking-wide">Social Platforms</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="linkedin.com/in" class="sm-site-check" checked> LinkedIn
+             </label>
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="facebook.com" class="sm-site-check" checked> Facebook
+             </label>
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="instagram.com" class="sm-site-check" checked> Instagram
+             </label>
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="twitter.com" class="sm-site-check"> Twitter
+             </label>
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="reddit.com" class="sm-site-check"> Reddit
+             </label>
+             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
+               <input type="checkbox" value="tiktok.com" class="sm-site-check"> TikTok
+             </label>
           </div>
         </div>
       </div>

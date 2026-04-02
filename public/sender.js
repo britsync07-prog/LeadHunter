@@ -1,4 +1,4 @@
-import { fetchJson, checkAuthAndSetupSidebar } from './app.js';
+import { fetchJson, checkAuthAndSetupSidebar, loadAutoMailTemplates, loadSavedSequences, setupTemplateListeners, setupSavedSequenceListeners } from './app.js';
 
 let currentUser = null;
 let currentRecipients = [];
@@ -424,6 +424,7 @@ function addSequenceStep() {
     const defaultDepends = sequences.length > 0 ? sequences[sequences.length - 1].id : null;
     sequences.push({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        templateId: '',
         delayDays: sequences.length === 0 ? 0 : 1,
         dependsOnId: defaultDepends,
         senderName: '',
@@ -433,6 +434,33 @@ function addSequenceStep() {
     renderSequences();
     validateForm();
 }
+
+window.updateStepTemplate = function(id, templateId) {
+    const step = sequences.find(s => s.id === id);
+    if (!step) return;
+    step.templateId = templateId;
+    if (templateId) {
+        // Fetch from the already loaded templates if possible, or just let it be.
+        // We can get them from window.autoMailTemplates if we export it or just use fetchJson again.
+        // But app.js already has them. I'll just use a fetch logic or assume they are globably accessible if I change app.js.
+        // Or I can just use the select element to find the data.
+        fetchJson(`/api/automail/templates/${templateId}`).then(t => {
+            if (t) {
+                step.senderName = t.senderName || '';
+                step.subject = t.subject || '';
+                step.htmlContent = t.htmlContent || '';
+                renderSequences();
+                validateForm();
+            }
+        });
+    } else {
+        step.senderName = '';
+        step.subject = '';
+        step.htmlContent = '';
+        renderSequences();
+        validateForm();
+    }
+};
 
 function removeSequenceStep(id) {
     sequences = sequences.filter(s => s.id !== id);
@@ -455,6 +483,13 @@ function renderSequences() {
     if (!sequenceContainer) return;
     sequenceContainer.innerHTML = '';
     
+    // Get templates for the dropdown
+    const templateSelect = document.getElementById('autoMailTemplateSelect');
+    const templateOptions = Array.from(templateSelect?.options || [])
+        .filter(opt => opt.value !== 'new')
+        .map(opt => `<option value="${opt.value}">${opt.textContent}</option>`)
+        .join('');
+
     sequences.forEach((step, index) => {
         const stepIndex = index + 1;
         const isFirst = index === 0;
@@ -480,6 +515,11 @@ function renderSequences() {
             ${delayHtml}
             
             <div class="space-y-2">
+              <select onchange="window.updateStepTemplate('${step.id}', this.value)" class="w-full px-2 py-1.5 border rounded-md text-sm font-mono border-slate-200 bg-slate-50 focus:outline-none">
+                <option value="">-- Custom Email --</option>
+                ${templateOptions.replace(`value="${step.templateId}"`, `value="${step.templateId}" selected`)}
+              </select>
+
               <div class="grid grid-cols-2 gap-2">
                 <input type="text" placeholder="Sender Name (e.g. John Doe)" value="${step.senderName.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'senderName', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
                 <input type="text" placeholder="Email Subject" value="${step.subject.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'subject', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
@@ -516,6 +556,7 @@ function compileSequencePayload(seqs) {
         if(relativeDelay < 0) relativeDelay = 0;
         payload.push({
             delayDays: relativeDelay,
+            templateId: s.templateId || '',
             senderName: s.senderName.trim(),
             subject: s.subject.trim(),
             htmlContent: s.htmlContent.trim()
@@ -777,14 +818,59 @@ if (btnRefreshHistory) {
 async function init() {
   currentUser = await checkAuthAndSetupSidebar();
 
-  if (currentUser && currentUser.subscriptionPlan !== 'premium') {
-    // If somehow a non-premium user accesses this page despite locks
+  if (currentUser && currentUser.subscriptionPlan !== 'premium' && currentUser.subscriptionPlan !== 'advance' && !currentUser.isAdmin) {
     window.location.href = "/dashboard.html";
     return;
   }
 
-  // Hydrate metrics on page load
-  await loadKPIs();
+  // Setup Auto-Mail Logic
+  setupTemplateListeners((t) => {
+      // When a template is saved or selected in the top management area,
+      // we don't necessarily update steps unless the user wants to.
+      // But we must reload the steps' template dropdowns.
+      renderSequences();
+  });
+
+  setupSavedSequenceListeners((config) => {
+      if (config) {
+          // Sequence Loaded from Save
+          sequences = config.sequences.map(s => ({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+              templateId: s.templateId || '',
+              delayDays: s.delayDays || 0,
+              dependsOnId: null, // Will relink below
+              senderName: s.senderName || '',
+              subject: s.subject || '',
+              htmlContent: s.htmlContent || ''
+          }));
+          for (let i = 1; i < sequences.length; i++) {
+              sequences[i].dependsOnId = sequences[i-1].id;
+          }
+          
+          // Restore SMTP selection
+          const smtpIds = config.smtpAccountIds || [];
+          document.querySelectorAll('input[name="selectedSmtps"]').forEach(cb => {
+              cb.checked = smtpIds.includes(cb.value);
+          });
+          
+          renderSequences();
+          validateForm();
+      } else {
+          // Reset to default
+          sequences = [];
+          addSequenceStep();
+      }
+  });
+
+  // Global helpers for saved sequence logic
+  window.getCurrentSequence = () => compileSequencePayload(sequences);
+  window.getSelectedSmtps = () => Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(cb => cb.value);
+
+  await Promise.all([
+      loadKPIs(),
+      loadAutoMailTemplates(),
+      loadSavedSequences()
+  ]);
 }
 
 init();

@@ -60,10 +60,6 @@ let _pendingEvents = [];
 const MAX_EVENTS_IN_DOM = 15;
 
 // ── Scrape Mode helpers ─────────────────────────────────────
-function getScrapeMode() {
-  const checked = document.querySelector('input[name="scrapeMode"]:checked');
-  return checked ? checked.value : 'emails';
-}
 
 // Country → phone prefix map for the preview banner
 const COUNTRY_PHONE_PREFIXES = {
@@ -79,24 +75,6 @@ const COUNTRY_PHONE_PREFIXES = {
   "Saudi Arabia": ['"+966"', '"05"']
 };
 
-function updatePhoneQueryPreview() {
-  const mode = getScrapeMode();
-  const showPhone = mode === 'phones' || mode === 'both';
-  if (phoneQueryPreviewEl) phoneQueryPreviewEl.style.display = showPhone ? 'block' : 'none';
-  if (!showPhone || !phoneQueryExampleEl) return;
-
-  const country = countryEl?.value || 'United Kingdom';
-  const prefixes = COUNTRY_PHONE_PREFIXES[country] || ['"+XX"'];
-  const phoneTerm = '(' + prefixes.join(' OR ') + ')';
-
-  const rawNiches = nichesEl?.value.split('\n').map(x => x.trim()).filter(Boolean) || [];
-  const niche = rawNiches[0] || 'Fitness Trainer';
-
-  const checkedCities = [...(cityContainer?.querySelectorAll('input:checked') || [])].map(i => i.value);
-  const city = checkedCities[0] || 'London';
-
-  phoneQueryExampleEl.textContent = `site:linkedin.com/in ${niche} "${city}" ${phoneTerm}`;
-}
 
 function getPlanLimits(plan) {
   const p = (plan || '').toLowerCase().trim();
@@ -246,9 +224,6 @@ function setupMobileMenu() {
 }
 
 function applySubscriptionLocks(plan, isAdmin) {
-  const modeEmails = document.getElementById('modeEmails');
-  const modePhones = document.getElementById('modePhones');
-  const modeBoth = document.getElementById('modeBoth');
   const mapsMode = document.getElementById('googleMapsMode');
 
   const navSender = document.getElementById('navSender');
@@ -261,14 +236,7 @@ function applySubscriptionLocks(plan, isAdmin) {
     if (navChecker) navChecker.style.display = 'none';
   }
 
-  if (!modeEmails) return; // not on scraper dashboard
-
   // Reset visual states
-  document.querySelectorAll('.mode-card').forEach(el => {
-    el.style.display = 'flex';
-    el.style.opacity = '1';
-    el.onclick = null; // remove potential old alerts
-  });
   if (mapsMode) {
     mapsMode.closest('div').style.display = 'block';
     mapsMode.closest('div').style.opacity = '1';
@@ -276,50 +244,19 @@ function applySubscriptionLocks(plan, isAdmin) {
   }
   if (smPriorityWrap) smPriorityWrap.style.display = 'block';
 
-  modeEmails.disabled = false;
-  modePhones.disabled = false;
-  modeBoth.disabled = false;
-
   if (plan === 'basic') {
-    // Basic: Emails only, No Maps
-    modePhones.disabled = true;
-    modeBoth.disabled = true;
-    modeEmails.checked = true;
-
-    if (mapsMode) {
-      mapsMode.value = 'no';
-      mapsMode.disabled = true;
-      mapsMode.closest('div').style.opacity = '0.5';
-      mapsMode.title = 'Upgrade your plan to unlock Google Maps scraping.';
+    const mapsInput = document.getElementById('includeGoogleMaps');
+    if (mapsInput) {
+      mapsInput.checked = false;
+      mapsInput.disabled = true;
+      const label = document.getElementById('mapsSourceLabel');
+      if (label) {
+        label.style.opacity = '0.5';
+        label.title = 'Upgrade your plan to unlock Google Maps scraping.';
+      }
     }
-
-    document.querySelector('label[for="modePhones"]').style.opacity = '0.4';
-    document.querySelector('label[for="modeBoth"]').style.opacity = '0.4';
-
-    // Intercept clicks on disabled options to show upgrade message
-    const upgradeAlert = (e) => {
-      e.preventDefault();
-      alert("Please update your plan to access this feature.");
-    };
-    document.querySelector('label[for="modePhones"]').onclick = upgradeAlert;
-    document.querySelector('label[for="modeBoth"]').onclick = upgradeAlert;
-
   } else if (plan === 'advance' || plan === 'premium') {
-    // Advance/Premium: Maps ONLY, Both ONLY. Hide the redundant UI options completely.
-    modeBoth.checked = true;
-
-    document.querySelector('label[for="modeEmails"]').style.display = 'none';
-    document.querySelector('label[for="modePhones"]').style.display = 'none';
-
-    // Also remove the "Social Media Priority" block since it's irrelevant for Maps-only
-    if (smPriorityWrap) {
-      smPriorityWrap.style.display = 'none';
-    }
-
-    if (mapsMode) {
-      mapsMode.closest('div').style.display = 'none'; // Lock Maps ON silently
-      mapsMode.value = 'yes';
-    }
+    // Premium/Advance can select whatever they want now
   }
 }
 
@@ -539,8 +476,6 @@ function setupSelectAll(selectAllEl, container) {
     selectAllEl.indeterminate = false;
     if (container === stateContainer) {
       refreshVisibleCities();
-    } else if (container === cityContainer) {
-      updatePhoneQueryPreview();
     }
   });
 }
@@ -565,7 +500,6 @@ cityContainer?.addEventListener("change", (event) => {
   const label = checkbox.closest("label");
   if (label) label.classList.toggle("is-selected", checkbox.checked);
   syncSelectAllState(cityContainer, selectAllCities);
-  updatePhoneQueryPreview();
 });
 
 citySearchEl?.addEventListener("input", () => {
@@ -611,7 +545,7 @@ function populateAutoMailForm(t) {
     if(htmlEl) htmlEl.value = t.htmlContent || '';
 }
 
-function setupTemplateListeners() {
+export function setupTemplateListeners(onTemplateSelected) {
     if (templateSelectEl) {
         templateSelectEl.addEventListener('change', () => {
             const val = templateSelectEl.value;
@@ -619,7 +553,10 @@ function setupTemplateListeners() {
                 resetAutoMailForm();
             } else {
                 const t = autoMailTemplates.find(x => String(x.id) === String(val));
-                if (t) populateAutoMailForm(t);
+                if (t) {
+                    populateAutoMailForm(t);
+                    if (onTemplateSelected) onTemplateSelected(t);
+                }
             }
         });
     }
@@ -653,6 +590,7 @@ function setupTemplateListeners() {
                     templateSelectEl.value = res.id;
                     const t = autoMailTemplates.find(x => String(x.id) === String(res.id));
                     if (t) populateAutoMailForm(t);
+                    if (onTemplateSelected) onTemplateSelected(t);
                 }
             } catch (err) {
                 alert("Failed to save template: " + err.message);
@@ -808,7 +746,7 @@ function compileSequencePayload(sequences) {
     return payload;
 }
 
-async function loadAutoMailTemplates() {
+export async function loadAutoMailTemplates() {
     try {
         const data = await fetchJson('/api/automail/templates');
         autoMailTemplates = data.templates || [];
@@ -818,7 +756,7 @@ async function loadAutoMailTemplates() {
     }
 }
 
-async function loadSavedSequences() {
+export async function loadSavedSequences() {
     try {
         const data = await fetchJson('/api/automail/saved-sequences');
         savedSequencesConfigs = data.sequences || [];
@@ -841,7 +779,7 @@ function renderSavedSequencesDropdown() {
     if (btnDeleteSequence) btnDeleteSequence.style.display = savedSequenceSelect.value === 'new' ? 'none' : 'block';
 }
 
-function setupSavedSequenceListeners() {
+export function setupSavedSequenceListeners(onSequenceLoaded) {
     if (savedSequenceSelect) {
         savedSequenceSelect.addEventListener('change', () => {
             const val = savedSequenceSelect.value;
@@ -849,38 +787,44 @@ function setupSavedSequenceListeners() {
             if (val !== 'new') {
                 const seq = savedSequencesConfigs.find(s => s.id === val);
                 if (seq && seq.config) {
-                    // Rebuild the sequence steps array from saved compiled steps
-                    autoMailSequences = [];
-                    seq.config.sequences.forEach(s => {
-                        autoMailSequences.push({
-                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                            templateId: s.templateId || '',
-                            delayDays: s.delayDays || 0,
-                            dependsOnId: null,
-                            senderName: s.senderName || '',
-                            subject: s.subject || '',
-                            htmlContent: s.htmlContent || ''
+                    if (onSequenceLoaded) {
+                        onSequenceLoaded(seq.config);
+                    } else {
+                        // Default dashboard behavior
+                        autoMailSequences = [];
+                        seq.config.sequences.forEach(s => {
+                            autoMailSequences.push({
+                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                templateId: s.templateId || '',
+                                delayDays: s.delayDays || 0,
+                                dependsOnId: null,
+                                senderName: s.senderName || '',
+                                subject: s.subject || '',
+                                htmlContent: s.htmlContent || ''
+                            });
                         });
-                    });
-                    // Link steps sequentially for the UI dependency dropdowns
-                    for (let i = 1; i < autoMailSequences.length; i++) {
-                        autoMailSequences[i].dependsOnId = autoMailSequences[i-1].id;
-                    }
-                    renderSequences();
+                        for (let i = 1; i < autoMailSequences.length; i++) {
+                            autoMailSequences[i].dependsOnId = autoMailSequences[i-1].id;
+                        }
+                        renderSequences();
 
-                    // Restore SMTP checkbox selections
-                    const smtpIds = seq.config.smtpAccountIds || [];
-                    if (smtpListEl) {
-                        smtpListEl.querySelectorAll("input[type='checkbox']").forEach(cb => {
-                            cb.checked = smtpIds.includes(cb.value);
-                            const label = cb.closest("label");
-                            if (label) label.classList.toggle("is-selected", cb.checked);
-                        });
+                        const smtpIds = seq.config.smtpAccountIds || [];
+                        if (smtpListEl) {
+                            smtpListEl.querySelectorAll("input[type='checkbox']").forEach(cb => {
+                                cb.checked = smtpIds.includes(cb.value);
+                                const label = cb.closest("label");
+                                if (label) label.classList.toggle("is-selected", cb.checked);
+                            });
+                        }
                     }
                 }
             } else {
-                autoMailSequences = [];
-                addSequenceStep();
+                if (onSequenceLoaded) {
+                    onSequenceLoaded(null);
+                } else {
+                    autoMailSequences = [];
+                    addSequenceStep();
+                }
             }
         });
     }
@@ -890,16 +834,17 @@ function setupSavedSequenceListeners() {
             const name = prompt("Enter a name for this outreach configuration:");
             if (!name || !name.trim()) return;
 
+            const sequencesToSave = onSequenceLoaded ? window.getCurrentSequence() : compileSequencePayload(autoMailSequences);
+            const smtpsToSave = onSequenceLoaded ? window.getSelectedSmtps() : (smtpListEl ? Array.from(smtpListEl.querySelectorAll("input[type='checkbox']:checked")).map(cb => cb.value) : []);
+
             const payloadConfig = {
-                sequences: compileSequencePayload(autoMailSequences),
-                smtpAccountIds: smtpListEl
-                    ? Array.from(smtpListEl.querySelectorAll("input[type='checkbox']:checked")).map(cb => cb.value)
-                    : []
+                sequences: sequencesToSave,
+                smtpAccountIds: smtpsToSave
             };
 
             try {
                 btnSaveSequence.disabled = true;
-                btnSaveSequence.textContent = "Saving...";
+                btnSaveSequence.innerHTML = '<svg width="14" height="14" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>';
                 const existingId = savedSequenceSelect?.value !== 'new' ? savedSequenceSelect.value : null;
                 const res = await fetchJson('/api/automail/saved-sequences', {
                     method: 'POST',
@@ -917,7 +862,7 @@ function setupSavedSequenceListeners() {
                 alert("Failed to save sequence config: " + err.message);
             } finally {
                 btnSaveSequence.disabled = false;
-                btnSaveSequence.textContent = "Save Current";
+                btnSaveSequence.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
             }
         });
     }
@@ -933,8 +878,12 @@ function setupSavedSequenceListeners() {
                 await loadSavedSequences();
                 if (savedSequenceSelect) savedSequenceSelect.value = 'new';
                 if (btnDeleteSequence) btnDeleteSequence.style.display = 'none';
-                autoMailSequences = [];
-                addSequenceStep();
+                if (onSequenceLoaded) {
+                    onSequenceLoaded(null);
+                } else {
+                    autoMailSequences = [];
+                    addSequenceStep();
+                }
             } catch (err) {
                 alert("Failed to delete sequence: " + err.message);
             }
@@ -1454,23 +1403,19 @@ document.getElementById("run")?.addEventListener("click", async () => {
   const niches = nichesEl.value.split("\n").map((x) => x.trim()).filter(Boolean);
   const states = selectedValues(stateContainer);
   let cities = selectedValues(cityContainer);
-  const includeGoogleMaps = (googleMapsModeEl?.value || "yes") === "yes";
-  const scrapeMode = getScrapeMode();
+  const includeGoogleMaps = document.getElementById("includeGoogleMaps")?.checked;
+  const includeSocial = document.getElementById("includeSocial")?.checked;
+  const scrapeMode = (includeSocial && !includeGoogleMaps) ? 'emails' : 'both';
   const country = countryEl.value;
 
-  const allSites = ["facebook.com", "instagram.com", "linkedin.com/in", "twitter.com", "reddit.com"];
-  let sites = [...allSites];
-  const smLeaveItEl = document.getElementById("smLeaveIt");
+
+  let sites = Array.from(document.querySelectorAll(".sm-site-check:checked")).map(el => el.value);
+  if (sites.length === 0) {
+     sites = ["facebook.com", "instagram.com", "linkedin.com/in", "twitter.com", "reddit.com", "tiktok.com"];
+  }
 
   const runErrorBox = document.getElementById("runErrorBox");
   if (runErrorBox) runErrorBox.style.display = "none";
-
-  if (smLeaveItEl && !smLeaveItEl.checked) {
-    const selectedSites = Array.from(document.querySelectorAll(".sm-site:checked")).map(el => el.value);
-    if (selectedSites.length > 0) {
-      sites = [...selectedSites, ...allSites.filter(s => !selectedSites.includes(s))];
-    }
-  }
 
   if (!niches.length || !states.length) {
     if (runErrorBox) {
@@ -1551,6 +1496,7 @@ document.getElementById("run")?.addEventListener("click", async () => {
         cities,
         niches,
         includeGoogleMaps,
+        includeSocial,
         scrapeMode,
         sites,
         category: jobCategory,
@@ -1685,27 +1631,21 @@ function ensureFileLink(jobId, fileName) {
 
 
 
-// ── Phone query preview event wiring ─────────────────────────
-document.querySelectorAll('input[name="scrapeMode"]').forEach(r => r.addEventListener('change', updatePhoneQueryPreview));
-nichesEl?.addEventListener('input', updatePhoneQueryPreview);
-countryEl?.addEventListener('change', updatePhoneQueryPreview);
-cityContainer?.addEventListener('change', updatePhoneQueryPreview);
 // Initial call once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  updatePhoneQueryPreview();
 
-  // Social media priority group toggle
-  const smLeaveItEl = document.getElementById("smLeaveIt");
-  const smSiteEls = document.querySelectorAll(".sm-site");
-
-  if (smLeaveItEl) {
-    smLeaveItEl.addEventListener("change", (e) => {
-      const isLeaveIt = e.target.checked;
-      smSiteEls.forEach(el => {
-        el.disabled = isLeaveIt;
-        if (isLeaveIt) el.checked = false;
-        el.parentElement.style.opacity = isLeaveIt ? '0.5' : '1';
-      });
+  // Social source toggle logic
+  const includeSocialEl = document.getElementById("includeSocial");
+  const socialSiteSelection = document.getElementById("socialSiteSelection");
+  if (includeSocialEl && socialSiteSelection) {
+    includeSocialEl.addEventListener("change", () => {
+      socialSiteSelection.style.display = includeSocialEl.checked ? "block" : "none";
+      
+      // If social-only is selected, inform user about emails-only
+      const includeMapsEl = document.getElementById("includeGoogleMaps");
+      if (includeSocialEl.checked && !includeMapsEl.checked) {
+        // Optional: show a small toast or label saying "Emails Only Mode"
+      }
     });
   }
 
@@ -1740,7 +1680,6 @@ window.openFilePreview = async function (jobId, fileName) {
     titleEl.textContent = fileName;
 
     if (fileName.endsWith('.csv')) {
-      // Render CSV as a table
       const rows = text.split('\n').filter(r => r.trim());
       if (rows.length === 0) {
         contentEl.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">CSV is empty.</div>';
@@ -1750,25 +1689,14 @@ window.openFilePreview = async function (jobId, fileName) {
       const tableRows = rows.map((row, idx) => {
         const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
         const cleanCols = cols.map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-
-        if (idx === 0) { // Header
-          return `<tr>${cleanCols.map(c => `<th>${c}</th>`).join('')}</tr>`;
-        }
-        return `<tr>${cleanCols.map(c => `<td>${c}</td>`).join('')}</tr>`;
+        const tag = (idx === 0) ? 'th' : 'td';
+        return `<tr>${cleanCols.map(c => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
       });
 
-      contentEl.innerHTML = `
-        <div class="csv-table-wrapper">
-          <table class="csv-table">
-            ${tableRows.join('')}
-          </table>
-        </div>
-      `;
+      contentEl.innerHTML = `<div class="csv-table-wrapper"><table class="csv-table">${tableRows.join('')}</table></div>`;
     } else {
-      // Render as raw text
       contentEl.innerHTML = `<pre>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
     }
-
   } catch (err) {
     titleEl.textContent = "Error";
     contentEl.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--red);">Could not load file. It may no longer exist on the server.</div>`;
