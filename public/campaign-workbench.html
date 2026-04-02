@@ -7,56 +7,58 @@
   <link rel="icon" type="image/x-icon" href="/vite.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="tailwind-config.js"></script>
-  <link rel="stylesheet" href="styles.css?v=light">
+  <link rel="stylesheet" href="styles.css?v=neo">
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <main class="max-w-7xl mx-auto px-4 py-6 lg:px-6">
+<body class="bg-brand-base text-brand-text font-sans antialiased relative overflow-x-hidden">
+  <div class="fixed inset-0 -z-10 bg-gradient-mesh opacity-90"></div>
+  <div class="fixed inset-0 -z-10 opacity-30" style="background-image:linear-gradient(rgba(16,33,43,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(16,33,43,0.05) 1px, transparent 1px); background-size:26px 26px;"></div>
+  <main class="max-w-7xl mx-auto px-4 py-8 lg:px-6">
     <div class="flex items-center justify-between gap-3 flex-wrap mb-6">
       <div>
-        <a id="backLink" href="/sender.html" class="text-sm text-blue-600 hover:text-blue-700 font-medium">Back</a>
-        <h1 id="pageTitle" class="text-2xl font-semibold mt-2">Campaign Workbench</h1>
-        <p id="pageSubtitle" class="text-sm text-slate-500 mt-1">Loading…</p>
+        <a id="backLink" href="/sender.html" class="text-sm text-brand-primary hover:text-brand-cta font-semibold">Back</a>
+        <h1 id="pageTitle" class="text-3xl lg:text-4xl font-display font-bold mt-3 tracking-tight">Campaign Workbench</h1>
+        <p id="pageSubtitle" class="text-sm text-brand-secondary mt-2">Loading…</p>
       </div>
       <div class="flex items-center gap-2">
-        <button id="modeToggleBtn" class="px-4 py-2 rounded-md border border-slate-300 bg-white text-sm font-medium hover:bg-slate-100">Switch Mode</button>
-        <button id="saveBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">Save Changes</button>
+        <button id="modeToggleBtn" class="px-4 py-2.5 rounded-2xl border border-brand-border bg-white/80 text-sm font-semibold hover:bg-white">Switch Mode</button>
+        <button id="saveBtn" class="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-brand-primary to-brand-cta text-white text-sm font-bold tracking-[0.14em] uppercase hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-glow">Save Changes</button>
       </div>
     </div>
 
     <div id="alertBox" class="hidden mb-4 rounded-md border px-4 py-3 text-sm"></div>
 
     <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs uppercase tracking-wider text-slate-500">Total Sent</div>
+      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+        <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Total Sent</div>
         <div id="statSent" class="mt-2 text-2xl font-semibold">0</div>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs uppercase tracking-wider text-slate-500">Delivery Rate</div>
+      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+        <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Delivery Rate</div>
         <div id="statDeliveryRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs uppercase tracking-wider text-slate-500">Open Rate</div>
+      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+        <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Open Rate</div>
         <div id="statOpenRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-xs uppercase tracking-wider text-slate-500">Click Rate</div>
+      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+        <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Click Rate</div>
         <div id="statClickRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
     </section>
 
     <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-6">
-      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+      <section class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between">
           <div>
-            <h2 class="text-base font-semibold">Overview</h2>
-            <p class="text-sm text-slate-500">Edit follow-ups, labels, and sending settings.</p>
+            <h2 class="text-lg font-display font-bold">Overview</h2>
+            <p class="text-sm text-brand-secondary">Edit follow-ups, labels, and sending settings.</p>
           </div>
           <span id="statusPill" class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600">-</span>
         </div>
-        <div class="p-5 space-y-5">
+        <div class="p-6 space-y-5">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label class="block">
               <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Campaign Name</span>
@@ -131,44 +133,44 @@
       </section>
 
       <section class="space-y-6">
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+          <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between">
             <div>
-              <h2 class="text-base font-semibold">Follow-up Flow</h2>
-              <p class="text-sm text-slate-500">Add, remove, and reorder future sequence steps.</p>
+              <h2 class="text-lg font-display font-bold">Follow-up Flow</h2>
+              <p class="text-sm text-brand-secondary">Add, remove, and reorder future sequence steps.</p>
             </div>
-            <button id="addStepBtn" class="px-3 py-2 rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-100">Add Step</button>
+            <button id="addStepBtn" class="px-4 py-2.5 rounded-2xl border border-brand-border bg-white text-sm font-semibold hover:bg-brand-hover">Add Step</button>
           </div>
-          <div id="sequenceEditor" class="p-5 space-y-4"></div>
+          <div id="sequenceEditor" class="p-6 space-y-4"></div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200">
-            <h2 class="text-base font-semibold">Recipients Snapshot</h2>
+        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+          <div class="px-6 py-5 border-b border-brand-border">
+            <h2 class="text-lg font-display font-bold">Recipients Snapshot</h2>
           </div>
           <div id="recipientList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200">
-            <h2 class="text-base font-semibold">Recent Tracking Events</h2>
+        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+          <div class="px-6 py-5 border-b border-brand-border">
+            <h2 class="text-lg font-display font-bold">Recent Tracking Events</h2>
           </div>
           <div id="eventList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200">
-            <h2 class="text-base font-semibold">Generated Files</h2>
+        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+          <div class="px-6 py-5 border-b border-brand-border">
+            <h2 class="text-lg font-display font-bold">Generated Files</h2>
           </div>
           <div id="fileList" class="divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-            <h2 id="previewTitle" class="text-base font-semibold text-slate-500">No file selected</h2>
-            <a id="previewDownloadLink" href="#" target="_blank" class="hidden px-3 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100">Download</a>
+        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+          <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between gap-3">
+            <h2 id="previewTitle" class="text-lg font-display font-bold text-brand-secondary">No file selected</h2>
+            <a id="previewDownloadLink" href="#" target="_blank" class="hidden px-4 py-2 rounded-2xl border border-brand-border bg-white text-brand-primary text-xs font-bold uppercase tracking-[0.16em] hover:bg-brand-hover">Download</a>
           </div>
-          <div id="filePreview" class="max-h-[480px] overflow-auto p-5 text-sm text-slate-500">Select a file above to preview it here.</div>
+          <div id="filePreview" class="max-h-[480px] overflow-auto p-6 text-sm text-brand-secondary">Select a file above to preview it here.</div>
         </div>
       </section>
     </div>

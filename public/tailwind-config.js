@@ -3,30 +3,30 @@ tailwind.config = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter', 'sans-serif'], // Professional, clean, Apple-esque
-                mono: ['Fira Code', 'monospace'],
+                sans: ['Manrope', 'sans-serif'],
+                display: ['Space Grotesk', 'sans-serif'],
+                mono: ['JetBrains Mono', 'monospace'],
             },
             colors: {
                 brand: {
-                    base: '#F8FAFC',      // Soft Slate 50 Background
-                    card: '#FFFFFF',      // Pure White Panels
-                    hover: '#F1F5F9',     // Slate 100 on hover
-                    cta: '#10B981',       // Emerald Green (positive actions)
-                    primary: '#6366F1',   // Indigo/Sapphire (main accents)
-                    text: '#0F172A',      // Slate 900 Text (high contrast)
-                    secondary: '#475569', // Slate 600 secondary text
-                    muted: '#94A3B8',     // Slate 400 for borders/hints
-                    border: '#E2E8F0',    // Slate 200 light borders
+                    base: '#f5f1e8',
+                    card: '#fffdf9',
+                    hover: '#efe5d8',
+                    cta: '#ef7d57',
+                    primary: '#145b73',
+                    text: '#10212b',
+                    secondary: '#51616b',
+                    muted: '#8a989d',
+                    border: '#d8d0c3',
                 }
             },
             boxShadow: {
-                // Soft, diffused shadows synonymous with premium "fancy" designs
-                'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
-                'glow': '0 0 15px rgba(99, 102, 241, 0.3)',
-                'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                'glass': '0 18px 45px rgba(16, 33, 43, 0.08)',
+                'glow': '0 18px 40px rgba(20, 91, 115, 0.18)',
+                'card': '0 12px 30px rgba(16, 33, 43, 0.08)',
             },
             backgroundImage: {
-                'gradient-mesh': 'radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%)'
+                'gradient-mesh': 'radial-gradient(circle at top left, rgba(20,91,115,0.18), transparent 35%), radial-gradient(circle at top right, rgba(239,125,87,0.16), transparent 32%), linear-gradient(180deg, #f8f4ec 0%, #f2ece1 100%)'
             }
         }
     }

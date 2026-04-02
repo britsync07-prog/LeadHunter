@@ -17,7 +17,8 @@ module.exports = {
             env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
-                LOG_LEVEL: 'info'
+                LOG_LEVEL: 'info',
+                PUBLIC_URL: 'https://leadhunter.uk'
             }
         }
     ]

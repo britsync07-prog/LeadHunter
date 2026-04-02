@@ -263,13 +263,19 @@ app.post("/api/external/jobs", requireApiKey, async (req, res) => {
   if (cities.length === 0) return res.status(400).json({ error: "No cities found or provided for the given location." });
 
   const { autoMailConfig } = req.body || {};
+  const externalAutoMailConfig = autoMailConfig
+    ? {
+        ...autoMailConfig,
+        publicBaseUrl: process.env.PUBLIC_URL || 'https://leadhunter.uk'
+      }
+    : null;
   if (autoMailConfig && !isAdmin) {
     return res.status(403).json({ error: "Auto-Mail is an Admin-only feature." });
   }
 
   const job = queue.addJob({
     id: crypto.randomUUID(),
-    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100, autoMailConfig }
+    params: { country, cities, states, niches, includeGoogleMaps, scrapeMode, userPlan: 'premium', isAdmin: true, maxLeads: 100, autoMailConfig: externalAutoMailConfig }
   }, "external_server");
 
   res.status(202).json({ jobId: job.id, status: job.status });
@@ -683,6 +689,14 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   const { country, cities, states = [], niches, includeGoogleMaps = true, includeSocial = false, scrapeMode = 'both', sites, category, autoMailConfig } = req.body || {};
   const userPlan = req.session.user.subscriptionPlan || 'free';
   const isAdmin = !!req.session.user.isAdmin;
+  const forwardedProto = req.get('x-forwarded-proto');
+  const publicBaseUrl = process.env.PUBLIC_URL || `${forwardedProto || req.protocol}://${req.get('host')}`;
+  const nextAutoMailConfig = autoMailConfig
+    ? {
+        ...autoMailConfig,
+        publicBaseUrl
+      }
+    : null;
 
   // Usage / scrape-mode restrictions (non-admins only)
   const usage = queue.getUserUsage(req.session.user.username);
@@ -715,11 +729,11 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
 
   // addJob handles concurrent-limit check internally — no queue, instant reject
   const effectivePlan = isAdmin ? 'admin' : userPlan;
-  if (autoMailConfig && !isAdmin && userPlan !== 'premium') {
+  if (nextAutoMailConfig && !isAdmin && userPlan !== 'premium') {
     return res.status(403).json({ error: "Auto-Mail requires a Premium or Admin account." });
   }
   const job = queue.addJob(
-    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, includeSocial, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig, dbUserId: req.session.user.id } },
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, includeSocial, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig: nextAutoMailConfig, dbUserId: req.session.user.id } },
     req.session.user.username // username is the userId key used throughout the queue
   );
 
