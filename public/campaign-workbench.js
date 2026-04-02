@@ -269,8 +269,11 @@ async function previewFile(url, name) {
 function renderFiles(detail) {
   const rows = [];
   if (type === 'job') {
+    const priorityFiles = ['google_maps_all.csv', 'all_phones.txt', 'all_emails.txt'];
     const files = detail.job?.files || [];
-    for (const file of files) {
+    const mainFiles = priorityFiles.filter((name) => files.includes(name));
+    const fallbackFiles = mainFiles.length > 0 ? mainFiles : files.slice(0, 3);
+    for (const file of fallbackFiles) {
       rows.push({
         name: file,
         viewUrl: `/api/jobs/${detail.job.id}/files/${encodeURIComponent(file)}/raw`,

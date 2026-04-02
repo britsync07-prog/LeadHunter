@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import { getCampaignDetail, normalizeCampaignConfigInput } from '../services/campaignInspector.js';
+import { normalizeRecipientEmail } from '../services/emailSanitizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -189,6 +190,17 @@ export const processPendingEmails = async (hostUrlFallback) => {
   for (const rec of pendings) {
     const config = JSON.parse(rec.config || '{}');
     const trackingBaseUrl = config.publicBaseUrl || hostUrlFallback;
+    const normalizedEmail = normalizeRecipientEmail(rec.email);
+    if (!normalizedEmail) {
+      db.prepare(`UPDATE recipients SET status = 'bounced', error = ? WHERE id = ?`)
+        .run('Invalid email format', rec.id);
+      markCampaignIfFinished(rec.campaignId);
+      continue;
+    }
+    if (normalizedEmail !== rec.email) {
+      db.prepare(`UPDATE recipients SET email = ? WHERE id = ?`).run(normalizedEmail, rec.id);
+      rec.email = normalizedEmail;
+    }
     const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(rec.userId);
     const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
     const isAdmin = !!user?.isAdmin;
@@ -305,7 +317,7 @@ const launchCampaign = async (req, res) => {
       return res.status(400).json({ error: 'Missing data.' });
     }
       
-    const normalizedRecipients = Array.from(new Set(recipients.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean)));
+    const normalizedRecipients = Array.from(new Set(recipients.map((e) => normalizeRecipientEmail(e)).filter(Boolean)));
     if (normalizedRecipients.length === 0) return res.status(400).json({ error: 'No recipients.' });
 
     const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(req.session.user.id);

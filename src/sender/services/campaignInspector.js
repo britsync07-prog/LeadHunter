@@ -1,4 +1,5 @@
 import db from '../models/db.js';
+import { normalizeRecipientEmail } from './emailSanitizer.js';
 
 const coerceString = (value, fallback = '') => {
   if (typeof value !== 'string') return fallback;
@@ -156,7 +157,10 @@ const getCampaignRecipients = (campaignId, limit = 50) => db.prepare(`
   WHERE campaignId = ?
   ORDER BY sentAt DESC, email ASC
   LIMIT ?
-`).all(campaignId, limit);
+`).all(campaignId, limit).map((recipient) => ({
+  ...recipient,
+  email: normalizeRecipientEmail(recipient.email) || recipient.email
+}));
 
 const getCampaignEvents = (campaignId, limit = 30) => db.prepare(`
   SELECT e.eventType, e.url, e.timestamp, e.ipAddress, r.email

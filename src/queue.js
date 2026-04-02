@@ -5,6 +5,7 @@ import db from "./sender/models/db.js";
 import { resumeCampaign } from "./sender/controllers/campaignController.js";
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { normalizeRecipientEmail } from "./sender/services/emailSanitizer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -261,6 +262,11 @@ export class JobQueue extends EventEmitter {
 
     if (payload.type === 'lead-saved' || payload.type === 'phone-saved' || payload.type === 'csv-saved' || payload.type === 'business-processed') {
       if (payload.type === 'lead-saved' && payload.email) {
+        const normalizedEmail = normalizeRecipientEmail(payload.email);
+        if (!normalizedEmail) {
+          this.pushEvent(job, { type: "info", message: `Skipped invalid email: ${payload.email}` });
+          return;
+        }
         job.leadsFound = (job.leadsFound || 0) + 1;
 
         // Trigger Auto-Mail if enabled
@@ -268,12 +274,12 @@ export class JobQueue extends EventEmitter {
            try {
              const recId = crypto.randomUUID();
              db.prepare(`UPDATE campaigns SET status='sending' WHERE id = ?`).run(job.campaignId);
-             db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`).run(recId, job.campaignId, payload.email);
-             console.log(`[Auto-Mail] Queued instant email for: ${payload.email}`);
+             db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`).run(recId, job.campaignId, normalizedEmail);
+             console.log(`[Auto-Mail] Queued instant email for: ${normalizedEmail}`);
              this.emit('auto-mail-queued'); 
-             this.pushEvent(job, { type: "info", message: `Auto-Mail sequence queued for ${payload.email}` });
+             this.pushEvent(job, { type: "info", message: `Auto-Mail sequence queued for ${normalizedEmail}` });
            } catch(err) {
-             this.pushEvent(job, { type: "info", message: `Failed to queue Auto-Mail for ${payload.email}: ${err.message}` });
+             this.pushEvent(job, { type: "info", message: `Failed to queue Auto-Mail for ${normalizedEmail}: ${err.message}` });
            }
         }
       }
