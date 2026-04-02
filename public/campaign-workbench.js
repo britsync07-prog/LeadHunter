@@ -38,6 +38,10 @@ const fileList = document.getElementById('fileList');
 const filePreview = document.getElementById('filePreview');
 const previewTitle = document.getElementById('previewTitle');
 const previewDownloadLink = document.getElementById('previewDownloadLink');
+const MAX_PREVIEW_CSV_ROWS = 120;
+const MAX_PREVIEW_CSV_COLUMNS = 12;
+const MAX_PREVIEW_TEXT_CHARS = 40000;
+let activePreviewRequest = null;
 const sequenceEditor = document.getElementById('sequenceEditor');
 const addStepBtn = document.getElementById('addStepBtn');
 
@@ -210,6 +214,15 @@ function renderPreviewPlaceholder(message = 'Select a file above to preview it h
   filePreview.textContent = message;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderCsvPreview(text) {
   const lines = text.split('\n').filter((row) => row.trim());
   if (lines.length === 0) {
@@ -218,37 +231,63 @@ function renderCsvPreview(text) {
     return;
   }
 
-  const tableRows = lines.map((row, index) => {
+  const visibleLines = lines.slice(0, MAX_PREVIEW_CSV_ROWS + 1);
+  const tableRows = visibleLines.map((row, index) => {
     const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
-    const cleanCols = cols.map((col) => col.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+    const cleanCols = cols
+      .map((col) => col.trim().replace(/^"|"$/g, '').replace(/""/g, '"'))
+      .slice(0, MAX_PREVIEW_CSV_COLUMNS);
     if (index === 0) {
-      return `<tr>${cleanCols.map((col) => `<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200 bg-slate-50">${col}</th>`).join('')}</tr>`;
+      return `<tr>${cleanCols.map((col) => `<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200 bg-slate-50">${escapeHtml(col)}</th>`).join('')}</tr>`;
     }
-    return `<tr>${cleanCols.map((col) => `<td class="px-3 py-2 text-sm text-slate-700 border-b border-slate-100 align-top">${col}</td>`).join('')}</tr>`;
+    return `<tr>${cleanCols.map((col) => `<td class="px-3 py-2 text-sm text-slate-700 border-b border-slate-100 align-top">${escapeHtml(col)}</td>`).join('')}</tr>`;
   });
 
-  filePreview.className = 'max-h-[480px] overflow-auto';
-  filePreview.innerHTML = `<table class="min-w-full">${tableRows.join('')}</table>`;
-  filePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const summary = [];
+  if (lines.length > visibleLines.length) {
+    summary.push(`Showing first ${visibleLines.length} rows of ${lines.length}.`);
+  }
+  if ((visibleLines[0]?.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || visibleLines[0]?.split(',') || []).length > MAX_PREVIEW_CSV_COLUMNS) {
+    summary.push(`Showing first ${MAX_PREVIEW_CSV_COLUMNS} columns only.`);
+  }
+
+  filePreview.className = 'max-h-[480px] overflow-auto p-5';
+  filePreview.innerHTML = `
+    ${summary.length ? `<div class="mb-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">${summary.join(' ')}</div>` : ''}
+    <div class="overflow-auto rounded-2xl border border-slate-200 bg-white">
+      <table class="min-w-full">${tableRows.join('')}</table>
+    </div>
+  `;
 }
 
 function renderTextPreview(text) {
+  const isTrimmed = text.length > MAX_PREVIEW_TEXT_CHARS;
+  const visibleText = isTrimmed ? text.slice(0, MAX_PREVIEW_TEXT_CHARS) : text;
   filePreview.className = 'max-h-[480px] overflow-auto p-5';
   const pre = document.createElement('pre');
   pre.className = 'm-0 text-xs text-slate-800 whitespace-pre-wrap break-words font-mono';
-  pre.textContent = text;
+  pre.textContent = visibleText;
   filePreview.innerHTML = '';
+  if (isTrimmed) {
+    const note = document.createElement('div');
+    note.className = 'mb-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2';
+    note.textContent = `Showing first ${MAX_PREVIEW_TEXT_CHARS.toLocaleString()} characters only. Download the file for the full content.`;
+    filePreview.appendChild(note);
+  }
   filePreview.appendChild(pre);
-  filePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function previewFile(url, name) {
   try {
+    if (activePreviewRequest) {
+      activePreviewRequest.abort();
+    }
+    activePreviewRequest = new AbortController();
     previewTitle.textContent = `Loading ${name}...`;
     previewTitle.className = 'text-base font-semibold text-slate-700';
     filePreview.className = 'max-h-[480px] overflow-auto p-5 text-sm text-slate-500';
     filePreview.textContent = 'Loading file...';
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: activePreviewRequest.signal });
     if (!res.ok) throw new Error('Failed to load file');
     const text = await res.text();
     previewTitle.textContent = name;
@@ -262,7 +301,10 @@ async function previewFile(url, name) {
       renderTextPreview(text);
     }
   } catch (error) {
+    if (error.name === 'AbortError') return;
     showAlert(error.message, 'error');
+  } finally {
+    activePreviewRequest = null;
   }
 }
 
@@ -318,12 +360,7 @@ function renderFiles(detail) {
     </div>
   `).join('');
 
-  const firstFile = rows[0];
-  if (firstFile) {
-    previewFile(firstFile.viewUrl, firstFile.name);
-  } else {
-    renderPreviewPlaceholder();
-  }
+  renderPreviewPlaceholder('Choose a file to preview it. Large files are rendered in a lightweight preview.');
 }
 
 window.previewWorkbenchFile = function previewWorkbenchFile(index) {

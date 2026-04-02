@@ -11,11 +11,69 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="tailwind-config.js"></script>
   <link rel="stylesheet" href="styles.css?v=neo">
+  <style>
+    body.workbench-page {
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(20, 91, 115, 0.10), transparent 26%),
+        radial-gradient(circle at top right, rgba(214, 93, 56, 0.08), transparent 22%),
+        linear-gradient(180deg, #f7f3eb 0%, #f1eadf 100%);
+      background-attachment: scroll;
+    }
+
+    .workbench-shell {
+      position: relative;
+      z-index: 1;
+      padding-bottom: 48px;
+    }
+
+    .workbench-card {
+      background: rgba(255, 252, 247, 0.94);
+      border: 1px solid rgba(216, 208, 195, 0.9);
+      box-shadow: 0 12px 30px rgba(16, 33, 43, 0.08);
+      backdrop-filter: none;
+      overflow: visible;
+    }
+
+    .workbench-card-soft {
+      background: rgba(255, 253, 249, 0.98);
+      border: 1px solid rgba(216, 208, 195, 0.86);
+      box-shadow: 0 10px 24px rgba(16, 33, 43, 0.06);
+      backdrop-filter: none;
+    }
+
+    #filePreview,
+    #recipientList,
+    #eventList {
+      overscroll-behavior: contain;
+      content-visibility: auto;
+      contain: layout paint style;
+    }
+
+    #sequenceEditor textarea {
+      min-height: 160px;
+    }
+
+    #filePreview table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    #filePreview th,
+    #filePreview td {
+      word-break: break-word;
+    }
+
+    @media (max-width: 1024px) {
+      body.workbench-page {
+        background-attachment: initial;
+      }
+    }
+  </style>
 </head>
-<body class="bg-brand-base text-brand-text font-sans antialiased relative overflow-x-hidden">
-  <div class="fixed inset-0 -z-10 bg-gradient-mesh opacity-90"></div>
-  <div class="fixed inset-0 -z-10 opacity-30" style="background-image:linear-gradient(rgba(16,33,43,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(16,33,43,0.05) 1px, transparent 1px); background-size:26px 26px;"></div>
-  <main class="max-w-7xl mx-auto px-4 py-8 lg:px-6">
+<body class="workbench-page bg-brand-base text-brand-text font-sans antialiased relative overflow-x-hidden">
+  <main class="workbench-shell max-w-7xl mx-auto px-4 py-8 lg:px-6">
     <div class="flex items-center justify-between gap-3 flex-wrap mb-6">
       <div>
         <a id="backLink" href="/sender.html" class="text-sm text-brand-primary hover:text-brand-cta font-semibold">Back</a>
@@ -31,26 +89,26 @@
     <div id="alertBox" class="hidden mb-4 rounded-md border px-4 py-3 text-sm"></div>
 
     <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+      <div class="workbench-card-soft rounded-[24px] p-5">
         <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Total Sent</div>
         <div id="statSent" class="mt-2 text-2xl font-semibold">0</div>
       </div>
-      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+      <div class="workbench-card-soft rounded-[24px] p-5">
         <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Delivery Rate</div>
         <div id="statDeliveryRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
-      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+      <div class="workbench-card-soft rounded-[24px] p-5">
         <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Open Rate</div>
         <div id="statOpenRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
-      <div class="rounded-[24px] border border-brand-border bg-white/80 backdrop-blur-xl p-5 shadow-glass">
+      <div class="workbench-card-soft rounded-[24px] p-5">
         <div class="text-xs uppercase tracking-[0.18em] text-brand-secondary">Click Rate</div>
         <div id="statClickRate" class="mt-2 text-2xl font-semibold">0%</div>
       </div>
     </section>
 
     <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-6">
-      <section class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+      <section class="workbench-card rounded-[28px]">
         <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between">
           <div>
             <h2 class="text-lg font-display font-bold">Overview</h2>
@@ -133,7 +191,7 @@
       </section>
 
       <section class="space-y-6">
-        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="workbench-card rounded-[28px]">
           <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between">
             <div>
               <h2 class="text-lg font-display font-bold">Follow-up Flow</h2>
@@ -144,28 +202,28 @@
           <div id="sequenceEditor" class="p-6 space-y-4"></div>
         </div>
 
-        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="workbench-card rounded-[28px]">
           <div class="px-6 py-5 border-b border-brand-border">
             <h2 class="text-lg font-display font-bold">Recipients Snapshot</h2>
           </div>
           <div id="recipientList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="workbench-card rounded-[28px]">
           <div class="px-6 py-5 border-b border-brand-border">
             <h2 class="text-lg font-display font-bold">Recent Tracking Events</h2>
           </div>
           <div id="eventList" class="max-h-[320px] overflow-auto divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="workbench-card rounded-[28px]">
           <div class="px-6 py-5 border-b border-brand-border">
             <h2 class="text-lg font-display font-bold">Generated Files</h2>
           </div>
           <div id="fileList" class="divide-y divide-slate-100"></div>
         </div>
 
-        <div class="rounded-[28px] border border-brand-border bg-white/82 backdrop-blur-xl shadow-glass overflow-hidden">
+        <div class="workbench-card rounded-[28px]">
           <div class="px-6 py-5 border-b border-brand-border flex items-center justify-between gap-3">
             <h2 id="previewTitle" class="text-lg font-display font-bold text-brand-secondary">No file selected</h2>
             <a id="previewDownloadLink" href="#" target="_blank" class="hidden px-4 py-2 rounded-2xl border border-brand-border bg-white text-brand-primary text-xs font-bold uppercase tracking-[0.16em] hover:bg-brand-hover">Download</a>
