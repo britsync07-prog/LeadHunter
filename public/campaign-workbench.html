@@ -55,6 +55,26 @@
       min-height: 160px;
     }
 
+    .sequence-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sequence-summary-item {
+      min-width: 0;
+    }
+
+    .sequence-summary-value {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sequence-details[hidden] {
+      display: none;
+    }
+
     #filePreview table {
       width: 100%;
       border-collapse: collapse;
@@ -131,7 +151,9 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label class="block">
               <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Timezone</span>
-              <input id="timezoneInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" placeholder="e.g. Europe/London" />
+              <select id="timezoneInput" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white">
+                <option value="">Select timezone</option>
+              </select>
             </label>
             <div class="grid grid-cols-2 gap-4">
               <label class="block">

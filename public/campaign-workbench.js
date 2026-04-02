@@ -44,11 +44,15 @@ const MAX_PREVIEW_TEXT_CHARS = 40000;
 let activePreviewRequest = null;
 const sequenceEditor = document.getElementById('sequenceEditor');
 const addStepBtn = document.getElementById('addStepBtn');
+const supportedTimezones = typeof Intl !== 'undefined' && Intl.supportedValuesOf
+  ? Intl.supportedValuesOf('timeZone')
+  : ['UTC'];
 
 const state = {
   detail: null,
   sequences: [],
-  files: []
+  files: [],
+  expandedSteps: new Set([0])
 };
 
 async function fetchJson(url, options = {}) {
@@ -137,6 +141,19 @@ function setBackLink() {
     nichesFieldWrap.style.display = 'none';
     locationFieldWrap.style.display = 'none';
   }
+}
+
+function escapeAttribute(value) {
+  return String(value || '').replace(/"/g, '&quot;');
+}
+
+function populateTimezoneOptions(selectedValue = '') {
+  const desired = selectedValue || '';
+  const options = new Set(['', ...supportedTimezones, ...(desired ? [desired] : [])]);
+  timezoneInput.innerHTML = [...options].map((tz) => {
+    if (!tz) return '<option value="">Select timezone</option>';
+    return `<option value="${escapeAttribute(tz)}" ${tz === desired ? 'selected' : ''}>${tz}</option>`;
+  }).join('');
 }
 
 function applyHeader(detail) {
@@ -394,9 +411,31 @@ function renderSequences() {
   sequenceEditor.innerHTML = state.sequences.map((step, index) => `
     <div class="rounded-lg border border-slate-200 p-4 bg-slate-50" data-seq-index="${index}">
       <div class="flex items-center justify-between gap-3 mb-3">
-        <div class="text-sm font-semibold">Step ${index + 1}</div>
-        <button ${mode === 'view' ? 'disabled' : ''} type="button" data-remove-index="${index}" class="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-40">Delete Step</button>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-semibold">Step ${index + 1}</div>
+          <div class="sequence-summary mt-2">
+            <div class="sequence-summary-item">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Delay Days</div>
+              <div class="sequence-summary-value text-sm text-slate-800">${step.delayDays || 0}</div>
+            </div>
+            <div class="sequence-summary-item">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sender Name</div>
+              <div class="sequence-summary-value text-sm text-slate-800">${step.senderName || '—'}</div>
+            </div>
+            <div class="sequence-summary-item">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Subject</div>
+              <div class="sequence-summary-value text-sm text-slate-800">${step.subject || '—'}</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" data-toggle-index="${index}" class="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium hover:bg-slate-100">
+            ${state.expandedSteps.has(index) ? 'Collapse' : 'Expand'}
+          </button>
+          <button ${mode === 'view' ? 'disabled' : ''} type="button" data-remove-index="${index}" class="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-40">Delete Step</button>
+        </div>
       </div>
+      <div class="sequence-details" data-seq-details="${index}" ${state.expandedSteps.has(index) ? '' : 'hidden'}>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <label class="block">
           <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Delay Days</span>
@@ -415,13 +454,31 @@ function renderSequences() {
         <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">HTML Template</span>
         <textarea data-field="htmlContent" rows="6" class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-white font-mono" ${mode === 'view' ? 'disabled' : ''}>${step.htmlContent || ''}</textarea>
       </label>
+      </div>
     </div>
   `).join('');
+
+  sequenceEditor.querySelectorAll('[data-toggle-index]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.toggleIndex);
+      if (state.expandedSteps.has(index)) {
+        state.expandedSteps.delete(index);
+      } else {
+        state.expandedSteps.add(index);
+      }
+      renderSequences();
+    });
+  });
 
   sequenceEditor.querySelectorAll('[data-remove-index]').forEach((button) => {
     button.addEventListener('click', () => {
       state.sequences = collectSequenceState();
-      state.sequences.splice(Number(button.dataset.removeIndex), 1);
+      const index = Number(button.dataset.removeIndex);
+      state.sequences.splice(index, 1);
+      state.expandedSteps = new Set([...state.expandedSteps].filter((stepIndex) => stepIndex !== index).map((stepIndex) => stepIndex > index ? stepIndex - 1 : stepIndex));
+      if (state.sequences.length > 0 && state.expandedSteps.size === 0) {
+        state.expandedSteps.add(Math.max(0, index - 1));
+      }
       renderSequences();
     });
   });
@@ -434,7 +491,7 @@ function fillForm(detail) {
 
   campaignNameInput.value = campaign?.name || '';
   categoryNameInput.value = detail.job?.category?.name || 'Not linked to a scraper campaign';
-  timezoneInput.value = config.timezone || '';
+  populateTimezoneOptions(config.timezone || '');
   startTimeInput.value = config.startTime || '';
   endTimeInput.value = config.endTime || '';
   nichesInput.value = (jobParams.niches || []).join('\n');
@@ -446,6 +503,7 @@ function fillForm(detail) {
   smtpPassInput.value = config.smtpPass || '';
   smtpAccountIdsInput.value = (config.smtpAccountIds || []).join(', ');
   state.sequences = Array.isArray(config.sequences) ? config.sequences.map((step) => ({ ...step })) : [];
+  state.expandedSteps = new Set(state.sequences.length > 0 ? [0] : []);
   renderSequences();
 }
 
