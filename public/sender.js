@@ -365,14 +365,14 @@ function renderSmtpList() {
   smtpAccountsList.innerHTML = savedSmtpAccounts.map(acc => `
     <label class="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded hover:border-blue-400 cursor-pointer transition-colors ${acc.restingUntil && new Date(acc.restingUntil) > new Date() ? 'opacity-50 grayscale' : ''}">
       <div class="flex items-center gap-3">
-        <input type="checkbox" name="selectedSmtps" value="${acc.id}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" onchange="validateForm()" ${acc.restingUntil && new Date(acc.restingUntil) > new Date() ? 'disabled' : ''}>
+        <input type="checkbox" name="selectedSmtps" value="${acc.id}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" onchange="validateForm()">
         <div class="flex flex-col">
           <span class="text-xs font-semibold text-slate-800">${acc.user}</span>
           <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 w-fit mt-0.5 font-mono">${acc.host}:${acc.port}</span>
         </div>
       </div>
       ${acc.restingUntil && new Date(acc.restingUntil) > new Date()
-      ? `<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full flex items-center gap-1 border border-amber-200"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Resting</span>`
+      ? `<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full flex items-center gap-1 border border-amber-200" title="Selected resting emails will wait until the resting period ends before sending"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Resting</span>`
       : `<button type="button" onclick="deleteSmtp('${acc.id}'); event.preventDefault(); event.stopPropagation();" class="text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors cursor-pointer" title="Delete Account"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>`
     }
     </label>
