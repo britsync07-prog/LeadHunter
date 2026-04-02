@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
 import { getCampaignDetail, normalizeCampaignConfigInput } from '../services/campaignInspector.js';
 import { normalizeRecipientEmail } from '../services/emailSanitizer.js';
 
@@ -248,26 +247,13 @@ export const processPendingEmails = async (hostUrlFallback) => {
     
     console.log(`[SMTP] Attempting send to ${rec.email} using ${activeSmtp.user} (Step ${rec.currentStep})`);
     
-    let result;
-    if (isAdmin && rec.email.toLowerCase().endsWith('@gmail.com')) {
-        try {
-          const response = await fetch('https://primary-production-3af69.up.railway.app/webhook/gmail', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: rec.email, subject: currentSeq.subject, html: trackedHtml, senderName: currentSeq.senderName, campaignId: rec.campaignId, recipientId: rec.id, timestamp: new Date().toISOString() })
-          });
-          if (response.ok) {
-            result = { ok: true };
-          } else {
-            const errorText = await response.text();
-            result = { ok: false, error: `Webhook rejected: ${response.status} ${errorText}` };
-          }
-        } catch (webhookErr) {
-          result = { ok: false, error: `Webhook connection failed: ${webhookErr.message}` };
-        }
-    } else {
-        result = await sendEmail(activeSmtp.transporter, { name: currentSeq.senderName, email: activeSmtp.user }, rec.email, currentSeq.subject, trackedHtml);
-    }
+    const result = await sendEmail(
+      activeSmtp.transporter,
+      { name: currentSeq.senderName, email: activeSmtp.user },
+      rec.email,
+      currentSeq.subject,
+      trackedHtml
+    );
 
     if (result.ok) {
       if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
