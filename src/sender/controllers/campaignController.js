@@ -354,6 +354,14 @@ const launchCampaign = async (req, res) => {
         }
     })();
 
+    // For direct/immediate sends, kick the worker once right away instead of waiting
+    // for the next scheduler tick.
+    process.nextTick(() => {
+      processPendingEmails(publicBaseUrl).catch((err) => {
+        console.error('[Campaign Immediate Send Error]', err);
+      });
+    });
+
     res.status(202).json({ message: 'Campaign queued successfully.', campaignId, totalRecipients: normalizedRecipients.length });
   } catch (error) {
     console.error('[Campaign Error]', error);

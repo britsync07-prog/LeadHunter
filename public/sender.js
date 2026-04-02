@@ -753,7 +753,7 @@ btnLaunchCampaign.addEventListener('click', async () => {
 
       // Refresh KPIs and History after launch
       loadKPIs();
-      loadCampaignHistory();
+      loadHistory();
     }
 
   } catch (error) {
