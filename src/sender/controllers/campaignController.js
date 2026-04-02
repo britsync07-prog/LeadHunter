@@ -14,6 +14,7 @@ const STANDARD_MAX_CONSECUTIVE_FAILURES = 3;
 const ADMIN_MAX_CONSECUTIVE_FAILURES = 4; // initial fail + next 3 fails
 const SMTP_REST_MS = 60 * 60 * 1000;
 const SEND_DELAY_MS = 5000;
+const SMTP_RETRY_DELAY_MS = 15 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -76,6 +77,7 @@ const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
   const active = accounts.filter((acc) => !acc.restingUntil || new Date(acc.restingUntil) <= now);
 
   const pool = [];
+  const failures = [];
   for (const acc of active) {
     try {
       const transporter = await verifySmtpConnection({ host: acc.host, port: acc.port, user: acc.user, pass: acc.pass });
@@ -86,17 +88,29 @@ const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
         consecutiveFails: acc.consecutiveFails || 0
       });
     } catch (err) {
+      failures.push(`${acc.user}: ${err.message}`);
       console.warn(`[SMTP Pool] Skipping ${acc.user} - verification failed: ${err.message}`);
     }
   }
 
-  return pool;
+  return { pool, failures, requestedCount: accounts.length, activeCount: active.length };
 };
 
 const restSmtpAccount = (dbId) => {
   const restUntil = new Date(Date.now() + SMTP_REST_MS).toISOString();
   db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ?, restingUntil = ? WHERE id = ?`).run(ADMIN_MAX_CONSECUTIVE_FAILURES, restUntil, dbId);
   console.warn(`[SMTP Manager] Account ${dbId} rests until ${restUntil}`);
+};
+
+const scheduleCampaignRetry = (campaignId, reason, delayMs = SMTP_RETRY_DELAY_MS) => {
+  const retryAt = new Date(Date.now() + delayMs).toISOString();
+  db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = ? WHERE id = ?`).run(reason, campaignId);
+  db.prepare(`
+    UPDATE recipients
+    SET nextSendAt = ?, error = ?
+    WHERE campaignId = ? AND status = 'pending'
+  `).run(retryAt, reason, campaignId);
+  return retryAt;
 };
 
 const sanitizeCampaignName = (campaignName) => {
@@ -227,18 +241,31 @@ export const processPendingEmails = async (hostUrlFallback) => {
 
     let smtpPool = [];
     if (isPremiumOrAdvance && config.smtpAccountIds && config.smtpAccountIds.length > 0) {
-      smtpPool = await loadActiveSmtpPool(config.smtpAccountIds, rec.userId);
+      const smtpState = await loadActiveSmtpPool(config.smtpAccountIds, rec.userId);
+      smtpPool = smtpState.pool;
+      if (smtpPool.length === 0) {
+        const reason = smtpState.failures.length > 0
+          ? `SMTP pool verification failed: ${smtpState.failures.join(' | ')}`
+          : smtpState.requestedCount === 0
+            ? 'SMTP pool is empty.'
+            : smtpState.activeCount === 0
+              ? 'All selected SMTP accounts are currently resting.'
+              : 'No usable SMTP accounts were available.';
+        scheduleCampaignRetry(rec.campaignId, reason);
+        continue;
+      }
     } else if (config.smtpHost) {
       try {
         const transporter = await verifySmtpConnection({ host: config.smtpHost, port: parseInt(config.smtpPort, 10), user: config.smtpUser, pass: config.smtpPass });
         smtpPool = [{ dbId: 'adhoc', user: config.smtpUser, transporter, consecutiveFails: 0 }];
       } catch (e) {
-        db.prepare(`UPDATE campaigns SET status = 'aborted', abortReason = ? WHERE id = ?`).run('SMTP verification failed: ' + e.message, rec.campaignId);
+        scheduleCampaignRetry(rec.campaignId, 'SMTP verification failed: ' + e.message);
         continue;
       }
     }
 
     if (smtpPool.length === 0) {
+      scheduleCampaignRetry(rec.campaignId, 'No usable SMTP configuration found.');
       continue;
     }
 
