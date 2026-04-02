@@ -379,6 +379,49 @@ function renderSmtpList() {
   `).join('');
 }
 
+function getLaunchValidationErrors() {
+  const errors = [];
+  const hasValidRecipients = currentRecipients.some((r) => r.valid);
+
+  if (!campaignNameEl.value.trim()) {
+    errors.push('Campaign name is required.');
+  }
+
+  if (!hasValidRecipients) {
+    errors.push('Target Audience must contain at least one valid email.');
+  }
+
+  if (sendMode === 'direct') {
+    if (!directSenderNameEl.value.trim()) errors.push('Direct email sender name is required.');
+    if (!directSubjectEl.value.trim()) errors.push('Direct email subject is required.');
+    if (!directHtmlContentEl.value.trim()) errors.push('Direct email content is required.');
+  } else {
+    if (!sequences.length) {
+      errors.push('At least one follow-up step is required.');
+    } else {
+      sequences.forEach((seq, index) => {
+        if (!seq.senderName.trim() || !seq.subject.trim() || !seq.htmlContent.trim()) {
+          errors.push(`Follow-up step ${index + 1} is incomplete.`);
+        }
+      });
+    }
+  }
+
+  if (canUseMultiSmtp) {
+    const checkedSmtps = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked'));
+    if (checkedSmtps.length === 0) {
+      errors.push('Select at least one SMTP email.');
+    }
+  } else {
+    if (!smtpHostEl.value.trim()) errors.push('SMTP host is required.');
+    if (!smtpPortEl.value.trim()) errors.push('SMTP port is required.');
+    if (!smtpUserEl.value.trim()) errors.push('SMTP username is required.');
+    if (!smtpPassEl.value.trim()) errors.push('SMTP password is required.');
+  }
+
+  return [...new Set(errors)];
+}
+
 async function submitNewSmtp(e) {
   e.preventDefault();
   const btn = document.getElementById('btnSaveSmtp');
@@ -587,36 +630,9 @@ if (btnAddSequenceStep) {
 
 // --- FORM VALIDATION ---
 const validateForm = () => {
-  const hasValidRecipients = currentRecipients.some(r => r.valid);
-
-  let isConfigFilled = campaignNameEl.value.trim() !== '';
-
-  if (sendMode === 'direct') {
-    isConfigFilled = isConfigFilled &&
-      directSenderNameEl.value.trim() &&
-      directSubjectEl.value.trim() &&
-      directHtmlContentEl.value.trim();
-  } else {
-    for (const seq of sequences) {
-      if (!seq.senderName.trim() || !seq.subject.trim() || !seq.htmlContent.trim()) {
-        isConfigFilled = false;
-        break;
-      }
-    }
-  }
-
-  if (canUseMultiSmtp) {
-    const checkedSmtps = document.querySelectorAll('input[name="selectedSmtps"]:checked');
-    isConfigFilled = isConfigFilled && checkedSmtps.length > 0;
-  } else {
-    isConfigFilled = isConfigFilled &&
-      smtpHostEl.value.trim() &&
-      smtpPortEl.value.trim() &&
-      smtpUserEl.value.trim() &&
-      smtpPassEl.value.trim();
-  }
-
-  btnLaunchCampaign.disabled = !(hasValidRecipients && isConfigFilled);
+  const errors = getLaunchValidationErrors();
+  btnLaunchCampaign.disabled = false;
+  btnLaunchCampaign.classList.toggle('opacity-80', errors.length > 0);
 };
 
 window.validateForm = validateForm;
@@ -694,6 +710,14 @@ applySendModeUI();
 
 btnLaunchCampaign.addEventListener('click', async () => {
   try {
+    const validationErrors = getLaunchValidationErrors();
+    if (validationErrors.length > 0) {
+      senderErrorBox.className = 'error-box';
+      senderErrorBox.innerHTML = `<strong>Missing Information:</strong><br>${validationErrors.join('<br>')}`;
+      senderErrorBox.style.display = 'block';
+      return;
+    }
+
     btnLaunchCampaign.disabled = true;
     senderErrorBox.style.display = 'none';
 

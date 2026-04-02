@@ -70,7 +70,9 @@ const verifySmtpConnection = async (smtpConfig) => {
 };
 
 const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
-  if (!smtpAccountIds || smtpAccountIds.length === 0) return [];
+  if (!smtpAccountIds || smtpAccountIds.length === 0) {
+    return { pool: [], failures: [], requestedCount: 0, activeCount: 0, earliestRestingUntil: null };
+  }
 
   const placeholders = smtpAccountIds.map(() => '?').join(',');
   const accounts = db
@@ -79,6 +81,11 @@ const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
 
   const now = new Date();
   const active = accounts.filter((acc) => !acc.restingUntil || new Date(acc.restingUntil) <= now);
+  const resting = accounts
+    .filter((acc) => acc.restingUntil && new Date(acc.restingUntil) > now)
+    .map((acc) => new Date(acc.restingUntil).getTime())
+    .filter((ts) => Number.isFinite(ts));
+  const earliestRestingUntil = resting.length > 0 ? new Date(Math.min(...resting)).toISOString() : null;
 
   const pool = [];
   const failures = [];
@@ -97,7 +104,7 @@ const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
     }
   }
 
-  return { pool, failures, requestedCount: accounts.length, activeCount: active.length };
+  return { pool, failures, requestedCount: accounts.length, activeCount: active.length, earliestRestingUntil };
 };
 
 const restSmtpAccount = (dbId) => {
@@ -108,6 +115,17 @@ const restSmtpAccount = (dbId) => {
 
 const scheduleCampaignRetry = (campaignId, reason, delayMs = SMTP_RETRY_DELAY_MS) => {
   const retryAt = new Date(Date.now() + delayMs).toISOString();
+  db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = ? WHERE id = ?`).run(reason, campaignId);
+  db.prepare(`
+    UPDATE recipients
+    SET nextSendAt = ?, error = ?
+    WHERE campaignId = ? AND status = 'pending'
+  `).run(retryAt, reason, campaignId);
+  logSender('Campaign retry scheduled', { campaignId, retryAt, reason });
+  return retryAt;
+};
+
+const scheduleCampaignRetryAt = (campaignId, reason, retryAt) => {
   db.prepare(`UPDATE campaigns SET status = 'sending', abortReason = ? WHERE id = ?`).run(reason, campaignId);
   db.prepare(`
     UPDATE recipients
@@ -268,7 +286,11 @@ export const processPendingEmails = async (hostUrlFallback) => {
             : smtpState.activeCount === 0
               ? 'All selected SMTP accounts are currently resting.'
               : 'No usable SMTP accounts were available.';
-        scheduleCampaignRetry(rec.campaignId, reason);
+        if (smtpState.activeCount === 0 && smtpState.earliestRestingUntil) {
+          scheduleCampaignRetryAt(rec.campaignId, reason, smtpState.earliestRestingUntil);
+        } else {
+          scheduleCampaignRetry(rec.campaignId, reason);
+        }
         continue;
       }
     } else if (config.smtpHost) {
