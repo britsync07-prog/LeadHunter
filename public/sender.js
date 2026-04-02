@@ -7,11 +7,22 @@ let currentRecipients = [];
 const campaignNameEl = document.getElementById('campaignName');
 const btnLaunchCampaign = document.getElementById('btnLaunchCampaign');
 const senderErrorBox = document.getElementById('senderErrorBox');
+const modeDirectBtn = document.getElementById('modeDirectBtn');
+const modeSequenceBtn = document.getElementById('modeSequenceBtn');
+const directMailComposer = document.getElementById('directMailComposer');
+const directSenderNameEl = document.getElementById('directSenderName');
+const directSubjectEl = document.getElementById('directSubject');
+const directHtmlContentEl = document.getElementById('directHtmlContent');
+const templateManagerBlock = document.getElementById('templateManagerBlock');
+const sequenceBlock = document.getElementById('sequenceBlock');
+const savedSequencesContainer = document.getElementById('savedSequencesContainer');
+const adminSchedulingBlock = document.getElementById('adminSchedulingBlock');
 
 const sequenceContainer = document.getElementById('sequenceContainer');
 const btnAddSequenceStep = document.getElementById('btnAddSequenceStep');
 
 let sequences = []; // Array of { delayDays, subject, htmlContent, senderName }
+let sendMode = 'direct';
 
 // SMTP Elements
 const smtpHostEl = document.getElementById('smtpHost');
@@ -580,12 +591,18 @@ const validateForm = () => {
 
   let isConfigFilled = campaignNameEl.value.trim() !== '';
 
-  // Check sequences
-  for (const seq of sequences) {
+  if (sendMode === 'direct') {
+    isConfigFilled = isConfigFilled &&
+      directSenderNameEl.value.trim() &&
+      directSubjectEl.value.trim() &&
+      directHtmlContentEl.value.trim();
+  } else {
+    for (const seq of sequences) {
       if (!seq.senderName.trim() || !seq.subject.trim() || !seq.htmlContent.trim()) {
-          isConfigFilled = false;
-          break;
+        isConfigFilled = false;
+        break;
       }
+    }
   }
 
   if (canUseMultiSmtp) {
@@ -604,17 +621,76 @@ const validateForm = () => {
 
 window.validateForm = validateForm;
 
+function applySendModeUI() {
+  const isDirect = sendMode === 'direct';
+  directMailComposer.style.display = isDirect ? 'block' : 'none';
+  templateManagerBlock.style.display = isDirect ? 'none' : 'block';
+  sequenceBlock.style.display = isDirect ? 'none' : 'block';
+  if (savedSequencesContainer) savedSequencesContainer.style.display = isDirect ? 'none' : 'flex';
+  if (adminSchedulingBlock) adminSchedulingBlock.style.display = isDirect ? 'none' : '';
+
+  modeDirectBtn.className = isDirect
+    ? 'px-3 py-2 rounded-md border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-semibold transition-colors'
+    : 'px-3 py-2 rounded-md border border-slate-200 bg-white text-slate-500 text-xs font-semibold transition-colors';
+  modeSequenceBtn.className = !isDirect
+    ? 'px-3 py-2 rounded-md border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-semibold transition-colors'
+    : 'px-3 py-2 rounded-md border border-slate-200 bg-white text-slate-500 text-xs font-semibold transition-colors';
+
+  validateForm();
+}
+
+function buildLaunchSequences() {
+  if (sendMode === 'direct') {
+    return [{
+      delayDays: 0,
+      senderName: directSenderNameEl.value.trim(),
+      subject: directSubjectEl.value.trim(),
+      htmlContent: directHtmlContentEl.value.trim(),
+      templateId: ''
+    }];
+  }
+
+  return compileSequencePayload(sequences);
+}
+
 // Initialize Admin UI on Load
 initSmtpUI();
 
-[campaignNameEl, smtpHostEl, smtpPortEl, smtpUserEl, smtpPassEl].forEach(el => {
+[campaignNameEl, smtpHostEl, smtpPortEl, smtpUserEl, smtpPassEl, directSenderNameEl, directSubjectEl, directHtmlContentEl].forEach(el => {
   if (el) el.addEventListener('input', validateForm);
+});
+
+modeDirectBtn?.addEventListener('click', () => {
+  sendMode = 'direct';
+  if (!directSenderNameEl.value.trim() && sequences[0]?.senderName) directSenderNameEl.value = sequences[0].senderName;
+  if (!directSubjectEl.value.trim() && sequences[0]?.subject) directSubjectEl.value = sequences[0].subject;
+  if (!directHtmlContentEl.value.trim() && sequences[0]?.htmlContent) directHtmlContentEl.value = sequences[0].htmlContent;
+  applySendModeUI();
+});
+
+modeSequenceBtn?.addEventListener('click', () => {
+  sendMode = 'sequence';
+  if (sequences.length === 0) {
+    sequences = [{
+      id: Date.now().toString(),
+      templateId: '',
+      delayDays: 0,
+      dependsOnId: null,
+      senderName: directSenderNameEl.value.trim(),
+      subject: directSubjectEl.value.trim(),
+      htmlContent: directHtmlContentEl.value.trim()
+    }];
+    renderSequences();
+  }
+  applySendModeUI();
 });
 
 // Initialize with one step
 if (sequences.length === 0) {
     addSequenceStep();
 }
+
+applySendModeUI();
 
 btnLaunchCampaign.addEventListener('click', async () => {
   try {
@@ -624,16 +700,18 @@ btnLaunchCampaign.addEventListener('click', async () => {
     const validEmails = currentRecipients.filter(r => r.valid).map(r => r.email);
     const payload = {
       campaignName: campaignNameEl.value.trim(),
-      sequences: compileSequencePayload(sequences),
+      sequences: buildLaunchSequences(),
       recipients: validEmails
     };
 
     if (canUseMultiSmtp) {
       const checked = Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(el => el.value);
       payload.smtpAccountIds = checked;
-      payload.timezone = scheduleTimezoneEl?.value || 'UTC';
-      payload.startTime = scheduleStartEl?.value || '09:00';
-      payload.endTime = scheduleEndEl?.value || '17:00';
+      if (sendMode !== 'direct') {
+        payload.timezone = scheduleTimezoneEl?.value || 'UTC';
+        payload.startTime = scheduleStartEl?.value || '09:00';
+        payload.endTime = scheduleEndEl?.value || '17:00';
+      }
     } else {
       payload.smtpHost = smtpHostEl.value.trim();
       payload.smtpPort = parseInt(smtpPortEl.value.trim(), 10);
@@ -665,8 +743,13 @@ btnLaunchCampaign.addEventListener('click', async () => {
       csvDropZone.style.display = 'block';
       currentRecipients = [];
       campaignNameEl.value = '';
+      directSenderNameEl.value = '';
+      directSubjectEl.value = '';
+      directHtmlContentEl.value = '';
       sequences = [];
       addSequenceStep();
+      sendMode = 'direct';
+      applySendModeUI();
 
       // Refresh KPIs and History after launch
       loadKPIs();
