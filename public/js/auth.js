@@ -48,6 +48,30 @@ export async function checkAuth(callbacks = {}) {
     // Logic specifically for profile display
     const userInfoEl = document.getElementById("userInfo");
     if (userInfoEl) userInfoEl.textContent = `Logged in as: ${user.username}`;
+    
+    // Populate the dashboard's profile modal if the function exists on the page
+    if (typeof window.populateProfileModal === 'function') {
+      window.populateProfileModal(user);
+    }
+
+    // Display the current plan explicitly in the top navigation bar
+    const currentPlanEl = document.getElementById('currentPlanEl');
+    if (currentPlanEl) {
+      currentPlanEl.classList.remove('hidden');
+      let planLabel = user.subscriptionPlan || 'none';
+      if (user.subscriptionPlan === 'free' && isTrialValid) {
+        const days = Math.ceil((new Date(user.trialEndsAt) - new Date()) / 86400000);
+        planLabel = `Free Trial · ${days}d left`;
+        currentPlanEl.style.cssText = 'border-color: #bfdbfe; color: #2563eb; background: #eff6ff; display: inline-flex; align-items: center; justify-content: center;';
+      } else if (user.subscriptionPlan === 'premium') {
+        currentPlanEl.style.cssText = 'border-color: #a7f3d0; color: #059669; background: #ecfdf5; display: inline-flex; align-items: center; justify-content: center;';
+      } else if (user.subscriptionPlan === 'advance') {
+        currentPlanEl.style.cssText = 'border-color: #c4b5fd; color: #7c3aed; background: #f5f3ff; display: inline-flex; align-items: center; justify-content: center;';
+      } else {
+        currentPlanEl.style.cssText = 'border-color: #e2e8f0; color: #475569; background: #f8fafc; display: inline-flex; align-items: center; justify-content: center;';
+      }
+      currentPlanEl.textContent = planLabel.charAt(0).toUpperCase() + planLabel.slice(1);
+    }
 
     if (user.isAdmin) {
       const adminLink = document.getElementById('adminPanelLink');
