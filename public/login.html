@@ -21,8 +21,9 @@
     fetch('/api/me').then(async res => {
       if (res.ok) {
         const user = await res.json();
-        if (user.subscriptionPlan === 'none' || user.subscriptionPlan === 'expired') {
-          window.location.replace('/index.html#pricing');
+        const isTrialValid = user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
+        if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'none' || (user.subscriptionPlan === 'free' && !isTrialValid)) {
+          window.location.replace('/expired.html');
         } else {
           window.location.replace('/dashboard.html');
         }
@@ -159,8 +160,9 @@
           const meRes = await fetch("/api/me");
           if (meRes.ok) {
             const userData = await meRes.json();
-            if (userData.subscriptionPlan === 'none' || userData.subscriptionPlan === 'expired') {
-              window.location.href = "/index.html#pricing";
+            const isTrialValid = userData.trialEndsAt && new Date(userData.trialEndsAt) > new Date();
+            if (userData.subscriptionPlan === 'expired' || userData.subscriptionPlan === 'none' || (userData.subscriptionPlan === 'free' && !isTrialValid)) {
+              window.location.href = "/expired.html";
             } else {
               window.location.href = "/dashboard.html";
             }

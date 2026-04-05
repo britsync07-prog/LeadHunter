@@ -25,10 +25,13 @@
                 const requestedPlan = urlParams.get('plan');
                 if (requestedPlan) {
                     window.location.replace(`/api/checkout/session?plan=${requestedPlan}`);
-                } else if (user.subscriptionPlan === 'none' || user.subscriptionPlan === 'expired') {
-                    window.location.replace('/index.html#pricing');
                 } else {
-                    window.location.replace('/dashboard.html');
+                    const isTrialValid = user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
+                    if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'none' || (user.subscriptionPlan === 'free' && !isTrialValid)) {
+                        window.location.replace('/expired.html');
+                    } else {
+                        window.location.replace('/dashboard.html');
+                    }
                 }
             }
         }).catch(() => { });
@@ -173,8 +176,8 @@
                         // Send user to server to generate Stripe Checkout URL
                         window.location.href = `/api/checkout/session?plan=${requestedPlan}`;
                     } else {
-                        // Redirect to pricing page if no plan was pre-selected
-                        window.location.href = "/index.html#pricing";
+                        // New users automatically get a 3-day free trial, send them straight to dashboard!
+                        window.location.href = "/dashboard.html";
                     }
                 } else {
                     const result = await response.json();
