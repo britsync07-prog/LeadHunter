@@ -1,9 +1,21 @@
 /**
  * Auth, Sidebar, and Profile management module for the SaaS frontend.
  */
-import { getMe } from './api.js';
+import { getMe, logout } from './api.js';
 
 let currentUser = null;
+
+// Bind logout functionality globally
+document.addEventListener('DOMContentLoaded', () => {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await logout();
+      window.location.href = '/login.html';
+    });
+  }
+});
 
 export async function checkAuth(callbacks = {}) {
   try {
