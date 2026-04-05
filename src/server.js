@@ -347,7 +347,7 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
 
 app.patch("/api/admin/users/:id/plan", requireAdmin, (req, res) => {
   const { plan } = req.body;
-  if (!["free", "basic", "advance", "premium"].includes(plan)) return res.status(400).json({ error: "Invalid plan" });
+  if (!["free", "basic", "advance", "premium", "expired", "none"].includes(plan)) return res.status(400).json({ error: "Invalid plan" });
   db.prepare("UPDATE users SET subscriptionPlan = ?, trialEndsAt = NULL WHERE id = ?").run(plan, req.params.id);
   res.json({ success: true });
 });
