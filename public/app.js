@@ -1,52 +1,14 @@
-const countryEl = document.getElementById("country");
-const stateContainer = document.getElementById("states");
-const cityContainer = document.getElementById("cities");
-const selectAllStates = document.getElementById("selectAllStates");
-const selectAllCities = document.getElementById("selectAllCities");
-const citySearchEl = document.getElementById("citySearch");
-const statusEl = document.getElementById("status");
-const statusIndicator = document.getElementById("statusIndicator");
-const eventsEl = document.getElementById("events");
-const filesEl = document.getElementById("files");
-const phoneFilesEl = document.getElementById("phoneFiles");
-const nichesEl = document.getElementById("niches");
-const expandedNichesEl = document.getElementById("expandedNiches");
-const googleMapsModeEl = document.getElementById("googleMapsMode");
-const userInfoEl = document.getElementById("userInfo");
-const logoutBtn = document.getElementById("logoutBtn");
-const historyEl = document.getElementById("history");
-const queueStatusEl = document.getElementById("queueStatus");
-const liveLeadCountEl = document.getElementById("liveLeadCount");
-const livePhoneCountEl = document.getElementById("livePhoneCount");
-const phoneQueryPreviewEl = document.getElementById("phoneQueryPreview");
-const phoneQueryExampleEl = document.getElementById("phoneQueryExample");
+/**
+ * SaaS Main Entry Point (app.js)
+ * Coordinates modular logic with defensive initialization.
+ */
 
-// Auto-Mail Elements
-const adminAutoMailCard = document.getElementById('adminAutoMailCard');
-const enableAutoMailEl = document.getElementById('enableAutoMail');
-const autoMailSettingsEl = document.getElementById('autoMailSettings');
-const smtpListEl = document.getElementById('autoMailSmtpList');
-const autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
-const btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
+import * as API from './js/api.js';
+import * as Utils from './js/utils.js';
+import * as Auth from './js/auth.js';
+import * as AutoMail from './js/automail.js';
 
-const templateSelectEl = document.getElementById('autoMailTemplateSelect');
-const templateNameEl = document.getElementById('autoMailTemplateName');
-const senderNameEl = document.getElementById('autoMailSenderName');
-const subjectEl = document.getElementById('autoMailSubject');
-const htmlEl = document.getElementById('autoMailHtml');
-const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
-const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
-
-const savedSequenceSelect = document.getElementById('savedSequenceSelect');
-const btnSaveSequence = document.getElementById('btnSaveSequence');
-const btnDeleteSequence = document.getElementById('btnDeleteSequence');
-const savedSequencesContainer = document.getElementById('savedSequencesContainer');
-
-let autoMailTemplates = [];
-let autoMailSequences = []; // Array of { templateId, delayDays, subject, htmlContent, senderName }
-let savedSequencesConfigs = [];
-
-let currentUser = null;
+// --- SHARED STATE ---
 let totalLeads = 0;
 let totalPhones = 0;
 let allCountryCities = [];
@@ -55,1027 +17,170 @@ let selectedCityValues = new Set();
 const stateCitiesCache = new Map();
 let historyCategories = [];
 
-// Throttled UI State
 let _uiUpdateQueued = false;
 let _pendingEvents = [];
 const MAX_EVENTS_IN_DOM = 15;
 
-// ── Scrape Mode helpers ─────────────────────────────────────
+// --- ELEMENT REFERENCES (With safety checks) ---
+const getEl = id => document.getElementById(id);
+const countryEl = getEl("country");
+const stateContainer = getEl("states");
+const cityContainer = getEl("cities");
+const selectAllStates = getEl("selectAllStates");
+const selectAllCities = getEl("selectAllCities");
+const citySearchEl = getEl("citySearch");
+const eventsEl = getEl("events");
+const liveLeadCountEl = getEl("liveLeadCount");
+const livePhoneCountEl = getEl("livePhoneCount");
+const nichesEl = getEl("niches");
+const historyEl = getEl("history");
+const queueStatusEl = getEl("queueStatus");
 
-// Country → phone prefix map for the preview banner
-const COUNTRY_PHONE_PREFIXES = {
-  "United Kingdom": ['"07"', '"+44"'],
-  "United States": ['"+1"', '"tel:"'],
-  "Canada": ['"+1"', '"tel:"'],
-  "Australia": ['"04"', '"+61"'],
-  "Germany": ['"+49"', '"015"', '"016"', '"017"'],
-  "France": ['"+33"', '"06"', '"07"'],
-  "India": ['"+91"'],
-  "Pakistan": ['"+92"', '"03"'],
-  "UAE": ['"+971"', '"05"'],
-  "Saudi Arabia": ['"+966"', '"05"']
-};
-
-
-function getPlanLimits(plan) {
-  const p = (plan || '').toLowerCase().trim();
-  if (p === 'premium') return { daily: Infinity, monthly: Infinity, concurrentJobs: 1 };
-  if (p === 'advance') return { daily: 1000, monthly: 30000, concurrentJobs: 1 };
-  if (p === 'basic') return { daily: 300, monthly: 9000, concurrentJobs: 1 };
-  return { daily: 100, monthly: 3000, concurrentJobs: 1 };
-}
-
-async function checkAuth() {
-  try {
-    const user = await fetchJson("/api/me");
-    currentUser = user;
-
-    if (user.subscriptionPlan === 'expired' || user.subscriptionPlan === 'free' || user.subscriptionPlan === 'none') {
-      window.location.href = "/index.html#pricing";
-      return;
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("SaaS Dashboard Initializing...");
+    
+    // 1. Auth & Layout (Critical)
+    try {
+        await Auth.checkAuth({
+            onAuthSuccess: (user) => {
+                initializeDashboard(user);
+            }
+        });
+    } catch (err) {
+        console.error("Auth initialization failed:", err);
     }
+});
 
-    // Advance users only get Sender (no Scraper)
-    if (user.subscriptionPlan === 'advance' && !user.isAdmin) {
-      const navScraper = document.getElementById('navScraper');
-      if (navScraper) navScraper.style.display = 'none';
-
-      const backToDashboardLinks = document.querySelectorAll('a[href="/dashboard.html"]');
-      backToDashboardLinks.forEach(link => {
-        link.href = "/sender.html";
-        link.innerHTML = link.innerHTML.replace("Dashboard", "Sender Panel");
-      });
-      
-      if (window.location.pathname.includes('/dashboard.html')) {
-        window.location.href = "/sender.html";
-        return;
-      }
-    }
-
-    userInfoEl.textContent = `Logged in as: ${user.username}`;
-
-    // Show Admin Panel link if user is an admin
-    if (user.isAdmin) {
-      const adminLink = document.getElementById('adminPanelLink');
-      if (adminLink) adminLink.style.display = 'flex';
-    }
-
-    // Display Usage Quota and Active Plan
-    const currentPlanEl = document.getElementById('currentPlanEl');
-    if (currentPlanEl && user.subscriptionPlan) {
-      currentPlanEl.classList.remove('hidden');
-      currentPlanEl.style.display = 'inline-block';
-      let showTrial = false;
-
-      if (user.trialEndsAt) {
-        const tEnd = new Date(user.trialEndsAt);
-        if (tEnd > new Date()) {
-          showTrial = true;
-          const daysLeft = Math.ceil((tEnd - new Date()) / (1000 * 60 * 60 * 24));
-          currentPlanEl.textContent = `Free Trial (${daysLeft}d left)`;
-          currentPlanEl.style.color = 'var(--blue-primary)';
-          currentPlanEl.style.borderColor = 'rgba(59, 130, 246, 0.4)';
-          currentPlanEl.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-        }
-      }
-
-      if (!showTrial) {
-        const p = user.subscriptionPlan.toLowerCase().trim();
-        currentPlanEl.textContent = `${p.charAt(0).toUpperCase() + p.slice(1)} Plan`;
-
-        // Color code by tier
-        if (p === 'premium') {
-          currentPlanEl.style.color = '#10b981'; // Green
-          currentPlanEl.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-          currentPlanEl.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
-        } else if (p === 'advance') {
-          currentPlanEl.style.color = 'var(--blue-primary)';
-          currentPlanEl.style.borderColor = 'rgba(59, 130, 246, 0.3)';
-          currentPlanEl.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-        } else {
-          currentPlanEl.style.color = 'var(--text-secondary)';
-          currentPlanEl.style.borderColor = 'var(--border)';
-          currentPlanEl.style.backgroundColor = 'var(--bg-surface)';
-        }
-      }
-    }
-
-    const usageQuotaEl = document.getElementById('usageQuotaEl');
-    if (usageQuotaEl && user.usage) {
-      if (user.isAdmin) {
-        usageQuotaEl.style.display = 'inline-block';
-        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/Unlimited | Month: ${user.usage.monthlyCount}/Unlimited`;
-      } else {
-        const limits = getPlanLimits(user.subscriptionPlan);
-        usageQuotaEl.style.display = 'inline-block';
-        usageQuotaEl.textContent = `Emails: ${user.usage.dailyCount}/${limits.daily} | Month: ${user.usage.monthlyCount}/${limits.monthly}`;
-      }
-    }
-
-    loadCountries();
-    loadCategories();
-    loadHistory();
-    startQueuePolling();
-
-    // Populate the Profile Modal with live session data
-    if (typeof window.populateProfileModal === 'function') {
-      window.populateProfileModal(user);
-    }
-
-    // Apply UI locks based on subscription plan
-    applySubscriptionLocks(user.subscriptionPlan, user.isAdmin);
-
+async function initializeDashboard(user) {
+    // 2. Data Loading (Concurrent)
+    safeInit("Categories", loadCategories);
+    safeInit("Countries", loadCountries);
+    safeInit("History", loadHistory);
+    safeInit("Queue", startQueuePolling);
+    
+    // 3. UI logic (Feature specific)
+    safeInit("AutoMail", AutoMail.initAutoMailUI);
+    safeInit("SocialToggles", setupSocialToggles);
+    safeInit("ModalBindings", setupModalBindings);
+    
+    // Check for active jobs
     if (user.activeJobId) {
-      attachToJob(user.activeJobId);
-    }
-
-    if (user.isAdmin || user.subscriptionPlan === 'premium') {
-        initAutoMailUI();
-    }
-
-    setupMobileMenu();
-  } catch (error) {
-    window.location.href = "/login.html";
-  }
-}
-
-function setupMobileMenu() {
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-  const mobileOverlay = document.getElementById('mobileOverlay');
-  const sidebar = document.querySelector('aside');
-
-  if (!mobileMenuBtn || !mobileOverlay || !sidebar) return;
-
-  const toggle = () => {
-    sidebar.classList.toggle('active');
-    mobileOverlay.classList.toggle('active');
-  };
-
-  mobileMenuBtn.addEventListener('click', toggle);
-  mobileOverlay.addEventListener('click', toggle);
-
-  // Close sidebar when clicking a nav item on mobile
-  sidebar.querySelectorAll('nav a').forEach(link => {
-    link.addEventListener('click', () => {
-      if (sidebar.classList.contains('active')) {
-        toggle();
-      }
-    });
-  });
-}
-
-function applySubscriptionLocks(plan, isAdmin) {
-  const mapsMode = document.getElementById('googleMapsMode');
-
-  const navSender = document.getElementById('navSender');
-  const navChecker = document.getElementById('navChecker');
-  const smPriorityWrap = document.querySelector('.sm-priority-wrap');
-
-  // Ensure Sender and Checker are ONLY visible for Premium users OR Admins
-  if (plan !== 'premium' && !isAdmin) {
-    if (navSender) navSender.style.display = 'none';
-    if (navChecker) navChecker.style.display = 'none';
-  }
-
-  // Reset visual states
-  if (mapsMode) {
-    mapsMode.closest('div').style.display = 'block';
-    mapsMode.closest('div').style.opacity = '1';
-    mapsMode.disabled = false;
-  }
-  if (smPriorityWrap) smPriorityWrap.style.display = 'block';
-
-  if (plan === 'basic') {
-    const mapsInput = document.getElementById('includeGoogleMaps');
-    if (mapsInput) {
-      mapsInput.checked = false;
-      mapsInput.disabled = true;
-      const label = document.getElementById('mapsSourceLabel');
-      if (label) {
-        label.style.opacity = '0.5';
-        label.title = 'Upgrade your plan to unlock Google Maps scraping.';
-      }
-    }
-  } else if (plan === 'advance' || plan === 'premium') {
-    // Premium/Advance can select whatever they want now
-  }
-}
-
-
-function setStatus(text, mode = 'idle') {
-  if (statusEl) statusEl.textContent = text;
-  if (statusIndicator) {
-    const dot = statusIndicator.querySelector('.dot');
-    if (dot) {
-      dot.className = 'dot dot--' + mode;
-    }
-  }
-}
-
-function addEvent(payload) {
-  const type = payload.type || '';
-  if (type === 'usage-update') return;
-
-  // Format rules
-  const isEmail = (type === 'lead-saved' && payload.email);
-  const isPhone = (type === 'phone-saved' && payload.phone);
-
-  // Update global counters only for strictly validated events
-  if (isEmail) totalLeads++;
-  else if (isPhone) totalPhones++;
-
-  // Filter: Only show emails, phones, completion, or errors in the feed
-  const isDone = type.includes('complete') || type.includes('done');
-  const isError = type.includes('fail') || type.includes('error');
-
-  if (!isEmail && !isPhone && !isDone && !isError) {
-    // Still queue a UI update just for the counters, but no event log
-    queueUiUpdate();
-    return;
-  }
-
-  let cls = 'ev--log';
-  let content = '';
-
-  if (isEmail) {
-    cls = 'ev--email';
-    content = `<div class="ev-flex"><span class="ev-icon">📧</span><div class="ev-body"><div class="ev-label">New Email Found</div><div class="ev-value">${payload.email}</div></div></div>`;
-  } else if (isPhone) {
-    cls = 'ev--phone';
-    content = `<div class="ev-flex"><span class="ev-icon">📱</span><div class="ev-body"><div class="ev-label">New Phone Found</div><div class="ev-value">${payload.phone}</div></div></div>`;
-  } else if (isDone) {
-    cls = 'ev--done';
-    content = `<div class="ev-flex"><span class="ev-icon">✅</span><div class="ev-body"><div class="ev-label">Completed</div><div class="ev-value">${payload.message || 'Scraping finished successfully.'}</div></div></div>`;
-  } else if (isError) {
-    cls = 'ev--error';
-    content = `<div class="ev-flex"><span class="ev-icon">❌</span><div class="ev-body"><div class="ev-label">Error</div><div class="ev-value">${payload.message || 'An error occurred.'}</div></div></div>`;
-  }
-
-  _pendingEvents.push({ cls, content });
-
-  // Keep pending array small to avoid memory bloat
-  if (_pendingEvents.length > 50) {
-    _pendingEvents = _pendingEvents.slice(_pendingEvents.length - MAX_EVENTS_IN_DOM);
-  }
-
-  queueUiUpdate();
-}
-
-/** 
- * Batches DOM updates to run at most once every 300ms.
- * Massively improves performance when processing thousands of leads per second.
- */
-function queueUiUpdate() {
-  if (_uiUpdateQueued) return;
-  _uiUpdateQueued = true;
-
-  setTimeout(() => {
-    _uiUpdateQueued = false;
-
-    // Update counters
-    if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
-    if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
-
-    // Update Feed
-    if (eventsEl && _pendingEvents.length > 0) {
-      // Create a document fragment to append multiple items safely at once
-      const fragment = document.createDocumentFragment();
-
-      // We only insert the newest N items if there's a huge backlog
-      const toRender = _pendingEvents.slice(-MAX_EVENTS_IN_DOM).reverse();
-
-      for (const ev of toRender) {
-        const row = document.createElement("li");
-        row.className = `ev-item ${ev.cls}`;
-        row.innerHTML = ev.content;
-        fragment.appendChild(row);
-      }
-
-      eventsEl.prepend(fragment);
-
-      // Trim DOM elements
-      while (eventsEl.children.length > MAX_EVENTS_IN_DOM) {
-        eventsEl.removeChild(eventsEl.lastChild);
-      }
-
-      _pendingEvents = []; // clear queue
-    }
-  }, 300);
-}
-
-function attachToJob(jobId) {
-  setStatus(`Attaching to job ${jobId}...`, 'running');
-  const stream = new EventSource(`/api/jobs/${jobId}/events`);
-
-  stream.onmessage = (event) => {
-    const payload = JSON.parse(event.data);
-    addEvent(payload);
-
-    const jobStatusEl = document.getElementById(`status - ${jobId}`);
-    if (jobStatusEl) {
-      const s = payload.type.replace('job-', '');
-      jobStatusEl.textContent = s.toUpperCase();
-      jobStatusEl.className = `status - ${s}`;
-    }
-
-    if (payload.type === 'info' && payload.message === 'Job started') {
-      setStatus(`Job ${jobId} running...`, 'running');
-    }
-
-    if (payload.type === 'lead-saved' || payload.type === 'city-update' || payload.type === 'phone-saved') {
-      if (payload.fileName) ensureFileLink(jobId, payload.fileName);
-      if (payload.emailFileName) ensureFileLink(jobId, payload.emailFileName);
-      if (payload.allEmailsFileName) ensureFileLink(jobId, payload.allEmailsFileName);
-      if (payload.phoneFileName) ensureFileLink(jobId, payload.phoneFileName);
-      if (payload.allPhonesFileName) ensureFileLink(jobId, payload.allPhonesFileName);
-    }
-
-    if (payload.type === 'usage-update') {
-      const usageQuotaEl = document.getElementById('usageQuotaEl');
-      if (usageQuotaEl && payload.usage) {
-        usageQuotaEl.style.display = 'inline-block';
-        const limits = (currentUser && !currentUser.isAdmin) ? getPlanLimits(currentUser.subscriptionPlan) : { daily: payload.dailyLimit, monthly: payload.monthlyLimit };
-        usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount} / ${limits.daily} | Month: ${payload.usage.monthlyCount} / ${limits.monthly}`;
-      }
-    }
-    if (payload.type === 'job-completed' || payload.type === 'job-complete' || payload.type === 'job-stopped' || payload.type === 'job-failed') {
-      const isDone = payload.type.includes('complete');
-      const isStopped = payload.type === 'job-stopped';
-      setStatus(isDone ? 'Completed' : isStopped ? 'Stopped' : 'Failed', isDone ? 'done' : 'error');
-      stream.close();
-      loadHistory();
-      updateQueueStatus();
-    }
-  };
-
-  stream.onerror = () => console.log('Job stream disconnected.');
-}
-
-logoutBtn?.addEventListener("click", async () => {
-  await fetch("/api/logout", { method: "POST" });
-  window.location.href = "/login.html";
-});
-
-function selectedValues(container) {
-  return [...container.querySelectorAll("input[type='checkbox']:checked")].map((input) => input.value);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function syncSelectAllState(container, selectAllEl) {
-  if (!container || !selectAllEl) return;
-  const checkboxes = [...container.querySelectorAll("input[type='checkbox']")];
-  const checked = checkboxes.filter((cb) => cb.checked);
-  selectAllEl.checked = checkboxes.length > 0 && checked.length === checkboxes.length;
-  selectAllEl.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
-}
-
-function renderCheckboxList(container, values, selectAllEl, checkedValues = []) {
-  container.innerHTML = "";
-  if (selectAllEl) {
-    selectAllEl.checked = false;
-    selectAllEl.indeterminate = false;
-  }
-
-  if (!values || !values.length) {
-    container.textContent = "No data available.";
-    return;
-  }
-  const selectedSet = new Set(checkedValues);
-  values.forEach((value) => {
-    const label = document.createElement("label");
-    const safeValue = escapeHtml(value);
-    const isChecked = selectedSet.has(value);
-    label.className = isChecked ? "is-selected" : "";
-    label.innerHTML = `<input type="checkbox" value="${safeValue}" ${isChecked ? "checked" : ""} /> ${safeValue}`;
-    container.appendChild(label);
-  });
-  syncSelectAllState(container, selectAllEl);
-}
-
-function setupSelectAll(selectAllEl, container) {
-  if (!selectAllEl || !container) return;
-  selectAllEl?.addEventListener("change", (e) => {
-    const isChecked = e.target.checked;
-    const checkboxes = container.querySelectorAll("input[type='checkbox']");
-    checkboxes.forEach(cb => {
-      cb.checked = isChecked;
-      const label = cb.closest("label");
-      if (label) label.classList.toggle("is-selected", isChecked);
-      if (container === cityContainer) {
-        if (isChecked) selectedCityValues.add(cb.value);
-        else selectedCityValues.delete(cb.value);
-      }
-    });
-    selectAllEl.indeterminate = false;
-    if (container === stateContainer) {
-      refreshVisibleCities();
-    }
-  });
-}
-
-setupSelectAll(selectAllStates, stateContainer);
-setupSelectAll(selectAllCities, cityContainer);
-
-stateContainer?.addEventListener("change", async (event) => {
-  const label = event.target?.closest?.("label");
-  if (label) label.classList.toggle("is-selected", !!event.target.checked);
-  syncSelectAllState(stateContainer, selectAllStates);
-  await refreshVisibleCities();
-});
-
-cityContainer?.addEventListener("change", (event) => {
-  const checkbox = event.target;
-  if (!checkbox || checkbox.type !== "checkbox") return;
-
-  if (checkbox.checked) selectedCityValues.add(checkbox.value);
-  else selectedCityValues.delete(checkbox.value);
-
-  const label = checkbox.closest("label");
-  if (label) label.classList.toggle("is-selected", checkbox.checked);
-  syncSelectAllState(cityContainer, selectAllCities);
-});
-
-citySearchEl?.addEventListener("input", () => {
-  renderVisibleCities();
-});
-
-// --- AUTO-MAIL (ADMIN) UI LOGIC ---
-async function initAutoMailUI() {
-    if (!adminAutoMailCard) return;
-    adminAutoMailCard.style.display = 'block';
-
-    enableAutoMailEl.addEventListener('change', async () => {
-        autoMailSettingsEl.style.display = enableAutoMailEl.checked ? 'block' : 'none';
-        if (savedSequencesContainer) savedSequencesContainer.style.display = enableAutoMailEl.checked ? 'flex' : 'none';
-        if (enableAutoMailEl.checked) {
-            await Promise.all([loadAutoMailTemplates(), loadSenderSmtps(), loadSavedSequences()]);
-            // Initialize with one step if empty
-            if (autoMailSequences.length === 0) {
-                addSequenceStep();
-            }
-        }
-    });
-
-    btnAddAutoMailStep.addEventListener('click', () => {
-        addSequenceStep();
-    });
-
-    setupTemplateListeners();
-    setupSavedSequenceListeners();
-}
-
-function resetAutoMailForm() {
-    if(templateNameEl) templateNameEl.value = '';
-    if(senderNameEl) senderNameEl.value = '';
-    if(subjectEl) subjectEl.value = '';
-    if(htmlEl) htmlEl.value = '';
-}
-
-function populateAutoMailForm(t) {
-    if(templateNameEl) templateNameEl.value = t.name || '';
-    if(senderNameEl) senderNameEl.value = t.senderName || '';
-    if(subjectEl) subjectEl.value = t.subject || '';
-    if(htmlEl) htmlEl.value = t.htmlContent || '';
-}
-
-export function setupTemplateListeners(onTemplateSelected) {
-    if (templateSelectEl) {
-        templateSelectEl.addEventListener('change', () => {
-            const val = templateSelectEl.value;
-            if (val === 'new') {
-                resetAutoMailForm();
-            } else {
-                const t = autoMailTemplates.find(x => String(x.id) === String(val));
-                if (t) {
-                    populateAutoMailForm(t);
-                    if (onTemplateSelected) onTemplateSelected(t);
-                }
-            }
-        });
-    }
-
-    if (btnSaveTemplateEl) {
-        btnSaveTemplateEl.addEventListener('click', async () => {
-            const payload = {
-                id: templateSelectEl.value === 'new' ? null : templateSelectEl.value,
-                name: templateNameEl.value.trim(),
-                senderName: senderNameEl.value.trim(),
-                subject: subjectEl.value.trim(),
-                htmlContent: htmlEl.value.trim(),
-                smtpAccountIds: []
-            };
-
-            if (!payload.name || !payload.senderName || !payload.subject || !payload.htmlContent) {
-                alert("Please fill in all template fields.");
-                return;
-            }
-
-            try {
-                btnSaveTemplateEl.disabled = true;
-                btnSaveTemplateEl.textContent = 'Saving...';
-                const res = await fetchJson('/api/automail/templates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (res.success) {
-                    await loadAutoMailTemplates();
-                    templateSelectEl.value = res.id;
-                    const t = autoMailTemplates.find(x => String(x.id) === String(res.id));
-                    if (t) populateAutoMailForm(t);
-                    if (onTemplateSelected) onTemplateSelected(t);
-                }
-            } catch (err) {
-                alert("Failed to save template: " + err.message);
-            } finally {
-                btnSaveTemplateEl.disabled = false;
-                btnSaveTemplateEl.textContent = 'Save Template';
-            }
-        });
-    }
-
-    if (btnDeleteTemplateEl) {
-        btnDeleteTemplateEl.addEventListener('click', async () => {
-            const id = templateSelectEl.value;
-            if (id === 'new') return;
-            if (!confirm("Are you sure you want to delete this template?")) return;
-
-            try {
-                await fetchJson(`/api/automail/templates/${id}`, { method: 'DELETE' });
-                await loadAutoMailTemplates();
-                templateSelectEl.value = 'new';
-                resetAutoMailForm();
-            } catch (err) {
-                alert("Failed to delete template: " + err.message);
-            }
-        });
+        attachToJob(user.activeJobId);
     }
 }
 
-function addSequenceStep() {
-    const defaultDepends = autoMailSequences.length > 0 ? autoMailSequences[autoMailSequences.length - 1].id : null;
-    autoMailSequences.push({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-        templateId: '',
-        delayDays: autoMailSequences.length === 0 ? 0 : 1,
-        dependsOnId: defaultDepends,
-        senderName: '',
-        subject: '',
-        htmlContent: ''
-    });
-    renderSequences();
-}
-
-window.removeSequenceStep = function(id) {
-    autoMailSequences = autoMailSequences.filter(s => s.id !== id);
-    if (autoMailSequences.length === 0) addSequenceStep();
-    else renderSequences();
-};
-
-window.handleStepTemplateChange = function(id, templateId) {
-    const step = autoMailSequences.find(s => s.id === id);
-    if (!step) return;
-    step.templateId = templateId;
-    if (templateId) {
-        const t = autoMailTemplates.find(x => String(x.id) === String(templateId));
-        if (t) {
-            step.senderName = t.senderName || '';
-            step.subject = t.subject || '';
-            step.htmlContent = t.htmlContent || '';
-        }
-    } else {
-        step.senderName = '';
-        step.subject = '';
-        step.htmlContent = '';
-    }
-    renderSequences();
-};
-
-window.updateStepField = function(id, field, value) {
-    const step = autoMailSequences.find(s => s.id === id);
-    if (step) step[field] = value;
-};
-
-function renderSequences() {
-    autoMailSequenceContainer.innerHTML = '';
-    
-    autoMailSequences.forEach((step, index) => {
-        const stepIndex = index + 1;
-        const isFirst = index === 0;
-        
-        const templateOptions = '<option value="">-- Custom Email --</option>' + 
-            autoMailTemplates.map(t => `<option value="${t.id}" ${step.templateId === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
-
-        const delayHtml = isFirst 
-            ? `<div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-100 px-2 py-1 rounded inline-block mb-3">Instantly sent on scrape</div>`
-            : `<div class="flex items-center gap-2 mb-3 bg-red-50 p-2 rounded border border-red-100 w-fit">
-                 <label class="text-xs font-bold text-red-800 uppercase tracking-widest">Wait</label>
-                 <input type="number" min="0" value="${step.delayDays}" onchange="updateStepField('${step.id}', 'delayDays', parseInt(this.value)||0)" class="w-16 px-2 py-1 border rounded text-sm text-center font-mono border-red-200 outline-none focus:ring-1 focus:ring-red-500">
-                 <span class="text-xs font-bold text-red-800 uppercase tracking-widest whitespace-nowrap">Days After</span>
-                 <select onchange="updateStepField('${step.id}', 'dependsOnId', this.value)" class="w-32 px-2 py-1 border rounded text-sm font-mono border-red-200 outline-none focus:ring-1 focus:ring-red-500">
-                    ${autoMailSequences.slice(0, index).map((s, i) => `<option value="${s.id}" ${step.dependsOnId === s.id ? 'selected' : ''}>Step ${i + 1}</option>`).join('')}
-                 </select>
-               </div>`;
-
-        const html = `
-          <div class="relative border border-red-200 rounded-lg p-3 bg-white shadow-sm mt-4">
-            <span class="absolute -top-3 -left-3 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">${stepIndex}</span>
-            <button onclick="removeSequenceStep('${step.id}')" class="absolute -top-2 -right-2 w-5 h-5 bg-white border border-red-200 text-red-400 hover:text-red-600 hover:border-red-400 rounded-full flex items-center justify-center transition-all bg-white shadow-sm" title="Remove Step">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            
-            ${delayHtml}
-            
-            <div class="space-y-2">
-              <select onchange="handleStepTemplateChange('${step.id}', this.value)" class="w-full px-2 py-1.5 border rounded-md text-sm font-mono border-red-200 bg-red-50 focus:outline-none">
-                ${templateOptions}
-              </select>
-              
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="Sender Name" value="${step.senderName.replace(/"/g, '&quot;')}" onchange="updateStepField('${step.id}', 'senderName', this.value)" class="w-full px-2 py-1 border rounded text-sm border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">
-                <input type="text" placeholder="Email Subject" value="${step.subject.replace(/"/g, '&quot;')}" onchange="updateStepField('${step.id}', 'subject', this.value)" class="w-full px-2 py-1 border rounded text-sm border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">
-              </div>
-              <textarea placeholder="HTML Email Content" rows="${isFirst ? 4 : 2}" onchange="updateStepField('${step.id}', 'htmlContent', this.value)" class="w-full px-2 py-1 border rounded text-xs font-mono border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500">${step.htmlContent}</textarea>
-            </div>
-          </div>
-        `;
-        
-        autoMailSequenceContainer.insertAdjacentHTML('beforeend', html);
-    });
-}
-
-function compileSequencePayload(sequences) {
-    if(!sequences || sequences.length === 0) return [];
-    
-    const absDays = new Map();
-    absDays.set(sequences[0].id, 0);
-    sequences[0]._absoluteDays = 0;
-
-    for (let i = 1; i < sequences.length; i++) {
-        const s = sequences[i];
-        const dependsOnAbs = absDays.has(s.dependsOnId) ? absDays.get(s.dependsOnId) : 0;
-        const total = dependsOnAbs + (parseInt(s.delayDays) || 0);
-        absDays.set(s.id, total);
-        s._absoluteDays = total;
-    }
-
-    const sorted = [...sequences].map(s => ({...s})).sort((a, b) => a._absoluteDays - b._absoluteDays);
-
-    const payload = [];
-    let currentAbs = 0;
-    for (const s of sorted) {
-        let relativeDelay = s._absoluteDays - currentAbs;
-        if(relativeDelay < 0) relativeDelay = 0;
-        
-        payload.push({
-            delayDays: relativeDelay,
-            templateId: s.templateId,
-            subject: s.subject,
-            htmlContent: s.htmlContent,
-            senderName: s.senderName
-        });
-        currentAbs = currentAbs + relativeDelay;
-    }
-    return payload;
-}
-
-export async function loadAutoMailTemplates() {
+function safeInit(name, fn) {
     try {
-        const data = await fetchJson('/api/automail/templates');
-        autoMailTemplates = data.templates || [];
-        renderAutoMailTemplates();
+        fn();
     } catch (err) {
-        console.error("Failed to load auto-mail templates:", err);
+        console.warn(`Module initialization [${name}] failed, but dashboard remains active:`, err);
     }
 }
 
-export async function loadSavedSequences() {
-    try {
-        const data = await fetchJson('/api/automail/saved-sequences');
-        savedSequencesConfigs = data.sequences || [];
-        renderSavedSequencesDropdown();
-    } catch (err) {
-        console.error('Failed to load saved sequences', err);
-    }
-}
-
-function renderSavedSequencesDropdown() {
-    if (!savedSequenceSelect) return;
-    const currentVal = savedSequenceSelect.value;
-    savedSequenceSelect.innerHTML = '<option value="new">-- Custom Sequence --</option>';
-    savedSequencesConfigs.forEach(seq => {
-        savedSequenceSelect.innerHTML += `<option value="${seq.id}">${escapeHtml(seq.name)}</option>`;
-    });
-    if ([...savedSequenceSelect.options].some(o => o.value === currentVal)) {
-        savedSequenceSelect.value = currentVal;
-    }
-    if (btnDeleteSequence) btnDeleteSequence.style.display = savedSequenceSelect.value === 'new' ? 'none' : 'block';
-}
-
-export function setupSavedSequenceListeners(onSequenceLoaded) {
-    if (savedSequenceSelect) {
-        savedSequenceSelect.addEventListener('change', () => {
-            const val = savedSequenceSelect.value;
-            if (btnDeleteSequence) btnDeleteSequence.style.display = val === 'new' ? 'none' : 'block';
-            if (val !== 'new') {
-                const seq = savedSequencesConfigs.find(s => s.id === val);
-                if (seq && seq.config) {
-                    if (onSequenceLoaded) {
-                        onSequenceLoaded(seq.config);
-                    } else {
-                        // Default dashboard behavior
-                        autoMailSequences = [];
-                        seq.config.sequences.forEach(s => {
-                            autoMailSequences.push({
-                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                                templateId: s.templateId || '',
-                                delayDays: s.delayDays || 0,
-                                dependsOnId: null,
-                                senderName: s.senderName || '',
-                                subject: s.subject || '',
-                                htmlContent: s.htmlContent || ''
-                            });
-                        });
-                        for (let i = 1; i < autoMailSequences.length; i++) {
-                            autoMailSequences[i].dependsOnId = autoMailSequences[i-1].id;
-                        }
-                        renderSequences();
-
-                        const smtpIds = seq.config.smtpAccountIds || [];
-                        if (smtpListEl) {
-                            smtpListEl.querySelectorAll("input[type='checkbox']").forEach(cb => {
-                                cb.checked = smtpIds.includes(cb.value);
-                                const label = cb.closest("label");
-                                if (label) label.classList.toggle("is-selected", cb.checked);
-                            });
-                        }
-                    }
-                }
-            } else {
-                if (onSequenceLoaded) {
-                    onSequenceLoaded(null);
-                } else {
-                    autoMailSequences = [];
-                    addSequenceStep();
-                }
-            }
-        });
-    }
-
-    if (btnSaveSequence) {
-        btnSaveSequence.addEventListener('click', async () => {
-            const name = prompt("Enter a name for this outreach configuration:");
-            if (!name || !name.trim()) return;
-
-            const sequencesToSave = onSequenceLoaded ? window.getCurrentSequence() : compileSequencePayload(autoMailSequences);
-            const smtpsToSave = onSequenceLoaded ? window.getSelectedSmtps() : (smtpListEl ? Array.from(smtpListEl.querySelectorAll("input[type='checkbox']:checked")).map(cb => cb.value) : []);
-
-            const payloadConfig = {
-                sequences: sequencesToSave,
-                smtpAccountIds: smtpsToSave
-            };
-
-            try {
-                btnSaveSequence.disabled = true;
-                btnSaveSequence.innerHTML = '<svg width="14" height="14" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>';
-                const existingId = savedSequenceSelect?.value !== 'new' ? savedSequenceSelect.value : null;
-                const res = await fetchJson('/api/automail/saved-sequences', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: existingId, name: name.trim(), config: payloadConfig })
-                });
-                if (res.success) {
-                    await loadSavedSequences();
-                    if (savedSequenceSelect) {
-                        savedSequenceSelect.value = res.id;
-                        if (btnDeleteSequence) btnDeleteSequence.style.display = 'block';
-                    }
-                }
-            } catch (err) {
-                alert("Failed to save sequence config: " + err.message);
-            } finally {
-                btnSaveSequence.disabled = false;
-                btnSaveSequence.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
-            }
-        });
-    }
-
-    if (btnDeleteSequence) {
-        btnDeleteSequence.addEventListener('click', async () => {
-            const id = savedSequenceSelect?.value;
-            if (!id || id === 'new') return;
-            if (!confirm("Delete this saved sequence? This cannot be undone.")) return;
-
-            try {
-                await fetchJson(`/api/automail/saved-sequences/${id}`, { method: 'DELETE' });
-                await loadSavedSequences();
-                if (savedSequenceSelect) savedSequenceSelect.value = 'new';
-                if (btnDeleteSequence) btnDeleteSequence.style.display = 'none';
-                if (onSequenceLoaded) {
-                    onSequenceLoaded(null);
-                } else {
-                    autoMailSequences = [];
-                    addSequenceStep();
-                }
-            } catch (err) {
-                alert("Failed to delete sequence: " + err.message);
-            }
-        });
-    }
-}
-
-
-function renderAutoMailTemplates() {
-    if (templateSelectEl) {
-        const currentVal = templateSelectEl.value;
-        templateSelectEl.innerHTML = '<option value="new">+ Create New Template</option>' +
-            autoMailTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        if (autoMailTemplates.find(t => String(t.id) === String(currentVal))) {
-            templateSelectEl.value = currentVal;
-        }
-    }
-    // Re-render sequences if template choices changed
-    if (autoMailSequences.length > 0) renderSequences();
-}
-
-async function loadSenderSmtps() {
-    try {
-        const data = await fetchJson('/api/sender/smtp');
-        const accounts = data.accounts || [];
-        if (accounts.length === 0) {
-            smtpListEl.innerHTML = '<div class="text-[10px] text-slate-500 italic">No SMTP accounts found in Sender.</div>';
-            return;
-        }
-
-        // We don't have a single set of selected IDs anymore tied to a form
-        // But we can check previously checked if we store it, or just empty
-        const currentChecked = [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value);
-
-        smtpListEl.innerHTML = accounts.map(acc => `
-            <label class="flex items-center gap-2 p-1.5 hover:bg-red-50 rounded cursor-pointer transition-colors">
-                <input type="checkbox" value="${acc.id}" class="w-3.5 h-3.5 text-red-600 rounded border-slate-300" ${currentChecked.includes(acc.id) ? 'checked' : ''}>
-                <span class="text-[11px] font-medium text-slate-700 truncate">${acc.user} (${acc.host})</span>
-            </label>
-        `).join('');
-    } catch (err) {
-        smtpListEl.innerHTML = '<div class="text-[10px] text-red-500">Failed to load SMTP accounts.</div>';
-    }
-}
-
-// Forms are gone
-
-window.submitNewSmtp = async function(e) {
-  e.preventDefault();
-  const btn = document.getElementById('btnSaveSmtpDash');
-  const errEl = document.getElementById('addSmtpErrorDash');
-  if(!btn || !errEl) return;
-  
-  errEl.textContent = '';
-  btn.disabled = true;
-  btn.innerHTML = 'Verifying...';
-
-  try {
-    const payload = {
-      host: document.getElementById('newSmtpHost').value.trim(),
-      port: document.getElementById('newSmtpPort').value.trim(),
-      user: document.getElementById('newSmtpUser').value.trim(),
-      pass: document.getElementById('newSmtpPass').value.trim()
-    };
-
-    const res = await fetchJson('/api/sender/smtp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.success) {
-      document.getElementById('addSmtpFormObj').reset();
-      document.getElementById('addSmtpFormObj').style.display = 'none';
-      await loadSenderSmtps();
-    } else {
-      errEl.textContent = res.error || 'Failed to add account.';
-    }
-  } catch (err) {
-    errEl.textContent = err.message;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = 'Verify & Save';
-  }
-};
-
-async function fetchJson(url, options = {}) {
-  // Always include session cookie for backend authentication
-  options.credentials = options.credentials || "include";
-
-  const response = await fetch(url, options);
-  if (response.status === 401 && !url.includes("/api/me")) {
-    window.location.href = "/login.html";
-    return;
-  }
-  if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
-    try {
-      const data = await response.json();
-      if (data?.error) message = data.error;
-    } catch { }
-    throw new Error(message);
-  }
-  return response.json();
-}
+// --- CORE SCRAPER UI LOGIC ---
 
 async function loadCountries() {
-  try {
-    const metadata = await fetchJson("/api/metadata");
-    countryEl.innerHTML = metadata.countries.map((country) => `<option value = "${country}" > ${country}</option> `).join("");
-    if (countryEl.value) {
-      await loadLocationDetails(countryEl.value);
+    if (!countryEl) return;
+    try {
+        const metadata = await API.getMetadata();
+        countryEl.innerHTML = metadata.countries.map(c => `<option value="${c}">${c}</option>`).join("");
+        countryEl.onchange = () => loadLocationDetails(countryEl.value);
+        if (countryEl.value) loadLocationDetails(countryEl.value);
+    } catch (err) {
+        console.error("Failed to load countries:", err);
     }
-  } catch (error) {
-    console.error("Could not load countries", error);
-  }
 }
 
 async function loadLocationDetails(country) {
-  try {
-    const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}`);
-    allCountryCities = details.cities || [];
-    visibleCityOptions = [];
-    selectedCityValues = new Set();
-    if (citySearchEl) citySearchEl.value = "";
-    renderCheckboxList(stateContainer, details.states || [], selectAllStates);
-    renderVisibleCities();
-  } catch (error) {
-    console.error(`Could not load locations for ${country}`, error);
-  }
-}
-
-countryEl?.addEventListener("change", async () => {
-  await loadLocationDetails(countryEl.value);
-});
-
-async function getCitiesForState(country, state) {
-  const cacheKey = `${country}::${state}`;
-  if (stateCitiesCache.has(cacheKey)) return stateCitiesCache.get(cacheKey);
-
-  const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`);
-  const cities = details.cities || [];
-  stateCitiesCache.set(cacheKey, cities);
-  return cities;
-}
-
-function renderVisibleCities() {
-  const query = citySearchEl?.value?.trim().toLowerCase() || "";
-  const filtered = visibleCityOptions.filter((city) => city.toLowerCase().includes(query));
-  renderCheckboxList(cityContainer, filtered, selectAllCities, [...selectedCityValues]);
+    try {
+        const details = await API.getLocationDetails(country);
+        allCountryCities = details.cities || [];
+        visibleCityOptions = [];
+        selectedCityValues = new Set();
+        if (citySearchEl) citySearchEl.value = "";
+        Utils.renderCheckboxList(stateContainer, details.states || [], selectAllStates);
+    } catch (err) {
+        console.error("Failed to load location details:", err);
+    }
 }
 
 async function refreshVisibleCities() {
-  const country = countryEl.value;
-  const states = selectedValues(stateContainer);
-  const previouslySelected = new Set(selectedCityValues);
+    if (!countryEl) return;
+    const country = countryEl.value;
+    const states = Utils.selectedValues(stateContainer);
+    const previouslySelected = new Set(selectedCityValues);
 
-  if (!states.length) {
-    visibleCityOptions = [];
-    selectedCityValues.clear();
+    if (!states.length) {
+        visibleCityOptions = [];
+        selectedCityValues.clear();
+        renderVisibleCities();
+        return;
+    }
+
+    try {
+        const cityLists = await Promise.all(states.map(state => API.getCitiesForState(country, state).catch(() => [])));
+        visibleCityOptions = [...new Set(cityLists.flat())].sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+        visibleCityOptions = [];
+    }
+
+    selectedCityValues = new Set([...previouslySelected].filter(city => visibleCityOptions.includes(city)));
+    if (!visibleCityOptions.length) {
+        visibleCityOptions = [...new Set(allCountryCities)].sort((a, b) => a.localeCompare(b));
+        selectedCityValues = new Set([...previouslySelected].filter(city => visibleCityOptions.includes(city)));
+    }
     renderVisibleCities();
-    return;
-  }
-
-  try {
-    const cityLists = await Promise.all(states.map((state) => getCitiesForState(country, state).catch(() => [])));
-    visibleCityOptions = [...new Set(cityLists.flat())].sort((a, b) => a.localeCompare(b));
-  } catch (error) {
-    console.warn("Could not load cities for selected states.", error);
-    visibleCityOptions = [];
-  }
-
-  selectedCityValues = new Set([...previouslySelected].filter((city) => visibleCityOptions.includes(city)));
-
-  if (!visibleCityOptions.length) {
-    visibleCityOptions = [...new Set(allCountryCities)].sort((a, b) => a.localeCompare(b));
-    selectedCityValues = new Set([...previouslySelected].filter((city) => visibleCityOptions.includes(city)));
-  }
-
-  renderVisibleCities();
 }
+
+function renderVisibleCities() {
+    const query = citySearchEl?.value?.trim().toLowerCase() || "";
+    const filtered = visibleCityOptions.filter(city => city.toLowerCase().includes(query));
+    Utils.renderCheckboxList(cityContainer, filtered, selectAllCities, [...selectedCityValues]);
+}
+
+// Binding listeners to state/city containers
+stateContainer?.addEventListener("change", () => refreshVisibleCities());
+cityContainer?.addEventListener("change", (e) => {
+    const cb = e.target;
+    if (cb && cb.type === "checkbox") {
+        if (cb.checked) selectedCityValues.add(cb.value);
+        else selectedCityValues.delete(cb.value);
+        const label = cb.closest("label");
+        if (label) label.classList.toggle("is-selected", cb.checked);
+        Utils.syncSelectAllState(cityContainer, selectAllCities);
+    }
+});
+citySearchEl?.addEventListener("input", () => renderVisibleCities());
+
+selectAllStates?.addEventListener("change", () => {
+    const checked = selectAllStates.checked;
+    stateContainer.querySelectorAll('input[type="checkbox"]').forEach(i => i.checked = checked);
+    refreshVisibleCities();
+});
+
+selectAllCities?.addEventListener("change", () => {
+    const checked = selectAllCities.checked;
+    cityContainer.querySelectorAll('input[type="checkbox"]').forEach(i => {
+        i.checked = checked;
+        if (checked) selectedCityValues.add(i.value);
+        else selectedCityValues.delete(i.value);
+    });
+    renderVisibleCities();
+});
+
+// --- CATEGORIES & HISTORY ---
 
 async function loadCategories() {
   try {
-    const { categories } = await fetchJson("/api/categories");
-    historyCategories = categories || [];
+    const categoriesData = await API.getCategories();
+    const categories = categoriesData.categories || [];
+    historyCategories = categories;
     const selectEl = document.getElementById("jobCategory");
     if (selectEl) {
       const currentVal = selectEl.value;
       selectEl.innerHTML = '<option value="">-- Select a Campaign --</option>' +
-        categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
+        categories.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join("");
 
       const exists = categories.find(c => c.id === currentVal);
       if (exists) selectEl.value = currentVal;
@@ -1086,7 +191,7 @@ async function loadCategories() {
     if (filterSelect) {
       const currentVal = filterSelect.value;
       filterSelect.innerHTML = '<option value="all">All Campaigns</option>' +
-        categories.map(c => `<option value = "${c.id}" > ${c.name}</option> `).join("");
+        categories.map(c => `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`).join("");
       const exists = categories.find(c => c.id === currentVal);
       filterSelect.value = exists ? currentVal : "all";
     }
@@ -1120,23 +225,12 @@ if (addCategoryBtn) {
     if (!name?.trim()) return;
 
     try {
-      const res = await fetch("/api/categories", {
+      const res = await API.fetchJson("/api/categories", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() })
       });
 
-      if (!res.ok) {
-        let errorMsg = "Failed to create campaign";
-        try {
-          const data = await res.json();
-          errorMsg = data.error || errorMsg;
-        } catch { }
-        alert(errorMsg);
-        return;
-      }
-
-      const { category } = await res.json();
+      const category = res.category;
       await loadCategories();
 
       // Select the newly created category
@@ -1144,7 +238,7 @@ if (addCategoryBtn) {
       if (selectEl) selectEl.value = category.id;
 
     } catch (err) {
-      alert("Error creating campaign");
+      alert("Error creating campaign: " + err.message);
       console.error(err);
     }
   });
@@ -1162,18 +256,13 @@ if (deleteCategoryBtn) {
     if (!confirm(`Are you sure you want to delete the campaign category "${categoryName}"? Existing jobs in this category will NOT be deleted, but they will no longer be filtered by this name.`)) return;
 
     try {
-      const res = await fetch(`/api/categories/${categoryId}`, {
+      await API.fetchJson(`/api/categories/${categoryId}`, {
         method: "DELETE"
       });
-      if (res.ok) {
-        await loadCategories();
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete campaign");
-      }
+      await loadCategories();
     } catch (err) {
       console.error(err);
-      alert("Error deleting campaign");
+      alert("Error deleting campaign. It may not exist.");
     }
   });
 }
@@ -1185,81 +274,49 @@ if (historyCategoryFilter) {
 }
 
 async function loadHistory() {
-  try {
-    const history = await fetchJson("/api/history");
-    historyEl.innerHTML = "";
-    if (history.length === 0) {
-      historyEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:8px 0;">No search history yet.</p>';
-      return;
+    if (!historyEl) return;
+    try {
+        const history = await API.getHistory();
+        renderHistory(history);
+    } catch (err) {
+        console.error("Failed to load history:", err);
     }
-    const filterVal = historyCategoryFilter ? historyCategoryFilter.value : "all";
+}
 
-    let filteredHistory = history;
-    if (filterVal !== "all") {
-      filteredHistory = history.filter(job => job.params.category === filterVal);
-      if (filteredHistory.length === 0) {
-        historyEl.innerHTML = `<p style = "color:var(--text-muted);font-size:13px;padding:8px 0;" > No jobs found in this campaign.</p> `;
+function renderHistory(jobs) {
+    if (!historyEl) return;
+    const filter = getEl("historyCategoryFilter")?.value || "all";
+    const filtered = jobs.filter(j => filter === 'all' || String(j.categoryId || (j.params && j.params.category)) === filter);
+    
+    if (filtered.length === 0) {
+        historyEl.innerHTML = '<div class="empty-state">No jobs found. Start your first search above!</div>';
         return;
-      }
     }
 
-    filteredHistory.forEach((job) => {
+    historyEl.innerHTML = '';
+    
+    filtered.forEach((job) => {
       const div = document.createElement("div");
-      div.className = "history-item";
+      div.className = "history-item job-card group";
+      div.id = `job-${job.id}`;
       const date = new Date(job.createdAt).toLocaleString();
-      const params = job.params;
+      const params = job.params || {};
       const categoryName = getCategoryName(params.category);
       const citiesList = params.cities || [];
       const statesList = params.states || [];
 
-      let locationText = params.country;
+      let locationText = params.country || "Global";
       if (statesList.length > 0) {
         locationText += ` &ndash; ${statesList.join(", ")} `;
       }
 
-      let citiesText = "";
-      if (citiesList.length > 5) {
-        citiesText = citiesList.slice(0, 5).join(", ") + ` (+${citiesList.length - 5} more)`;
-      } else {
-        citiesText = citiesList.join(", ");
-      }
-
       const fileList = (job.files || []);
-
       const isPrimary = (f) => f === "all_emails.txt" || f === "all_phones.txt" || f.endsWith(".csv");
 
       const primaryFiles = fileList.filter(isPrimary);
       const secondaryFiles = fileList.filter(f => !isPrimary(f) && (f.endsWith(".txt") || f.endsWith(".json")));
 
-      const renderFileBtn = (f, isPhone) => {
-        const style = isPhone ? `border-color: var(--purple); color: var(--purple); background: rgba(139, 92, 246, 0.12)` : ``;
-        return `<div class="history-file-row">
-           <span style="font-size:13px; font-weight:500; color:#374151; display:flex; align-items:center; gap:6px; word-break: break-all;">
-             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-             ${f}
-           </span>
-           <div style="display:flex; gap:4px; flex-shrink: 0;">
-             <a href="#" onclick="openFilePreview('${job.id}', '${f}'); return false;" class="download-btn" style="padding: 4px 8px; ${style}">View</a>
-             <a data-file-name="${f}" href="/api/jobs/${job.id}/files/${f}" target="_blank" class="download-btn" style="padding: 4px 8px; ${style}">Download</a>
-           </div>
-         </div> `;
-      };
-
-      const primaryHtml = primaryFiles.map(f => renderFileBtn(f, f.includes("phone"))).join("");
-      const secondaryHtml = secondaryFiles.map(f => renderFileBtn(f, f.includes("phone"))).join("");
-
-      const toggleSecondaryBtn = secondaryFiles.length > 0
-        ? `<div style = "width: 100%; margin-top: 5px;" > <button class="btn btn--ghost btn--sm" onclick="toggleSecondaryFiles('sec-${job.id}')" style="font-size: 0.75rem; padding: 4px 8px; width:100%; justify-content:center;">Show all files (${secondaryFiles.length})</button></div> `
-        : "";
-
-      const fileButtons = `
-        ${primaryHtml}
-        ${toggleSecondaryBtn}
-  <div id="sec-${job.id}" style="display: none; width: 100%; margin-top: 8px; flex-direction: column;">
-    ${secondaryHtml}
-  </div>
-  `;
-
+      // We replace the old history file elements logic with the newer UI grid elements if appropriate
       let analyticsHtml = "";
       if (typeof job.totalEmailsSent !== 'undefined' && job.params.autoMailConfig && job.totalEmailsSent > 0) {
         analyticsHtml = `<div class="history-analytics" style="margin-top: 6px; font-size: 11.5px; display: flex; align-items: center; gap: 12px; font-weight: 500; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
@@ -1273,465 +330,247 @@ async function loadHistory() {
       const isStoppable = job.status === "running";
       const isRestartable = job.status === "failed" || job.status === "stopped";
       const isDeletable = job.status !== "running";
-      const stopButton = isStoppable ? `<button class="stop-btn" onclick="stopJob('${job.id}')">&#x25A0; Stop</button>` : "";
-      const restartButton = isRestartable ? `<button class="restart-btn" onclick="restartJob('${job.id}')" style="background:var(--blue-primary); color:white; border:none; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">&#x21BB; Restart</button>` : "";
-      const detailsButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'view')" style="background:none; color:#2563eb; border:1px solid #bfdbfe; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="View Job Details"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>`;
-      const editButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'edit')" style="background:none; color:#d97706; border:1px solid #fcd34d; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Edit Job / Auto-Mail"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></button>`;
-      const deleteButton = isDeletable ? `<button onclick="deleteJob('${job.id}')" style="background:none; color:#ef4444; border:1px solid #fca5a5; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Delete Job"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : "";
+      const stopButton = isStoppable ? `<button class="p-1 text-red-400 hover:text-red-600 transition-colors" onclick="stopJob('${job.id}')" title="Stop Job"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12"/></svg></button>` : "";
+      const restartButton = isRestartable ? `<button class="p-1 text-slate-300 hover:text-blue-500 transition-colors" onclick="restartJob('${job.id}')" title="Restart"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>` : "";
+      const deleteButton = isDeletable ? `<button class="p-1 text-slate-300 hover:text-red-500 transition-colors" onclick="deleteJob('${job.id}')" title="Delete Job"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>` : "";
+      
+      const detailsButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'view')" style="background:none; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="View Details">Details</button>`;
+      const editButton = `<button onclick="openCampaignWorkbench('job', '${job.id}', 'edit')" style="background:none; color:#d97706; border:1px solid #fcd34d; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px;" title="Edit Job">Edit</button>`;
 
-      const emailListId = `emails-${job.id}`;
+      const nicheText = Array.isArray(params.niches) ? params.niches.join(", ") : (params.niches || "All Niches");
 
       div.innerHTML = `
-    <div class="history-meta-row" >
-          <div class="history-meta">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span class="history-date">${date}</span>
+        <div class="job-header-v2">
+            <div class="flex items-center gap-3">
+                <span class="job-status-pill status--${job.status}" id="status-${job.id}">${job.status}</span>
+                <h3 class="text-sm font-bold text-slate-800 truncate max-w-[200px]" title="${Utils.escapeHtml(nicheText)}">${Utils.escapeHtml(nicheText)}</h3>
             </div>
-            <div class="history-location" title="${params.country} - ${params.cities.join(", ")}">
-               <strong>${locationText}</strong><br>
-               <span style="font-size:0.9em; color:var(--text-muted)">${citiesText}</span>
+            <div class="job-meta">
+                <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">${Utils.escapeHtml(locationText)}</span>
+                <span class="text-[10px] text-slate-400 font-mono ml-2">• ${date}</span>
+                <div class="flex gap-1 items-center ml-2">
+                    ${detailsButton}
+                    ${editButton}
+                    ${stopButton}
+                    ${restartButton}
+                    ${deleteButton}
+                </div>
             </div>
-            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
-              <span style="font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:999px;">Campaign: ${categoryName}</span>
-              ${job.campaignName ? `<span style="font-size:11px; font-weight:700; color:#7c3aed; background:#f5f3ff; border:1px solid #ddd6fe; padding:2px 8px; border-radius:999px;">Auto-Mail: ${job.campaignName}</span>` : ''}
-            </div>
-            <div class="history-niches">${params.niches.join(" &middot; ")}</div>
-            ${analyticsHtml}
-          </div>
-    <div class="history-actions">
-      <span class="status-chip ${job.status}" id="status-${job.id}">${job.status}</span>
-      ${stopButton}
-      ${restartButton}
-      ${detailsButton}
-      ${editButton}
-      ${deleteButton}
-      <button class="toggle-btn" onclick="toggleEmails('${emailListId}')">Files</button>
-    </div>
         </div>
-    ${job.error ? `<div class="error-message" style="margin-top:6px">Error: ${job.error}</div>` : ""}
-  <div id="${emailListId}" class="email-dropdown" style="display: none; flex-direction: column;">
-    ${fileButtons}
-  </div>
-  `;
+        
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; margin-bottom:8px;">
+          <span style="font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:999px;">Campaign: ${Utils.escapeHtml(categoryName)}</span>
+          ${job.campaignName ? `<span style="font-size:11px; font-weight:700; color:#7c3aed; background:#f5f3ff; border:1px solid #ddd6fe; padding:2px 8px; border-radius:999px;">Auto-Mail: ${Utils.escapeHtml(job.campaignName)}</span>` : ''}
+        </div>
+        ${analyticsHtml}
+
+        <div class="job-files-grid mt-3" id="files-${job.id}">
+            ${primaryFiles.map(f => renderFileLink(job.id, f)).join('')}
+            ${secondaryFiles.map(f => renderFileLink(job.id, f)).join('')}
+        </div>
+      `;
       historyEl.appendChild(div);
     });
-  } catch (error) {
-    console.error("Could not load history", error);
-  }
 }
 
-window.toggleEmails = function (id) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.style.display = el.style.display === "none" ? "flex" : "none";
-    // Toggle button text if needed
-    const btn = el.previousElementSibling.querySelector('.toggle-btn');
-    if (btn) {
-      btn.textContent = el.style.display === "none" ? "View Files" : "Hide Files";
+function renderFileLink(jobId, fileName) {
+    let icon = "📄";
+    let colorClass = "file--generic";
+    let label = fileName;
+    
+    if (fileName === "all.csv") { 
+        icon = "📊"; colorClass = "file--csv"; label = "all.csv"; 
     }
-  }
-};
-
-window.toggleSecondaryFiles = function (id) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.style.display = el.style.display === "none" ? "flex" : "none";
-    const btn = el.previousElementSibling.querySelector('button');
-    if (btn) {
-      const isHidden = el.style.display === "none";
-      const count = el.children.length;
-      btn.textContent = isHidden ? `Show all files(${count})` : `Hide extra files`;
+    else if (fileName === "all_emails.txt") { 
+        icon = "📧"; colorClass = "file--json"; label = "all_emails.txt"; 
     }
-  }
-};
-
-window.stopJob = async function (jobId) {
-  if (!confirm("Are you sure you want to stop this job?")) return;
-  try {
-    await fetchJson(`/api/jobs/${jobId}/stop`, { method: "POST" });
-    loadHistory();
-    updateQueueStatus();
-  } catch (error) {
-    alert("Failed to stop job: " + error.message);
-  }
-};
-
-window.deleteJob = async function (jobId) {
-  if (!confirm("Are you sure you want to delete this job and all its history? This action cannot be undone.")) return;
-  try {
-    await fetchJson(`/api/jobs/${jobId}`, { method: "DELETE" });
-    loadHistory();
-    updateQueueStatus();
-  } catch (error) {
-    alert("Failed to delete job: " + error.message);
-  }
-};
-
-window.restartJob = async function (jobId) {
-  if (!confirm("Are you sure you want to restart this job? It will resume from the last saved state.")) return;
-  try {
-    const res = await fetchJson(`/api/jobs/${jobId}/restart`, { method: "POST" });
-    if (res.success) {
-      alert("Job restart requested!");
-      loadHistory();
-      updateQueueStatus();
-      if (typeof attachToJob === 'function') attachToJob(jobId);
+    else if (fileName === "all_phones.txt") { 
+        icon = "📝"; colorClass = "file--txt"; label = "all_phones.txt"; 
     }
-  } catch (error) {
-    alert("Failed to restart job: " + error.message);
-  }
-};
-
-async function updateQueueStatus() {
-  try {
-    const status = await fetchJson("/api/queue?_=" + Date.now());
-    if (queueStatusEl) {
-      let maxText;
-      if (currentUser) {
-        if (currentUser.isAdmin) {
-          maxText = 'Unlimited';
-        } else {
-          const limits = getPlanLimits(currentUser.subscriptionPlan);
-          maxText = limits?.concurrentJobs ?? 1;
-        }
-      } else {
-        maxText = '...';
-      }
-      queueStatusEl.textContent = `${status.active} active · max ${maxText} concurrent`;
-    }
-  } catch (error) {
-    console.error("Could not update queue status", error);
-  }
+    
+    return `
+        <div class="file-chip ${colorClass}">
+            <span class="file-icon">${icon}</span>
+            <span class="file-label" title="${fileName}">${label}</span>
+            <div class="file-ops">
+                <a href="#" onclick="openFilePreview('${jobId}', '${fileName}'); return false;" class="op-view" title="Preview">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </a>
+                <a href="/api/jobs/${jobId}/files/${fileName}" target="_blank" class="op-dl" title="Download">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </a>
+            </div>
+        </div>
+    `;
 }
 
-let _queuePollingStarted = false;
-function startQueuePolling() {
-  updateQueueStatus();
-  if (_queuePollingStarted) return; // prevent duplicate intervals
-  _queuePollingStarted = true;
-  setInterval(updateQueueStatus, 5000);
-}
+// Global window bindings for inline HTML handlers
+window.stopJob = async (id) => {
+    if (confirm("Stop this job?")) {
+        await API.stopJob(id);
+        loadHistory();
+    }
+};
+window.deleteJob = async (id) => {
+    if (confirm("Delete this job and all its files?")) {
+        await API.deleteJob(id);
+        loadHistory();
+    }
+};
 
-document.getElementById("expandNiches")?.addEventListener("click", async () => {
-  const niches = nichesEl.value.split("\n").map((x) => x.trim()).filter(Boolean);
-  if (!niches.length) return;
-  try {
-    const data = await fetchJson("/api/expand-niches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ niches })
-    });
-    expandedNichesEl.textContent = `Expanded niches: ${data.expandedNiches.join(", ")}`;
-  } catch (error) {
-    expandedNichesEl.textContent = `Niche expansion failed: ${error.message}`;
-  }
+// --- RUN SCRAPER ---
+
+getEl("run")?.addEventListener("click", async () => {
+    const niches = nichesEl?.value.split("\n").map(x => x.trim()).filter(Boolean);
+    const states = Utils.selectedValues(stateContainer);
+    const cities = [...selectedCityValues];
+    const includeGoogleMaps = getEl("includeGoogleMaps")?.checked;
+    const includeSocial = getEl("includeSocial")?.checked;
+    const scrapeMode = (includeSocial && !includeGoogleMaps) ? 'emails' : 'both';
+    
+    if (!niches?.length) return alert("Please enter at least one niche.");
+    if (!includeGoogleMaps && !includeSocial) return alert("Please select at least one data source.");
+
+    const autoMailConfig = AutoMail.getAutoMailPayload();
+    
+    try {
+        Utils.setStatus("Starting job...", "running");
+        const res = await API.fetchJson("/api/jobs", {
+            method: "POST",
+            body: JSON.stringify({
+                country: countryEl.value,
+                cities,
+                states,
+                niches: niches.join("\n"),
+                includeGoogleMaps,
+                includeSocial,
+                scrapeMode,
+                autoMailConfig
+            })
+        });
+        attachToJob(res.jobId);
+        loadHistory();
+    } catch (err) {
+        alert(err.message);
+        Utils.setStatus("Failed to start", "error");
+    }
 });
 
-document.getElementById("run")?.addEventListener("click", async () => {
-  const niches = nichesEl.value.split("\n").map((x) => x.trim()).filter(Boolean);
-  const states = selectedValues(stateContainer);
-  let cities = selectedValues(cityContainer);
-  const includeGoogleMaps = document.getElementById("includeGoogleMaps")?.checked;
-  const includeSocial = document.getElementById("includeSocial")?.checked;
-  const scrapeMode = (includeSocial && !includeGoogleMaps) ? 'emails' : 'both';
-  const country = countryEl.value;
+// --- REAL-TIME UPDATES (EventSource) ---
 
-
-  let sites = Array.from(document.querySelectorAll(".sm-site-check:checked")).map(el => el.value);
-  if (sites.length === 0) {
-     sites = ["facebook.com", "instagram.com", "linkedin.com/in", "twitter.com", "reddit.com", "tiktok.com"];
-  }
-
-  const runErrorBox = document.getElementById("runErrorBox");
-  if (runErrorBox) runErrorBox.style.display = "none";
-
-  if (!niches.length || !states.length) {
-    if (runErrorBox) {
-      runErrorBox.innerHTML = "<strong>Missing Fields:</strong><br>Please enter at least one niche and select at least one State / Region before starting.";
-      runErrorBox.style.display = "block";
-    }
-    setStatus("Select at least one niche and one state.", 'error');
-    return;
-  }
-
-  if (!cities.length) {
-    statusEl.textContent = "Resolving cities for selected states…";
-    try {
-      const cityFetches = states.map((state) => getCitiesForState(country, state).catch(() => []));
-      const results = await Promise.all(cityFetches);
-      cities = [...new Set(results.flat())];
-    } catch (err) {
-      console.warn("Could not auto-resolve cities, falling back to country-wide list.", err);
-    }
-
-    if (!cities.length) {
-      cities = [...new Set(allCountryCities)];
-    }
-
-    if (!cities.length) {
-      try {
-        const details = await fetchJson(`/api/location?country=${encodeURIComponent(country)}`);
-        allCountryCities = details.cities || [];
-        cities = [...new Set(allCountryCities)];
-      } catch (err) {
-        console.warn("Fallback city fetch also failed.", err);
-      }
-    }
-  }
-
-  if (!cities.length) {
-    if (runErrorBox) {
-      runErrorBox.innerHTML = "<strong>No cities found:</strong><br>Could not resolve any cities for the selected states. Please try a different state or country.";
-      runErrorBox.style.display = "block";
-    }
-    setStatus("No cities resolved for selected states.", 'error');
-    return;
-  }
-
-  statusEl.textContent = "Submitting job to queue...";
-  eventsEl.innerHTML = "";
-  filesEl.innerHTML = "";
-
-  try {
-    const jobCategory = document.getElementById("jobCategory")?.value;
-
-    let autoMailConfig = null;
-    if ((currentUser?.isAdmin || currentUser?.subscriptionPlan === 'premium') && enableAutoMailEl?.checked) {
-        const smtpAccountIds = [...(smtpListEl.querySelectorAll('input:checked'))].map(i => i.value);
-        if (smtpAccountIds.length === 0) {
-            alert("Please select at least one SMTP account for Auto-Mail.");
-            return;
-        }
-        autoMailConfig = {
-            sequences: compileSequencePayload(autoMailSequences),
-            smtpAccountIds
-        };
-        
-        for (const seq of autoMailConfig.sequences) {
-            if (!seq.senderName || !seq.subject || !seq.htmlContent) {
-                alert("Please fill in all details for all Auto-Mail sequence steps.");
-                return;
-            }
-        }
-    }
-
-    const { jobId, status } = await fetchJson("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        country,
-        states,
-        cities,
-        niches,
-        includeGoogleMaps,
-        includeSocial,
-        scrapeMode,
-        sites,
-        category: jobCategory,
-        autoMailConfig
-      })
-    });
-
-    setStatus(`Job ${jobId} is ${status}. Waiting...`, 'running');
-    totalLeads = 0;
-    totalPhones = 0;
-    if (liveLeadCountEl) liveLeadCountEl.textContent = '0 leads';
-    if (livePhoneCountEl) livePhoneCountEl.textContent = '0 phones';
-    if (phoneFilesEl) phoneFilesEl.innerHTML = '';
-
-    // Refresh history, queue status, and category list immediately
-    loadHistory();
-    updateQueueStatus();
-    loadCategories();
-
+function attachToJob(jobId) {
     const stream = new EventSource(`/api/jobs/${jobId}/events`);
-    stream.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-      addEvent(payload);
+    stream.onmessage = (e) => {
+        const payload = JSON.parse(e.data);
+        handleJobEvent(jobId, payload, stream);
+    };
+}
 
-      if (payload.type === 'info' && payload.message === 'Job started') {
-        setStatus(`Job ${jobId} running...`, 'running');
-      }
+function handleJobEvent(jobId, payload, stream) {
+    if (payload.type === 'usage-update') return; // Handled by auth or global
+    
+    if (payload.type === 'lead-saved' || payload.type === 'phone-saved') {
+        if (liveLeadCountEl && payload.email) totalLeads++;
+        if (livePhoneCountEl && payload.phone) totalPhones++;
+        updateCounters();
+    }
 
-      if (payload.type === 'lead-saved' || payload.type === 'city-update' || payload.type === 'phone-saved') {
-        if (payload.fileName) ensureFileLink(jobId, payload.fileName);
-        if (payload.emailFileName) ensureFileLink(jobId, payload.emailFileName);
-        if (payload.allEmailsFileName) ensureFileLink(jobId, payload.allEmailsFileName);
-        if (payload.phoneFileName) ensureFileLink(jobId, payload.phoneFileName);
-        if (payload.allPhonesFileName) ensureFileLink(jobId, payload.allPhonesFileName);
-      }
+    _pendingEvents.push(payload);
+    if (_pendingEvents.length > 50) _pendingEvents.shift();
+    queueUiUpdate();
 
-      if (payload.type === 'usage-update') {
-        const usageQuotaEl = document.getElementById('usageQuotaEl');
-        if (usageQuotaEl && payload.usage) {
-          usageQuotaEl.style.display = 'inline-block';
-          const limits = (currentUser && !currentUser.isAdmin) ? getPlanLimits(currentUser.subscriptionPlan) : { daily: payload.dailyLimit, monthly: payload.monthlyLimit };
-          usageQuotaEl.textContent = `Emails: ${payload.usage.dailyCount}/${limits.daily} | Month: ${payload.usage.monthlyCount}/${limits.monthly}`;
-        }
-      }
+    if (payload.type?.includes('complete') || payload.type?.includes('failed') || payload.type?.includes('stopped')) {
+        stream.close();
+        loadHistory();
+        Utils.setStatus(payload.message || "Finished", payload.type === 'job-failed' ? "error" : "idle");
+    }
+}
 
-      if (payload.type === 'job-completed' || payload.type === 'job-complete') {
-        setStatus('Completed', 'done');
-        stream.close(); loadHistory(); updateQueueStatus();
-        (payload.files || []).forEach((file) => ensureFileLink(jobId, file));
-      }
+function updateCounters() {
+    if (liveLeadCountEl) liveLeadCountEl.textContent = totalLeads + ' leads';
+    if (livePhoneCountEl) livePhoneCountEl.textContent = totalPhones + ' phones';
+}
 
-      if (payload.type === 'job-stopped') {
-        setStatus('Stopped by user', 'idle');
-        stream.close(); loadHistory(); updateQueueStatus();
-      }
+function queueUiUpdate() {
+    if (_uiUpdateQueued) return;
+    _uiUpdateQueued = true;
+    setTimeout(() => {
+        _uiUpdateQueued = false;
+        renderEvents();
+    }, 300);
+}
 
-      if (payload.type === 'job-failed') {
-        setStatus(`Failed: ${payload.message}`, 'error');
-        stream.close(); loadHistory(); updateQueueStatus();
-      }
+function renderEvents() {
+    if (!eventsEl) return;
+    const fragment = document.createDocumentFragment();
+    _pendingEvents.slice(-MAX_EVENTS_IN_DOM).reverse().forEach(ev => {
+        const li = document.createElement("li");
+        li.className = "ev-item";
+        li.innerHTML = `<span class="ev-type">${ev.type}</span> <span class="ev-msg">${ev.message || ev.email || ev.phone || ""}</span>`;
+        fragment.appendChild(li);
+    });
+    eventsEl.innerHTML = "";
+    eventsEl.appendChild(fragment);
+}
+
+// --- QUEUE POLLING ---
+
+async function startQueuePolling() {
+    if (!queueStatusEl) return;
+    const updateQueueUI = (status) => {
+        const count = status.total || 0;
+        queueStatusEl.innerHTML = count > 0 
+            ? `<span class="flex items-center gap-1.5 text-amber-600 font-bold"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> ${count} in Queue</span>` 
+            : `<span class="text-slate-400 font-medium">System Idle</span>`;
+        queueStatusEl.className = `queue-badge ${count > 0 ? 'queue--active' : 'queue--idle'}`;
     };
 
-    stream.onerror = () => console.log('Job stream disconnected (might be finished or queued).');
-  } catch (error) {
-    if (runErrorBox) {
-      runErrorBox.innerHTML = `<strong>Could not start scraper:</strong><br>${error.message}`;
-      runErrorBox.style.display = "block";
-    }
-    setStatus(`Failed to start: ${error.message}`, 'error');
-  }
-});
-
-function ensureFileLink(jobId, fileName) {
-  if (!fileName) return;
-  // We accept all files now so we can categorize them
-
-  const historyContainer = document.getElementById(`emails-${jobId}`);
-  if (!historyContainer) return; // Wait for history to render first
-
-  const isPrimary = fileName === "all_emails.txt" || fileName === "all_phones.txt" || fileName.endsWith(".csv");
-  const existing = historyContainer.querySelector(`a[data-file-name="${fileName}"]`);
-  if (existing) return;
-
-  const style = fileName.includes("phone") ? `border-color:var(--purple);color:var(--purple);background:rgba(139,92,246,0.12)` : ``;
-  const fileHtml = `
-    <div style="display:flex; align-items:center; justify-content:space-between; width:100%; padding:8px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; margin-bottom:6px;">
-      <span style="font-size:13px; font-weight:500; color:#374151; display:flex; align-items:center; gap:6px; word-break: break-all;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-        ${fileName}
-      </span>
-      <div style="display:flex; gap:4px; flex-shrink: 0;">
-        <a href="#" onclick="openFilePreview('${jobId}', '${fileName}'); return false;" class="download-btn" style="padding: 4px 8px; ${style}">View</a>
-        <a data-file-name="${fileName}" href="/api/jobs/${jobId}/files/${fileName}" target="_blank" class="download-btn" style="padding: 4px 8px; ${style}">Download</a>
-      </div>
-    </div>
-  `;
-
-  if (isPrimary) {
-    // Insert before the toggle button or secondary container
-    const toggleBtnDiv = historyContainer.querySelector('div[style*="width: 100%"]');
-    if (toggleBtnDiv) {
-      toggleBtnDiv.insertAdjacentHTML("beforebegin", fileHtml);
-    } else {
-      historyContainer.insertAdjacentHTML("afterbegin", fileHtml);
-    }
-  } else {
-    // It's a secondary file
-    let secContainer = document.getElementById(`sec-${jobId}`);
-
-    // Create the secondary container and toggle if it doesn't exist yet
-    if (!secContainer) {
-      const toggleHtml = `<div style="width: 100%; margin-top: 5px;"><button class="btn btn--ghost btn--sm" onclick="toggleSecondaryFiles('sec-${jobId}')" style="font-size: 0.75rem; padding: 4px 8px; width:100%; justify-content:center;">Show all files (1)</button></div>`;
-      secContainer = document.createElement('div');
-      secContainer.id = `sec-${jobId}`;
-      secContainer.style.cssText = "display: none; width: 100%; margin-top: 8px; flex-direction: column;";
-      historyContainer.insertAdjacentHTML("beforeend", toggleHtml);
-      historyContainer.appendChild(secContainer);
-    } else {
-      // Update count
-      const btn = secContainer.previousElementSibling.querySelector('button');
-      if (btn) {
-        const count = secContainer.children.length + 1;
-        if (secContainer.style.display === "none") {
-          btn.textContent = `Show all files (${count})`;
+    setInterval(async () => {
+        try {
+            const status = await API.getQueueStatus();
+            updateQueueUI(status);
+        } catch (err) {
+            queueStatusEl.innerHTML = `<span class="text-red-400 text-[10px]">Error fetching queue</span>`;
         }
-      }
-    }
-
-    secContainer.insertAdjacentHTML("beforeend", fileHtml);
-  }
+    }, 5000);
 }
 
+// --- UI MISC ---
 
-
-// Initial call once DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-
-  // Social source toggle logic
-  const includeSocialEl = document.getElementById("includeSocial");
-  const socialSiteSelection = document.getElementById("socialSiteSelection");
-  if (includeSocialEl && socialSiteSelection) {
-    includeSocialEl.addEventListener("change", () => {
-      socialSiteSelection.style.display = includeSocialEl.checked ? "block" : "none";
-      
-      // If social-only is selected, inform user about emails-only
-      const includeMapsEl = document.getElementById("includeGoogleMaps");
-      if (includeSocialEl.checked && !includeMapsEl.checked) {
-        // Optional: show a small toast or label saying "Emails Only Mode"
-      }
-    });
-  }
-
-  // Close Modal bindings
-  if (document.getElementById('closeModalBtn')) {
-    document.getElementById('closeModalBtn').addEventListener('click', () => {
-      document.getElementById('filePreviewModal').style.display = 'none';
-    });
-  }
-});
-
-// ── File Preview Logic ─────────────────────────
-window.openFilePreview = async function (jobId, fileName) {
-  const modal = document.getElementById('filePreviewModal');
-  const titleEl = document.getElementById('modalFileName');
-  const contentEl = document.getElementById('modalFileContent');
-  const downloadBtn = document.getElementById('modalDownloadBtn');
-
-  if (!modal || !titleEl || !contentEl || !downloadBtn) return;
-
-  titleEl.textContent = `Loading ${fileName}...`;
-  contentEl.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">Fetching file contents...</div>';
-  downloadBtn.href = `/api/jobs/${jobId}/files/${fileName}`;
-  downloadBtn.setAttribute('download', fileName);
-  modal.style.display = 'flex';
-
-  try {
-    const res = await fetch(`/api/jobs/${jobId}/files/${fileName}`);
-    if (!res.ok) throw new Error("Failed to load file");
-
-    const text = await res.text();
-    titleEl.textContent = fileName;
-
-    if (fileName.endsWith('.csv')) {
-      const rows = text.split('\n').filter(r => r.trim());
-      if (rows.length === 0) {
-        contentEl.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">CSV is empty.</div>';
-        return;
-      }
-
-      const tableRows = rows.map((row, idx) => {
-        const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
-        const cleanCols = cols.map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-        const tag = (idx === 0) ? 'th' : 'td';
-        return `<tr>${cleanCols.map(c => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
-      });
-
-      contentEl.innerHTML = `<div class="csv-table-wrapper"><table class="csv-table">${tableRows.join('')}</table></div>`;
-    } else {
-      contentEl.innerHTML = `<pre>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+function setupSocialToggles() {
+    const socialSiteSelection = getEl("socialSiteSelection");
+    const includeSocialEl = getEl("includeSocial");
+    if (includeSocialEl && socialSiteSelection) {
+        includeSocialEl.onchange = () => {
+            socialSiteSelection.style.display = includeSocialEl.checked ? "block" : "none";
+        };
     }
-  } catch (err) {
-    titleEl.textContent = "Error";
-    contentEl.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--red);">Could not load file. It may no longer exist on the server.</div>`;
-    console.error(err);
-  }
-};
-// ── Initial Setup ─────────────────────────
-checkAuth();
+}
 
-export { fetchJson, checkAuth as checkAuthAndSetupSidebar };
+function setupModalBindings() {
+    const closeModalBtn = getEl("closeModalBtn");
+    const modal = getEl("filePreviewModal");
+    if (closeModalBtn && modal) {
+        closeModalBtn.onclick = () => modal.style.display = 'none';
+    }
+}
+
+// File Preview Logic (Module style)
+window.openFilePreview = async (jobId, fileName) => {
+    const modal = getEl("filePreviewModal");
+    const contentEl = getEl("modalFileContent");
+    if (!modal || !contentEl) return;
+    
+    modal.style.display = 'flex';
+    contentEl.textContent = "Loading...";
+    
+    try {
+        const res = await fetch(`/api/jobs/${jobId}/files/${fileName}`);
+        const text = await res.text();
+        contentEl.textContent = text;
+    } catch (err) {
+        contentEl.textContent = "Error loading file.";
+    }
+};
+
+export { API, Utils, Auth, AutoMail };

@@ -75,10 +75,12 @@ export async function registerUser(username, email, password) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newId = uuidv4();
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 3);
     db.prepare(`
       INSERT INTO users (id, username, email, password, subscriptionPlan, trialEndsAt)
-      VALUES (?, ?, ?, ?, 'none', NULL)
-    `).run(newId, username, email, hashedPassword);
+      VALUES (?, ?, ?, ?, 'free', ?)
+    `).run(newId, username, email, hashedPassword, trialEndsAt.toISOString());
 
     return { success: true, username };
   } catch (error) {

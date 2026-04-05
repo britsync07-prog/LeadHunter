@@ -1,4 +1,7 @@
-import { fetchJson, checkAuthAndSetupSidebar, loadAutoMailTemplates, loadSavedSequences, setupTemplateListeners, setupSavedSequenceListeners } from './app.js';
+import * as API from './js/api.js';
+import * as Auth from './js/auth.js';
+import * as AutoMail from './js/automail.js';
+import * as Utils from './js/utils.js';
 
 let currentUser = null;
 let currentRecipients = [];
@@ -199,7 +202,7 @@ async function loadScraperCampaigns() {
   scraperSummaryBar.style.display = 'none';
 
   try {
-    const data = await fetchJson('/api/sender/scraper-campaigns');
+    const data = await API.fetchJson('/api/sender/scraper-campaigns');
     scraperCampaignsData = data.campaigns || [];
 
     if (scraperCampaignsData.length === 0) {
@@ -281,7 +284,7 @@ if (btnLoadScraperEmails) {
     btnLoadScraperEmails.innerHTML = '<svg width="14" height="14" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Loading...';
 
     try {
-      const res = await fetchJson('/api/sender/extract-job-emails', {
+      const res = await API.fetchJson('/api/sender/extract-job-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobIds })
@@ -321,7 +324,7 @@ const scheduleEndEl = document.getElementById('scheduleEnd');
 
 async function initSmtpUI() {
   try {
-    const me = await fetchJson('/api/me');
+    const me = await API.fetchJson('/api/me');
     const isPremiumOrAdvance = me && (me.subscriptionPlan === 'premium' || me.subscriptionPlan === 'advance' || me.isAdmin);
 
     if (isPremiumOrAdvance) {
@@ -347,7 +350,7 @@ async function initSmtpUI() {
 
 async function loadSmtpAccounts() {
   try {
-    const data = await fetchJson('/api/sender/smtp');
+    const data = await API.fetchJson('/api/sender/smtp');
     savedSmtpAccounts = data.accounts || [];
     renderSmtpList();
     validateForm();
@@ -438,7 +441,7 @@ async function submitNewSmtp(e) {
       pass: document.getElementById('newSmtpPass').value.trim()
     };
 
-    const res = await fetchJson('/api/sender/smtp', {
+    const res = await API.fetchJson('/api/sender/smtp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -462,7 +465,7 @@ async function submitNewSmtp(e) {
 async function deleteSmtp(id) {
   if (!confirm('Delete this SMTP account?')) return;
   try {
-    await fetchJson(`/api/sender/smtp/${id}`, { method: 'DELETE' });
+    await API.fetchJson(`/api/sender/smtp/${id}`, { method: 'DELETE' });
     await loadSmtpAccounts();
   } catch (err) {
     alert('Failed to delete: ' + err.message);
@@ -495,10 +498,10 @@ window.updateStepTemplate = function(id, templateId) {
     step.templateId = templateId;
     if (templateId) {
         // Fetch from the already loaded templates if possible, or just let it be.
-        // We can get them from window.autoMailTemplates if we export it or just use fetchJson again.
+        // We can get them from window.autoMailTemplates if we export it or just use API.fetchJson again.
         // But app.js already has them. I'll just use a fetch logic or assume they are globably accessible if I change app.js.
         // Or I can just use the select element to find the data.
-        fetchJson(`/api/automail/templates/${templateId}`).then(t => {
+        API.fetchJson(`/api/automail/templates/${templateId}`).then(t => {
             if (t) {
                 step.senderName = t.senderName || '';
                 step.subject = t.subject || '';
@@ -746,7 +749,7 @@ btnLaunchCampaign.addEventListener('click', async () => {
     btnLaunchCampaign.innerHTML = `<svg width="18" height="18" class="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Launching...`;
 
     // 1. Dispatch the payload to the Native SMTP Endpoint
-    const result = await fetchJson('/api/sender/campaigns', {
+    const result = await API.fetchJson('/api/sender/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -818,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- KPI DATA FETCHING ---
 const loadKPIs = async () => {
   try {
-    const data = await fetchJson('/api/sender/analytics/account');
+    const data = await API.fetchJson('/api/sender/analytics/account');
     if (data && data.metrics) {
       kpiTotalSent.innerText = data.rawCounts.sent.toLocaleString();
       kpiDeliveryRate.innerText = data.metrics.deliveryRate;
@@ -842,7 +845,7 @@ function openCampaignWorkbench(type, id, mode = 'view') {
 
 const loadHistory = async () => {
   try {
-    const data = await fetchJson('/api/sender/analytics/history');
+    const data = await API.fetchJson('/api/sender/analytics/history');
     if (!data || !data.history) return;
 
     if (!historyTableBody) return;
@@ -939,7 +942,7 @@ const loadHistory = async () => {
 async function deleteCampaign(id) {
   if (!confirm('Are you sure you want to delete this campaign? This will permanently remove its history and tracking logs.')) return;
   try {
-    const res = await fetchJson(`/api/sender/campaigns/${id}`, { method: 'DELETE' });
+    const res = await API.fetchJson(`/api/sender/campaigns/${id}`, { method: 'DELETE' });
     if (res.success) {
       loadHistory();
       loadKPIs();
@@ -984,22 +987,15 @@ if (btnRefreshHistory) {
 
 // --- INIT ---
 async function init() {
-  currentUser = await checkAuthAndSetupSidebar();
+  await Auth.checkAuth();
+  currentUser = Auth.getCurrentUser();
 
   if (currentUser && currentUser.subscriptionPlan !== 'premium' && currentUser.subscriptionPlan !== 'advance' && !currentUser.isAdmin) {
     window.location.href = "/dashboard.html";
     return;
   }
 
-  // Setup Auto-Mail Logic
-  setupTemplateListeners((t) => {
-      // When a template is saved or selected in the top management area,
-      // we don't necessarily update steps unless the user wants to.
-      // But we must reload the steps' template dropdowns.
-      renderSequences();
-  });
-
-  setupSavedSequenceListeners((config) => {
+  AutoMail.setupSavedSequenceListeners((config) => {
       if (config) {
           // Sequence Loaded from Save
           sequences = config.sequences.map(s => ({
@@ -1036,8 +1032,8 @@ async function init() {
 
   await Promise.all([
       loadKPIs(),
-      loadAutoMailTemplates(),
-      loadSavedSequences()
+      AutoMail.loadAutoMailTemplates(),
+      AutoMail.loadSavedSequences()
   ]);
 }
 

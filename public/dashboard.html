@@ -11,6 +11,42 @@
 <script src="tailwind-config.js"></script>
 <link rel="stylesheet" href="styles.css?v=neo">
 
+  <style>
+    /* Premium Job History & Queue Styles */
+    .job-card { border-bottom: 1px solid #f1f5f9; padding: 1.25rem; transition: background 0.2s; }
+    .job-card:hover { background: #f8fafc; }
+    .job-header-v2 { display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem; }
+    .job-status-pill { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.05em; }
+    .status--running { background: #dcfce7; color: #166534; }
+    .status--stopped { background: #fee2e2; color: #991b1b; }
+    .status--completed { background: #f0f9ff; color: #075985; }
+
+    .job-files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; }
+    .file-chip { 
+        display: flex; align-items: center; gap: 0.5rem; padding: 6px 10px; 
+        border-radius: 8px; border: 1px solid #e2e8f0; background: white;
+        font-size: 11px; transition: all 0.2s; position: relative;
+    }
+    .file-chip:hover { border-color: var(--blue-primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .file-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #475569; }
+    
+    .file-ops { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+    .file-chip:hover .file-ops { opacity: 1; }
+    .file-ops a { 
+        padding: 4px; border-radius: 4px; color: #94a3b8; transition: all 0.2s;
+    }
+    .file-ops a:hover { background: #f1f5f9; color: var(--blue-primary); }
+    
+    .file--csv { border-left-width: 4px; border-left-color: #10b981; }
+    .file--json { border-left-width: 4px; border-left-color: #3b82f6; }
+    .file--txt { border-left-width: 4px; border-left-color: #f59e0b; }
+    .file--phone { background: #f5f3ff; }
+
+    .queue-badge { transition: all 0.3s; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--border); }
+    .queue--active { border-color: #fbbf24; background: #fffbeb; }
+    .queue--idle { border-color: #e2e8f0; background: #f8fafc; }
+  </style>
+
 
 
 
