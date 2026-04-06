@@ -8,28 +8,37 @@ let autoMailTemplates = [];
 let autoMailSequences = [];
 let savedSequencesConfigs = [];
 
-// Elements (managed locally but initialized via check)
-const adminAutoMailCard = document.getElementById('adminAutoMailCard');
-const enableAutoMailEl = document.getElementById('enableAutoMail');
-const autoMailSettingsEl = document.getElementById('autoMailSettings');
-const smtpListEl = document.getElementById('autoMailSmtpList');
-const autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
-const btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
-const templateSelectEl = document.getElementById('autoMailTemplateSelect');
-const templateNameEl = document.getElementById('autoMailTemplateName');
-const senderNameEl = document.getElementById('autoMailSenderName');
-const subjectEl = document.getElementById('autoMailSubject');
-const htmlEl = document.getElementById('autoMailHtml');
-const btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
-const btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
-const savedSequenceSelect = document.getElementById('savedSequenceSelect');
-const btnSaveSequence = document.getElementById('btnSaveSequence');
-const btnDeleteSequence = document.getElementById('btnDeleteSequence');
-const savedSequencesContainer = document.getElementById('savedSequencesContainer');
+// Elements (lazy loaded or initialized in initAutoMailUI)
+let adminAutoMailCard, enableAutoMailEl, autoMailSettingsEl, smtpListEl, autoMailSequenceContainer, btnAddAutoMailStep;
+let templateSelectEl, templateNameEl, senderNameEl, subjectEl, htmlEl, btnSaveTemplateEl, btnDeleteTemplateEl;
+let savedSequenceSelect, btnSaveSequence, btnDeleteSequence, savedSequencesContainer;
+
+function cacheElements() {
+    adminAutoMailCard = document.getElementById('adminAutoMailCard');
+    enableAutoMailEl = document.getElementById('enableAutoMail');
+    autoMailSettingsEl = document.getElementById('autoMailSettings');
+    smtpListEl = document.getElementById('autoMailSmtpList');
+    autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
+    btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
+    templateSelectEl = document.getElementById('autoMailTemplateSelect');
+    templateNameEl = document.getElementById('autoMailTemplateName');
+    senderNameEl = document.getElementById('autoMailSenderName');
+    subjectEl = document.getElementById('autoMailSubject');
+    htmlEl = document.getElementById('autoMailHtml');
+    btnSaveTemplateEl = document.getElementById('btnSaveAutoMailTemplate');
+    btnDeleteTemplateEl = document.getElementById('btnDeleteTemplate');
+    savedSequenceSelect = document.getElementById('savedSequenceSelect');
+    btnSaveSequence = document.getElementById('btnSaveSequence');
+    btnDeleteSequence = document.getElementById('btnDeleteSequence');
+    savedSequencesContainer = document.getElementById('savedSequencesContainer');
+}
 
 export async function initAutoMailUI() {
-    if (!adminAutoMailCard) return;
-    adminAutoMailCard.style.display = 'block';
+    cacheElements();
+
+    if (adminAutoMailCard) {
+        adminAutoMailCard.style.display = 'block';
+    }
 
     if (enableAutoMailEl) {
         enableAutoMailEl.onchange = async () => {
@@ -44,7 +53,12 @@ export async function initAutoMailUI() {
         };
     }
 
-    if (btnAddAutoMailStep) btnAddAutoMailStep.onclick = () => addSequenceStep();
+    if (btnAddAutoMailStep) {
+        btnAddAutoMailStep.onclick = (e) => {
+            e.preventDefault();
+            addSequenceStep();
+        };
+    }
     if (btnSaveTemplateEl) btnSaveTemplateEl.onclick = saveAutoMailTemplate;
     if (btnDeleteTemplateEl) btnDeleteTemplateEl.onclick = deleteTemplate;
     if (btnSaveSequence) btnSaveSequence.onclick = saveSequenceConfig;
@@ -72,21 +86,25 @@ export async function initAutoMailUI() {
         savedSequenceSelect.onchange = () => {
             const seqId = savedSequenceSelect.value;
             const seq = savedSequencesConfigs.find(s => String(s.id) === String(seqId));
-            if (seq && seq.steps) {
-                autoMailSequences = [...seq.steps];
+            if (seq && seq.config && seq.config.steps) {
+                autoMailSequences = [...seq.config.steps];
                 renderAutoMailSequence();
             }
         };
     }
+
+    // Expose SMTP management for inline handlers on dashboard.html
+    window.submitNewSmtp = submitNewSmtp;
+    window.deleteAutoMailSmtp = deleteAutoMailSmtp;
 }
 
 export async function loadAutoMailTemplates() {
     try {
-        const templates = await fetchJson('/api/mail-templates');
-        autoMailTemplates = templates;
+        const data = await fetchJson('/api/automail/templates');
+        autoMailTemplates = data.templates || [];
         if (templateSelectEl) {
             templateSelectEl.innerHTML = '<option value="">-- Create New Template --</option>' +
-                templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+                autoMailTemplates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
         }
         renderTemplateDropdownsAcrossSteps();
     } catch (err) {
@@ -96,13 +114,23 @@ export async function loadAutoMailTemplates() {
 
 async function loadSenderSmtps() {
     try {
-        const smtps = await fetchJson('/api/smtps');
+        const smtpsRes = await fetchJson('/api/sender/smtp');
+        const smtps = smtpsRes.accounts || [];
         if (smtpListEl) {
+            if (smtps.length === 0) {
+                smtpListEl.innerHTML = '<div class="text-[10px] text-slate-500 italic">No SMTP accounts found in Sender.</div>';
+                return;
+            }
             smtpListEl.innerHTML = smtps.map(s => `
-                <label class="smtp-option">
-                    <input type="checkbox" name="smtp_ids" value="${s.id}" checked>
-                    <span>${escapeHtml(s.user)} (${escapeHtml(s.host)})</span>
-                </label>
+                <div class="flex items-center justify-between group p-1.5 hover:bg-red-50 rounded transition-colors border border-transparent hover:border-red-100">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1">
+                        <input type="checkbox" name="smtp_ids" value="${s.id}" checked class="w-3.5 h-3.5 text-red-600 rounded border-slate-300 focus:ring-red-500">
+                        <span class="text-[11px] font-medium text-slate-700 truncate">${escapeHtml(s.user)} <span class="text-slate-400 font-normal">(${escapeHtml(s.host)})</span></span>
+                    </label>
+                    <button type="button" onclick="window.deleteAutoMailSmtp('${s.id}')" class="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all" title="Delete Account">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                    </button>
+                </div>
             `).join('');
         }
     } catch (err) {
@@ -112,11 +140,11 @@ async function loadSenderSmtps() {
 
 export async function loadSavedSequences() {
     try {
-        const sequences = await fetchJson('/api/mail-sequences');
-        savedSequencesConfigs = sequences;
+        const data = await fetchJson('/api/automail/saved-sequences');
+        savedSequencesConfigs = data.sequences || [];
         if (savedSequenceSelect) {
             savedSequenceSelect.innerHTML = '<option value="">-- Select Saved Sequence --</option>' +
-                sequences.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+                savedSequencesConfigs.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
         }
     } catch (err) {
         console.error('Failed to load sequences', err);
@@ -134,10 +162,24 @@ function renderTemplateDropdownsAcrossSteps() {
 }
 
 function addSequenceStep() {
-    const step = { templateId: "", delayDays: autoMailSequences.length === 0 ? 0 : 3 };
+    const step = { 
+        templateId: "", 
+        delayDays: autoMailSequences.length === 0 ? 0 : 3,
+        dependsOnIdx: autoMailSequences.length === 0 ? null : autoMailSequences.length - 1
+    };
     autoMailSequences.push(step);
     renderAutoMailSequence();
 }
+
+window.removeAutoMailStep = (idx) => {
+    autoMailSequences.splice(idx, 1);
+    // After removal, some dependsOnIdx might be invalid or need shifting
+    autoMailSequences.forEach((s, i) => {
+        if (i === 0) s.dependsOnIdx = null;
+        else if (s.dependsOnIdx >= i) s.dependsOnIdx = i - 1;
+    });
+    renderAutoMailSequence();
+};
 
 function renderAutoMailSequence() {
     if (!autoMailSequenceContainer) return;
@@ -154,20 +196,24 @@ function renderAutoMailSequence() {
         const isFirst = idx === 0;
         const delayHtml = isFirst 
             ? `<div class="text-[10px] font-bold text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded border border-blue-100 inline-block mb-3">Sent immediately on launch</div>`
-            : `<div class="flex items-center gap-2 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-200 w-fit">
+            : `<div class="flex items-center gap-2 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-200 w-fit flex-wrap">
                  <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Wait</span>
-                 <input type="number" class="w-12 px-1 py-0.5 text-center text-xs font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none" 
+                 <input type="number" class="step-delay w-12 px-1 py-0.5 text-center text-xs font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none" 
                         value="${step.delayDays}" min="1" 
                         oninput="window.updateStep(${idx}, 'delayDays', parseInt(this.value)||0)">
-                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1 whitespace-nowrap">Days After Step ${idx}</span>
+                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1 whitespace-nowrap">Days After</span>
+                 <select class="step-depends-on px-2 py-0.5 text-[10px] font-bold bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none uppercase tracking-tighter"
+                         onchange="window.updateStep(${idx}, 'dependsOnIdx', parseInt(this.value))">
+                    ${autoMailSequences.slice(0, idx).map((s, i) => `<option value="${i}" ${parseInt(step.dependsOnIdx) === i ? 'selected' : ''}>Step ${i + 1}</option>`).join('')}
+                 </select>
                </div>`;
 
         return `
-        <div class="relative bg-white border border-slate-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 mb-5 group" data-idx="${idx}">
+        <div class="sequence-step-card relative bg-white border border-slate-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 mb-5 group" data-idx="${idx}">
             <span class="absolute -top-3 -left-3 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg ring-4 ring-slate-50">${idx + 1}</span>
             
             <button class="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100" 
-                    onclick="this.closest('.relative').remove(); return false;" title="Remove Step">
+                    onclick="window.removeAutoMailStep(${idx}); return false;" title="Remove Step">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
 
@@ -177,7 +223,7 @@ function renderAutoMailSequence() {
                 <div class="space-y-3">
                     <div class="form-group mb-0">
                         <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">Pick a Template</label>
-                        <select class="w-full px-3 py-2 text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
+                        <select class="step-template-select w-full px-3 py-2 text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
                                 onchange="window.updateStep(${idx}, 'templateId', this.value)">
                             <option value="">-- Custom Message --</option>
                             ${autoMailTemplates.map(t => `<option value="${t.id}" ${String(t.id) === String(step.templateId) ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
@@ -196,6 +242,7 @@ function renderAutoMailSequence() {
     `;
 }
 
+
 window.updateStep = (idx, field, value) => {
     if (autoMailSequences[idx]) {
         autoMailSequences[idx][field] = value;
@@ -203,23 +250,30 @@ window.updateStep = (idx, field, value) => {
 };
 
 async function saveAutoMailTemplate() {
+    const templateId = templateSelectEl.value;
     const payload = {
         name: templateNameEl.value,
         senderName: senderNameEl.value,
         subject: subjectEl.value,
         htmlContent: htmlEl.value
     };
+    if (templateId && templateId !== 'new') {
+        payload.id = templateId;
+    }
+    
     if (!payload.name) return alert("Please enter a template name");
     try {
-        const templateId = templateSelectEl.value;
-        const res = await fetch('/api/mail-templates' + (templateId ? '/' + templateId : ''), {
-            method: templateId ? 'PUT' : 'POST',
+        const res = await fetch('/api/automail/templates', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (res.ok) {
             alert("Template saved!");
             await loadAutoMailTemplates();
+        } else {
+            const errData = await res.json();
+            alert("Error saving template: " + (errData.error || "Unknown error"));
         }
     } catch (err) {
         alert("Error saving template");
@@ -228,10 +282,10 @@ async function saveAutoMailTemplate() {
 
 async function deleteTemplate() {
     const templateId = templateSelectEl.value;
-    if (!templateId) return alert("Please select a template to delete");
+    if (!templateId || templateId === 'new') return alert("Please select a template to delete");
     if (!confirm("Are you sure?")) return;
     try {
-        const res = await fetch('/api/mail-templates/' + templateId, { method: 'DELETE' });
+        const res = await fetch('/api/automail/templates/' + templateId, { method: 'DELETE' });
         if (res.ok) {
             alert("Template deleted");
             await loadAutoMailTemplates();
@@ -249,19 +303,21 @@ async function saveSequenceConfig() {
     const name = prompt("Enter a name for this sequence:");
     if (!name) return;
     const steps = [...document.querySelectorAll('.sequence-step-card')].map(card => {
+        const dependsOnSelect = card.querySelector('.step-depends-on');
         return {
             templateId: card.querySelector('.step-template-select').value,
-            delayDays: parseInt(card.querySelector('.step-delay').value) || 0
+            delayDays: parseInt(card.querySelector('.step-delay').value) || 0,
+            dependsOnIdx: dependsOnSelect ? parseInt(dependsOnSelect.value) : null
         };
     }).filter(s => s.templateId);
 
     if (steps.length === 0) return alert("Please add at least one step with a template");
 
     try {
-        const res = await fetch('/api/mail-sequences', {
+        const res = await fetch('/api/automail/saved-sequences', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, steps })
+            body: JSON.stringify({ name, config: { steps } })
         });
         if (res.ok) {
             alert("Sequence saved!");
@@ -277,7 +333,7 @@ async function deleteSequenceConfig() {
     if (!seqId) return alert("Please select a sequence to delete");
     if (!confirm("Are you sure?")) return;
     try {
-        const res = await fetch('/api/mail-sequences/' + seqId, { method: 'DELETE' });
+        const res = await fetch('/api/automail/saved-sequences/' + seqId, { method: 'DELETE' });
         if (res.ok) {
             alert("Sequence deleted");
             await loadSavedSequences();
@@ -293,9 +349,11 @@ export function getAutoMailPayload() {
 
     const smtpIds = [...document.querySelectorAll('input[name="smtp_ids"]:checked')].map(i => i.value);
     const steps = [...document.querySelectorAll('.sequence-step-card')].map(card => {
+        const dependsOnSelect = card.querySelector('.step-depends-on');
         return {
             templateId: card.querySelector('.step-template-select').value,
-            delayDays: parseInt(card.querySelector('.step-delay').value) || 0
+            delayDays: parseInt(card.querySelector('.step-delay').value) || 0,
+            dependsOnIdx: dependsOnSelect ? parseInt(dependsOnSelect.value) : null
         };
     }).filter(s => s.templateId);
 
@@ -318,5 +376,62 @@ export function setupSavedSequenceListeners(callback) {
             const seq = savedSequencesConfigs.find(s => String(s.id) === String(seqId));
             callback(seq);
         });
+    }
+}
+
+async function submitNewSmtp(e) {
+    if (e) e.preventDefault();
+    const btn = document.getElementById('btnSaveSmtpDash');
+    const errEl = document.getElementById('addSmtpErrorDash');
+    if (errEl) errEl.textContent = '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+    }
+
+    try {
+        const payload = {
+            host: document.getElementById('newSmtpHost').value.trim(),
+            port: document.getElementById('newSmtpPort').value.trim(),
+            user: document.getElementById('newSmtpUser').value.trim(),
+            pass: document.getElementById('newSmtpPass').value.trim()
+        };
+
+        const res = await fetchJson('/api/sender/smtp', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        if (res.success) {
+            const form = document.getElementById('addSmtpFormObj');
+            if (form) {
+                form.reset();
+                form.style.display = 'none';
+            }
+            await loadSenderSmtps();
+        } else {
+            if (errEl) errEl.textContent = res.error || 'Failed to add account.';
+        }
+    } catch (err) {
+        if (errEl) errEl.textContent = err.message;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Verify & Save';
+        }
+    }
+}
+
+async function deleteAutoMailSmtp(id) {
+    if (!confirm('Delete this SMTP account?')) return;
+    try {
+        const res = await fetchJson(`/api/sender/smtp/${id}`, { method: 'DELETE' });
+        if (res.success) {
+            await loadSenderSmtps();
+        } else {
+            alert('Failed to delete account: ' + (res.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Error deleting account: ' + err.message);
     }
 }

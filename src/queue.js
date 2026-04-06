@@ -152,10 +152,10 @@ export class JobQueue extends EventEmitter {
 
     // Persist to DB with pending status
     db.prepare(`
-      INSERT INTO jobs (id, userId, status, params, events, files, leadsFound, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO jobs (id, userId, categoryId, status, params, events, files, leadsFound, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      job.id, job.userId, job.status,
+      job.id, job.userId, job.params.category || null, job.status,
       JSON.stringify(job.params), JSON.stringify(job.events),
       JSON.stringify(job.files), job.leadsFound, job.createdAt
     );

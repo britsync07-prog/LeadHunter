@@ -132,13 +132,9 @@ function renderJobsList(categoryId) {
     }
 
     // Categorize files
-    const emailFiles = (job.files || []).filter(f =>
-      f.includes("_emails.txt") || f === "all_emails.txt" || f === "google_maps_emails.txt"
-    );
-    const phoneFiles = (job.files || []).filter(f =>
-      f.includes("_phones.txt") || f === "all_phones.txt"
-    );
-    const csvFiles = (job.files || []).filter(f => f.endsWith('.csv'));
+    const emailFiles = (job.files || []).filter(f => f === "all_emails.txt");
+    const phoneFiles = (job.files || []).filter(f => f === "all_phones.txt");
+    const csvFiles = (job.files || []).filter(f => f.toLowerCase().endsWith('.csv'));
 
     // Create chips
     const createChip = (fileName, typeClass, icon) => `

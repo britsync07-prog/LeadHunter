@@ -65,11 +65,18 @@ export async function authenticate(username, password) {
   return null;
 }
 
-export async function registerUser(username, email, password) {
+export async function registerUser(username, email, password, ipAddress = null) {
   try {
     const existing = db.prepare("SELECT id FROM users WHERE username = ? OR email = ?").get(username, email);
     if (existing) {
       return { error: "Username or email already exists." };
+    }
+
+    if (ipAddress) {
+      const existingIp = db.prepare("SELECT id FROM users WHERE ipAddress = ?").get(ipAddress);
+      if (existingIp) {
+        return { error: "An account has already been registered from this IP address." };
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -78,9 +85,9 @@ export async function registerUser(username, email, password) {
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 3);
     db.prepare(`
-      INSERT INTO users (id, username, email, password, subscriptionPlan, trialEndsAt)
-      VALUES (?, ?, ?, ?, 'free', ?)
-    `).run(newId, username, email, hashedPassword, trialEndsAt.toISOString());
+      INSERT INTO users (id, username, email, password, subscriptionPlan, trialEndsAt, ipAddress)
+      VALUES (?, ?, ?, ?, 'free', ?, ?)
+    `).run(newId, username, email, hashedPassword, trialEndsAt.toISOString(), ipAddress);
 
     return { success: true, username };
   } catch (error) {

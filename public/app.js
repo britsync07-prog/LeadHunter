@@ -311,10 +311,9 @@ function renderHistory(jobs) {
       }
 
       const fileList = (job.files || []);
-      const isPrimary = (f) => f === "all_emails.txt" || f === "all_phones.txt" || f.endsWith(".csv");
+      const isPrimary = (f) => f === "all_emails.txt" || f === "all_phones.txt" || f.toLowerCase().endsWith('.csv');
 
       const primaryFiles = fileList.filter(isPrimary);
-      const secondaryFiles = fileList.filter(f => !isPrimary(f) && (f.endsWith(".txt") || f.endsWith(".json")));
 
       // We replace the old history file elements logic with the newer UI grid elements if appropriate
       let analyticsHtml = "";
@@ -366,7 +365,6 @@ function renderHistory(jobs) {
 
         <div class="job-files-grid mt-3" id="files-${job.id}">
             ${primaryFiles.map(f => renderFileLink(job.id, f)).join('')}
-            ${secondaryFiles.map(f => renderFileLink(job.id, f)).join('')}
         </div>
       `;
       historyEl.appendChild(div);
@@ -432,6 +430,7 @@ getEl("run")?.addEventListener("click", async () => {
     if (!includeGoogleMaps && !includeSocial) return alert("Please select at least one data source.");
 
     const autoMailConfig = AutoMail.getAutoMailPayload();
+    const categoryId = document.getElementById("jobCategory")?.value || "";
     
     try {
         Utils.setStatus("Starting job...", "running");
@@ -445,6 +444,7 @@ getEl("run")?.addEventListener("click", async () => {
                 includeGoogleMaps,
                 includeSocial,
                 scrapeMode,
+                category: categoryId,
                 autoMailConfig
             })
         });
@@ -559,17 +559,67 @@ function setupModalBindings() {
 window.openFilePreview = async (jobId, fileName) => {
     const modal = getEl("filePreviewModal");
     const contentEl = getEl("modalFileContent");
+    const downloadBtn = getEl("modalDownloadBtn");
     if (!modal || !contentEl) return;
     
     modal.style.display = 'flex';
-    contentEl.textContent = "Loading...";
+    contentEl.innerHTML = '<div style="padding:20px; color:var(--text-muted);">Loading...</div>';
+    if (downloadBtn) {
+        downloadBtn.href = `/api/jobs/${jobId}/files/${fileName}`;
+        downloadBtn.setAttribute('download', fileName);
+    }
     
     try {
         const res = await fetch(`/api/jobs/${jobId}/files/${fileName}`);
+        if (!res.ok) throw new Error("Failed to load file");
         const text = await res.text();
-        contentEl.textContent = text;
+        
+        if (fileName.toLowerCase().endsWith('.csv')) {
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length === 0) {
+                contentEl.innerHTML = '<div style="padding:20px; color:var(--text-muted);">File is empty.</div>';
+            } else {
+                const table = document.createElement('table');
+                table.className = 'csv-table';
+                table.style.width = '100%';
+                table.style.borderCollapse = 'collapse';
+                table.style.fontSize = '12px';
+                
+                lines.forEach((line, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid var(--border-color)';
+                    const cols = line.split(',');
+                    cols.forEach(col => {
+                        const cell = document.createElement(idx === 0 ? 'th' : 'td');
+                        cell.style.padding = '8px';
+                        cell.style.textAlign = 'left';
+                        cell.textContent = col.trim();
+                        tr.appendChild(cell);
+                    });
+                    table.appendChild(tr);
+                });
+                const wrapper = document.createElement('div');
+                wrapper.className = 'csv-table-wrapper';
+                wrapper.appendChild(table);
+                contentEl.innerHTML = '';
+                contentEl.appendChild(wrapper);
+            }
+        } else {
+            // Render as raw text in a pre tag
+            const pre = document.createElement('pre');
+            pre.style.margin = '0';
+            pre.style.padding = '24px';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordBreak = 'break-all';
+            pre.style.fontFamily = 'monospace';
+            pre.style.fontSize = '13px';
+            pre.style.color = 'var(--text-primary)';
+            pre.textContent = text;
+            contentEl.innerHTML = '';
+            contentEl.appendChild(pre);
+        }
     } catch (err) {
-        contentEl.textContent = "Error loading file.";
+        contentEl.innerHTML = `<div style="padding:20px; color:var(--red);">Error loading file: ${err.message}</div>`;
     }
 };
 

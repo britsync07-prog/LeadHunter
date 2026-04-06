@@ -99,13 +99,64 @@
             box-shadow: 0 30px 60px -15px rgba(1, 33, 105, 0.15);
         }
 
-        /* UK Accents */
-        .uk-accent-line {
-            height: 4px;
-            background: linear-gradient(to right, #012169, #C8102E);
-            width: 80px;
-            border-radius: 2px;
+        /* Antigravity Stacked Card Animation */
+        .card-stack-wrapper {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            perspective: 1000px;
+            background-color: #000D2B; /* Brand 900 for high contrast */
         }
+
+        @media (min-width: 768px) {
+            .card-stack-wrapper {
+                height: 400px;
+            }
+        }
+
+        .antigravity-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 1rem;
+            border: 4px solid #7B9DFF; /* Brand 300 colored border */
+            background-color: #ffffff;
+            box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(123, 157, 255, 0.5);
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: bob 4s ease-in-out infinite;
+        }
+
+        /* Continuous bobbing and tilt */
+        @keyframes bob {
+            0%, 100% {
+                transform: translateY(0px) rotateX(0deg) rotateY(0deg);
+            }
+            25% {
+                transform: translateY(-8px) rotateX(2deg) rotateY(1deg);
+            }
+            75% {
+                transform: translateY(8px) rotateX(-2deg) rotateY(-1deg);
+            }
+        }
+
+        /* Use different delays for cards to make them feel independent */
+        .antigravity-card:nth-child(1) { animation-delay: 0s; }
+        .antigravity-card:nth-child(2) { animation-delay: -1.3s; }
+        .antigravity-card:nth-child(3) { animation-delay: -2.6s; }
+
+        .card-float-away {
+            translate: 0% -120px !important;
+            scale: 1.1 !important;
+            opacity: 0 !important;
+            pointer-events: none;
+        }
+
+        .card-stack-0 { z-index: 3; translate: 0% 0px; scale: 1; opacity: 1; }
+        .card-stack-1 { z-index: 2; translate: 0% 0px; scale: 0.95; opacity: 0; pointer-events: none; }
+        .card-stack-2 { z-index: 1; translate: 0% 0px; scale: 0.95; opacity: 0; pointer-events: none; }
     </style>
 </head>
 
@@ -170,18 +221,24 @@
             </p>
 
             <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
-                <a href="#pricing"
-                    class="w-full sm:w-auto px-10 py-5 text-white bg-brand-500 rounded-2xl font-bold text-lg shadow-2xl shadow-brand-500/30 hover:-translate-y-1 transition-all duration-300 hover:shadow-brand-500/40">
-                    Get Started
+                <a href="/signup.html"
+                    class="w-full sm:w-auto px-10 py-5 text-white bg-brand-500 rounded-2xl font-bold text-lg shadow-2xl shadow-brand-500/30 hover:-translate-y-1 transition-all duration-300 hover:shadow-brand-500/40 text-center">
+                    Start 3 Days Free Trial
                 </a>
-                <a href="#features"
+                <a href="/Lead%20Hunter%20_1_1.0.apk" download="Lead Hunter _1_1.0.apk"
                     class="w-full sm:w-auto px-10 py-5 text-brand-900 bg-white border-2 border-slate-100 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
-                    Get a Demo
+                    Download Phone App
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <path d="M5 12h14M12 5l7 7-7 7" />
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" x2="12" y1="15" y2="3" />
                     </svg>
                 </a>
             </div>
+            <p class="text-sm font-bold text-slate-400 mt-6 mb-2 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12" /></svg>
+                No credit card required
+            </p>
         </div>
 
         <!-- Dashboard Preview Mockup -->
@@ -204,8 +261,16 @@
                         <div class="h-2 w-32 bg-slate-200 rounded-full"></div>
                     </div>
                 </div>
-                <img src="https://i.ibb.co.com/GhWWt5t/gh.webp" alt="Dashboard Preview"
-                    class="w-full h-[250px] md:h-[400px] object-cover opacity-90 mix-blend-multiply" />
+                <div class="card-stack-wrapper">
+                    <div id="card-stack" class="relative w-full h-full">
+                        <img src="https://i.ibb.co.com/DP9K6zxd/photo-6239932133963140892-w.jpg" 
+                            class="antigravity-card card-stack-0" alt="Dashboard 1" />
+                        <img src="https://i.ibb.co.com/nsWvJpYT/photo-6239932133963140901-w.jpg" 
+                            class="antigravity-card card-stack-1" alt="Dashboard 2" />
+                        <img src="https://i.ibb.co.com/W4sGrZHC/photo-6239932133963140899-w.jpg" 
+                            class="antigravity-card card-stack-2" alt="Dashboard 3" />
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -510,6 +575,28 @@
             }, { threshold: 0.1 });
 
             document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+
+            // Stacked Card Rotation Logic
+            const cards = Array.from(document.querySelectorAll('.antigravity-card'));
+            let currentIdx = 0;
+
+            if (cards.length > 0) {
+                setInterval(() => {
+                    const topCard = cards[currentIdx];
+                    topCard.classList.add('card-float-away');
+
+                    setTimeout(() => {
+                        topCard.classList.remove('card-float-away');
+                        currentIdx = (currentIdx + 1) % cards.length;
+
+                        cards.forEach((card, i) => {
+                            const pos = (i - currentIdx + cards.length) % cards.length;
+                            card.classList.remove('card-stack-0', 'card-stack-1', 'card-stack-2');
+                            card.classList.add(`card-stack-${pos}`);
+                        });
+                    }, 800);
+                }, 3000);
+            }
         });
     </script>
 </body>

@@ -392,7 +392,9 @@ app.patch("/api/admin/users/:id/suspend", requireAdmin, (req, res) => {
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) return res.status(400).json({ error: "Missing fields" });
-  const result = await registerUser(username, email, password);
+  
+  // Enforce IP uniqueness
+  const result = await registerUser(username, email, password, req.ip);
   if (result.error) return res.status(400).json({ error: result.error });
   const user = await authenticate(username, password);
   if (user) {
@@ -704,26 +706,28 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   const usage = queue.getUserUsage(req.session.user.username);
 
   if (!isAdmin) {
-    if (userPlan === 'expired' || userPlan === 'free' || userPlan === 'none') {
-      return res.status(403).json({ error: "Active subscription required. Please update your plan to continue." });
-    }
-
     let dailyLimit = 0;
-    let monthlyLimit = 0;
+    const now = new Date();
+    const trialEnds = req.session.user.trialEndsAt ? new Date(req.session.user.trialEndsAt) : new Date(0);
 
     if (userPlan === 'premium') {
       // Premium has unlimited leads
       dailyLimit = Infinity;
-      monthlyLimit = Infinity;
     } else if (userPlan === 'advance') {
       return res.status(403).json({ error: "The Scraper is not included in the Advance plan. Please upgrade to Premium to use this feature." });
+    } else if (userPlan === 'free') {
+      // Trial user restriction: Max 100 leads
+      if (now > trialEnds) {
+        return res.status(403).json({ error: "Your 3-day free trial has expired. Please upgrade your plan." });
+      }
+      dailyLimit = 100;
     } else {
-      // Any other plan (none) is treated as expired
-      return res.status(403).json({ error: "Active subscription required." });
+      // Any other plan (none, expired)
+      return res.status(403).json({ error: "Active subscription required. Please update your plan to continue." });
     }
 
-    if (usage.dailyCount >= dailyLimit || usage.monthlyCount >= monthlyLimit) {
-      return res.status(403).json({ error: "Limit reached" });
+    if (usage.dailyCount >= dailyLimit) {
+      return res.status(403).json({ error: `Daily limit of ${dailyLimit} leads reached. Upgrade for more.` });
     }
   }
 
@@ -734,8 +738,11 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   if (nextAutoMailConfig && !isAdmin && userPlan !== 'premium') {
     return res.status(403).json({ error: "Auto-Mail requires a Premium or Admin account." });
   }
+  
+  const maxLeads = (effectivePlan === 'free') ? 100 : undefined;
+  
   const job = queue.addJob(
-    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, includeSocial, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig: nextAutoMailConfig, dbUserId: req.session.user.id } },
+    { id: crypto.randomUUID(), params: { country, cities, states, niches, includeGoogleMaps, includeSocial, scrapeMode, sites, category, userPlan: effectivePlan, isAdmin, autoMailConfig: nextAutoMailConfig, dbUserId: req.session.user.id, maxLeads } },
     req.session.user.username // username is the userId key used throughout the queue
   );
 

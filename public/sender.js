@@ -342,6 +342,8 @@ async function initSmtpUI() {
       }
 
       await loadSmtpAccounts();
+      await AutoMail.loadAutoMailTemplates();
+      await AutoMail.loadSavedSequences();
     }
   } catch (err) {
     console.error("Failed to init SMTP UI:", err);

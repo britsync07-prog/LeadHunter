@@ -343,15 +343,21 @@ export const processPendingEmails = async (hostUrlFallback) => {
 
       const nextStep = rec.currentStep + 1;
       if (nextStep < sequences.length) {
-        const nextDelayDays = sequences[nextStep].delayDays || 0;
+        const nextStepConfig = sequences[nextStep];
+        const nextDelayDays = nextStepConfig.delayDays || 0;
+        
+        // If the next step depends on a specific previous step, we'd ideally know when that step was sent.
+        // For now, we continue the linear progression but respect the delayDays of the next step.
         let nextDate = new Date();
         nextDate.setHours(nextDate.getHours() + (nextDelayDays * 24));
+        
         db.prepare(`UPDATE recipients SET currentStep = ?, nextSendAt = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
           .run(nextStep, nextDate.toISOString(), rec.id);
         logSender('Queued next follow-up step', {
           campaignId: rec.campaignId,
           recipientId: rec.id,
           nextStep,
+          dependsOnIdx: nextStepConfig.dependsOnIdx,
           nextSendAt: nextDate.toISOString()
         });
       } else {

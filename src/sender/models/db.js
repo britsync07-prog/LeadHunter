@@ -104,6 +104,7 @@ const initDb = () => {
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       userId TEXT NOT NULL,
+      categoryId TEXT, -- Added for campaign association
       status TEXT DEFAULT 'queued', -- 'queued', 'running', 'completed', 'failed', 'stopped'
       params TEXT, -- JSON string
       events TEXT, -- JSON string
@@ -179,9 +180,11 @@ const initDb = () => {
 
   safeAlter(`ALTER TABLE users ADD COLUMN isAdmin INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE users ADD COLUMN isSuspended INTEGER DEFAULT 0`);
+  safeAlter(`ALTER TABLE users ADD COLUMN ipAddress TEXT`);
 
   safeAlter(`ALTER TABLE jobs ADD COLUMN phonesFound INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE jobs ADD COLUMN autoMailConfig TEXT`);
+  safeAlter(`ALTER TABLE jobs ADD COLUMN categoryId TEXT`);
 
   safeAlter(`ALTER TABLE campaigns ADD COLUMN abortReason TEXT`);
   safeAlter(`ALTER TABLE campaigns ADD COLUMN deliveredCount INTEGER DEFAULT 0`);

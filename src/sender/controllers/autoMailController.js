@@ -23,10 +23,18 @@ export const saveTemplate = (req, res) => {
     }
 
     try {
-        if (id) {
-            // Update
-            db.prepare(`UPDATE auto_mail_templates SET name=?, senderName=?, subject=?, htmlContent=?, smtpAccountIds=? WHERE id=? AND userId=?`)
+        // Check if we are updating (id present and not 'new')
+        if (id && id !== 'new') {
+            const result = db.prepare(`UPDATE auto_mail_templates SET name = ?, senderName = ?, subject = ?, htmlContent = ?, smtpAccountIds = ? WHERE id = ? AND userId = ?`)
               .run(name, senderName, subject, htmlContent, JSON.stringify(smtpAccountIds || []), id, userId);
+
+            if (result.changes === 0) {
+                // If ID was provided but no row updated, it might be a new template with a specific ID or unauthorized
+                const newId = id;
+                db.prepare(`INSERT INTO auto_mail_templates (id, userId, name, senderName, subject, htmlContent, smtpAccountIds) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+                  .run(newId, userId, name, senderName, subject, htmlContent, JSON.stringify(smtpAccountIds || []));
+                return res.status(201).json({ success: true, id: newId });
+            }
             res.json({ success: true, id });
         } else {
             // Create
