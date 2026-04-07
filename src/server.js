@@ -374,6 +374,7 @@ app.patch("/api/admin/users/:id/password", requireAdmin, async (req, res) => {
 
 // --- PREMIUM AUTO-MAIL ROUTES ---
 app.get("/api/automail/templates", requirePremiumOrAdmin, autoMailController.getTemplates);
+app.get("/api/automail/templates/:id", requirePremiumOrAdmin, autoMailController.getTemplate);
 app.post("/api/automail/templates", requirePremiumOrAdmin, autoMailController.saveTemplate);
 app.delete("/api/automail/templates/:id", requirePremiumOrAdmin, autoMailController.deleteTemplate);
 
@@ -901,7 +902,7 @@ app.post("/api/sender/extract-job-emails", requireAuth, express.json(), (req, re
 
 app.get("/api/queue", requireAuth, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(queue.getQueueStatus());
+  res.json(queue.getQueueStatus(req.session.user.username));
 });
 
 app.post("/api/check-template", requireAuth, async (req, res) => {

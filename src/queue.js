@@ -488,10 +488,19 @@ export class JobQueue extends EventEmitter {
     });
   }
 
-  getQueueStatus() {
+  getQueueStatus(userId) {
+    if (userId) {
+      const activeCount = this.userActiveJobCounts.get(userId) || 0;
+      return {
+        active: activeCount,
+        queued: 0,
+        total: activeCount
+      };
+    }
     return {
       active: this.activeJobs.size,
       queued: 0, // No queue — jobs are instant-run or instant-reject
+      total: this.activeJobs.size
     };
   }
 

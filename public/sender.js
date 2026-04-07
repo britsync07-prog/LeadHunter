@@ -401,14 +401,9 @@ function getLaunchValidationErrors() {
     if (!directSubjectEl.value.trim()) errors.push('Direct email subject is required.');
     if (!directHtmlContentEl.value.trim()) errors.push('Direct email content is required.');
   } else {
-    if (!sequences.length) {
-      errors.push('At least one follow-up step is required.');
-    } else {
-      sequences.forEach((seq, index) => {
-        if (!seq.senderName.trim() || !seq.subject.trim() || !seq.htmlContent.trim()) {
-          errors.push(`Follow-up step ${index + 1} is incomplete.`);
-        }
-      });
+    const automailData = AutoMail.getAutoMailPayload();
+    if (!automailData || !automailData.steps || automailData.steps.length === 0) {
+      errors.push('At least one follow-up step with complete content is required.');
     }
   }
 
@@ -478,160 +473,19 @@ async function deleteSmtp(id) {
 window.submitNewSmtp = submitNewSmtp;
 window.deleteSmtp = deleteSmtp;
 
-// --- SEQUENCE BUILDER LOGIC ---
-function addSequenceStep() {
-    const defaultDepends = sequences.length > 0 ? sequences[sequences.length - 1].id : null;
-    sequences.push({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-        templateId: '',
-        delayDays: sequences.length === 0 ? 0 : 1,
-        dependsOnId: defaultDepends,
-        senderName: '',
-        subject: '',
-        htmlContent: ''
-    });
-    renderSequences();
-    validateForm();
-}
+// --- SEQUENCE BUILDER LOGIC (REPLACED BY AUTOMATION MODULE) ---
+// We let automail.js handle the sequence logic for consistency across pages.
 
-window.updateStepTemplate = function(id, templateId) {
-    const step = sequences.find(s => s.id === id);
-    if (!step) return;
-    step.templateId = templateId;
-    if (templateId) {
-        // Fetch from the already loaded templates if possible, or just let it be.
-        // We can get them from window.autoMailTemplates if we export it or just use API.fetchJson again.
-        // But app.js already has them. I'll just use a fetch logic or assume they are globably accessible if I change app.js.
-        // Or I can just use the select element to find the data.
-        API.fetchJson(`/api/automail/templates/${templateId}`).then(t => {
-            if (t) {
-                step.senderName = t.senderName || '';
-                step.subject = t.subject || '';
-                step.htmlContent = t.htmlContent || '';
-                renderSequences();
-                validateForm();
-            }
-        });
-    } else {
-        step.senderName = '';
-        step.subject = '';
-        step.htmlContent = '';
-        renderSequences();
-        validateForm();
-    }
-};
+// Fix: Bind the updateStep function for the inline handlers in sender.html
+// Since sender.js is a module, window.updateStep should already be set by automail.js
+// but we ensure it is correctly integrated.
 
-function removeSequenceStep(id) {
-    sequences = sequences.filter(s => s.id !== id);
-    if (sequences.length === 0) addSequenceStep();
-    else {
-        renderSequences();
-        validateForm();
-    }
-}
+// Helper to bridge the gap if sender.html still calls old names
+window.updateSeqStep = (idx, field, value) => window.updateStep(idx, field, value);
+window.removeSeqStep = (idx) => window.removeAutoMailStep(idx);
 
-function updateStepField(id, field, value) {
-    const step = sequences.find(s => s.id === id);
-    if (step) {
-        step[field] = value;
-        validateForm();
-    }
-}
-
-function renderSequences() {
-    if (!sequenceContainer) return;
-    sequenceContainer.innerHTML = '';
-    
-    // Get templates for the dropdown
-    const templateSelect = document.getElementById('autoMailTemplateSelect');
-    const templateOptions = Array.from(templateSelect?.options || [])
-        .filter(opt => opt.value !== 'new')
-        .map(opt => `<option value="${opt.value}">${opt.textContent}</option>`)
-        .join('');
-
-    sequences.forEach((step, index) => {
-        const stepIndex = index + 1;
-        const isFirst = index === 0;
-
-        const delayHtml = isFirst 
-            ? `<div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-100 px-2 py-1 rounded inline-block mb-3">Instantly sent on launch</div>`
-            : `<div class="flex items-center gap-2 mb-3 bg-blue-50 p-2 rounded border border-blue-100 w-fit">
-                 <label class="text-xs font-bold text-blue-800 uppercase tracking-widest">Wait</label>
-                 <input type="number" min="0" value="${step.delayDays}" onchange="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" oninput="window.updateSeqStep('${step.id}', 'delayDays', parseInt(this.value)||0)" class="w-16 px-2 py-1 border rounded text-sm text-center font-mono border-blue-200 outline-none focus:ring-1 focus:ring-blue-500">
-                 <span class="text-xs font-bold text-blue-800 uppercase tracking-widest whitespace-nowrap">Days After</span>
-                 <select onchange="window.updateSeqStep('${step.id}', 'dependsOnId', this.value)" class="w-32 px-2 py-1 border rounded text-sm font-mono border-blue-200 outline-none focus:ring-1 focus:ring-blue-500">
-                    ${sequences.slice(0, index).map((s, i) => `<option value="${s.id}" ${step.dependsOnId === s.id ? 'selected' : ''}>Step ${i + 1}</option>`).join('')}
-                 </select>
-               </div>`;
-
-        const html = `
-          <div class="relative border border-slate-200 rounded-lg p-3 bg-white shadow-sm mt-4">
-            <span class="absolute -top-3 -left-3 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">${stepIndex}</span>
-            <button onclick="window.removeSeqStep('${step.id}')" class="absolute -top-2 -right-2 w-5 h-5 bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-400 rounded-full flex items-center justify-center transition-all bg-white shadow-sm" title="Remove Step">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            
-            ${delayHtml}
-            
-            <div class="space-y-2">
-              <select onchange="window.updateStepTemplate('${step.id}', this.value)" class="w-full px-2 py-1.5 border rounded-md text-sm font-mono border-slate-200 bg-slate-50 focus:outline-none">
-                <option value="">-- Custom Email --</option>
-                ${templateOptions.replace(`value="${step.templateId}"`, `value="${step.templateId}" selected`)}
-              </select>
-
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="Sender Name (e.g. John Doe)" value="${step.senderName.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'senderName', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
-                <input type="text" placeholder="Email Subject" value="${step.subject.replace(/"/g, '&quot;')}" oninput="window.updateSeqStep('${step.id}', 'subject', this.value)" class="w-full px-2 py-1 border rounded text-sm border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">
-              </div>
-              <textarea placeholder="HTML Email Content" rows="${isFirst ? 4 : 2}" oninput="window.updateSeqStep('${step.id}', 'htmlContent', this.value)" class="w-full px-2 py-1 border rounded text-xs font-mono border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary">${step.htmlContent}</textarea>
-            </div>
-          </div>
-        `;
-        
-        sequenceContainer.insertAdjacentHTML('beforeend', html);
-    });
-}
-
-function compileSequencePayload(seqs) {
-    if(!seqs || seqs.length === 0) return [];
-    const absDays = new Map();
-    absDays.set(seqs[0].id, 0);
-    seqs[0]._absoluteDays = 0;
-    
-    for (let i = 1; i < seqs.length; i++) {
-        const s = seqs[i];
-        const dependsOnAbs = absDays.has(s.dependsOnId) ? absDays.get(s.dependsOnId) : 0;
-        const total = dependsOnAbs + (parseInt(s.delayDays) || 0);
-        absDays.set(s.id, total);
-        s._absoluteDays = total;
-    }
-
-    const sorted = [...seqs].map(s => ({...s})).sort((a, b) => a._absoluteDays - b._absoluteDays);
-
-    const payload = [];
-    let currentAbs = 0;
-    for (const s of sorted) {
-        let relativeDelay = s._absoluteDays - currentAbs;
-        if(relativeDelay < 0) relativeDelay = 0;
-        payload.push({
-            delayDays: relativeDelay,
-            templateId: s.templateId || '',
-            senderName: s.senderName.trim(),
-            subject: s.subject.trim(),
-            htmlContent: s.htmlContent.trim()
-        });
-        currentAbs += relativeDelay;
-    }
-    return payload;
-}
-
-// Attach globally for inline HTML
-window.removeSeqStep = removeSequenceStep;
-window.updateSeqStep = updateStepField;
-
-if (btnAddSequenceStep) {
-    btnAddSequenceStep.addEventListener('click', addSequenceStep);
-}
+// Attach globally for inline HTML if needed (though automail.js does some of this)
+// But sender.js needs to make sure it doesn't conflict.
 
 // --- FORM VALIDATION ---
 const validateForm = () => {
@@ -671,7 +525,9 @@ function buildLaunchSequences() {
     }];
   }
 
-  return compileSequencePayload(sequences);
+  // Use the payload builder from automail.js
+  const automailData = AutoMail.getAutoMailPayload();
+  return automailData ? automailData.steps : [];
 }
 
 // Initialize Admin UI on Load
@@ -683,34 +539,15 @@ initSmtpUI();
 
 modeDirectBtn?.addEventListener('click', () => {
   sendMode = 'direct';
-  if (!directSenderNameEl.value.trim() && sequences[0]?.senderName) directSenderNameEl.value = sequences[0].senderName;
-  if (!directSubjectEl.value.trim() && sequences[0]?.subject) directSubjectEl.value = sequences[0].subject;
-  if (!directHtmlContentEl.value.trim() && sequences[0]?.htmlContent) directHtmlContentEl.value = sequences[0].htmlContent;
   applySendModeUI();
 });
 
 modeSequenceBtn?.addEventListener('click', () => {
   sendMode = 'sequence';
-  if (sequences.length === 0) {
-    sequences = [{
-      id: Date.now().toString(),
-      templateId: '',
-      delayDays: 0,
-      dependsOnId: null,
-      senderName: directSenderNameEl.value.trim(),
-      subject: directSubjectEl.value.trim(),
-      htmlContent: directHtmlContentEl.value.trim()
-    }];
-    renderSequences();
-  }
   applySendModeUI();
 });
 
-// Initialize with one step
-if (sequences.length === 0) {
-    addSequenceStep();
-}
-
+// Initial load check
 applySendModeUI();
 
 btnLaunchCampaign.addEventListener('click', async () => {
@@ -775,8 +612,10 @@ btnLaunchCampaign.addEventListener('click', async () => {
       directSenderNameEl.value = '';
       directSubjectEl.value = '';
       directHtmlContentEl.value = '';
-      sequences = [];
-      addSequenceStep();
+      
+      // Reset sequence
+      AutoMail.initAutoMailUI(); // Re-init sequence
+      
       sendMode = 'direct';
       applySendModeUI();
 
@@ -997,43 +836,20 @@ async function init() {
     return;
   }
 
-  AutoMail.setupSavedSequenceListeners((config) => {
-      if (config) {
-          // Sequence Loaded from Save
-          sequences = config.sequences.map(s => ({
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-              templateId: s.templateId || '',
-              delayDays: s.delayDays || 0,
-              dependsOnId: null, // Will relink below
-              senderName: s.senderName || '',
-              subject: s.subject || '',
-              htmlContent: s.htmlContent || ''
-          }));
-          for (let i = 1; i < sequences.length; i++) {
-              sequences[i].dependsOnId = sequences[i-1].id;
-          }
-          
-          // Restore SMTP selection
-          const smtpIds = config.smtpAccountIds || [];
-          document.querySelectorAll('input[name="selectedSmtps"]').forEach(cb => {
-              cb.checked = smtpIds.includes(cb.value);
-          });
-          
-          renderSequences();
+  // Use AutoMail's shared initialization
+  await AutoMail.initAutoMailUI();
+
+  AutoMail.setupSavedSequenceListeners((savedSeq) => {
+      if (savedSeq && savedSeq.config && savedSeq.config.steps) {
+          // automail.js handles its own internal autoMailSequences state and re-renders
           validateForm();
-      } else {
-          // Reset to default
-          sequences = [];
-          addSequenceStep();
       }
   });
 
-  // Global helpers for saved sequence logic
-  window.getCurrentSequence = () => compileSequencePayload(sequences);
-  window.getSelectedSmtps = () => Array.from(document.querySelectorAll('input[name="selectedSmtps"]:checked')).map(cb => cb.value);
-
   await Promise.all([
       loadKPIs(),
+      // loadAutoMailTemplates and loadSavedSequences are already called in initAutoMailUI if it was checked,
+      // but here we might need them regardless of a checkbox if sender.html shows it differently.
       AutoMail.loadAutoMailTemplates(),
       AutoMail.loadSavedSequences()
   ]);

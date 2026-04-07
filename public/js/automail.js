@@ -17,9 +17,9 @@ function cacheElements() {
     adminAutoMailCard = document.getElementById('adminAutoMailCard');
     enableAutoMailEl = document.getElementById('enableAutoMail');
     autoMailSettingsEl = document.getElementById('autoMailSettings');
-    smtpListEl = document.getElementById('autoMailSmtpList');
-    autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer');
-    btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep');
+    smtpListEl = document.getElementById('autoMailSmtpList') || document.getElementById('smtpAccountsList');
+    autoMailSequenceContainer = document.getElementById('autoMailSequenceContainer') || document.getElementById('sequenceContainer');
+    btnAddAutoMailStep = document.getElementById('btnAddAutoMailStep') || document.getElementById('btnAddSequenceStep');
     templateSelectEl = document.getElementById('autoMailTemplateSelect');
     templateNameEl = document.getElementById('autoMailTemplateName');
     senderNameEl = document.getElementById('autoMailSenderName');
@@ -221,13 +221,22 @@ function renderAutoMailSequence() {
                 ${delayHtml}
 
                 <div class="space-y-3">
-                    <div class="form-group mb-0">
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">Pick a Template</label>
+                    <div class="form-group mb-2">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">Pick a Template</label>
                         <select class="step-template-select w-full px-3 py-2 text-sm font-medium bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
                                 onchange="window.updateStep(${idx}, 'templateId', this.value)">
                             <option value="">-- Custom Message --</option>
                             ${autoMailTemplates.map(t => `<option value="${t.id}" ${String(t.id) === String(step.templateId) ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
                         </select>
+                    </div>
+
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customized Message</label>
+                      <div class="grid grid-cols-2 gap-2">
+                        <input type="text" placeholder="Sender Name" value="${escapeHtml(step.senderName || '')}" oninput="window.updateStep(${idx}, 'senderName', this.value)" class="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                        <input type="text" placeholder="Subject" value="${escapeHtml(step.subject || '')}" oninput="window.updateStep(${idx}, 'subject', this.value)" class="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                      </div>
+                      <textarea placeholder="HTML Body" rows="3" oninput="window.updateStep(${idx}, 'htmlContent', this.value)" class="w-full px-2 py-1.5 border border-slate-200 rounded text-[10px] font-mono focus:ring-1 focus:ring-blue-500 outline-none bg-white">${escapeHtml(step.htmlContent || '')}</textarea>
                     </div>
                 </div>
             </div>
@@ -240,14 +249,45 @@ function renderAutoMailSequence() {
             </a>
         </div>
     `;
+    
+    // Refresh form validation if on sender page
+    if (window.validateForm) window.validateForm();
 }
 
 
-window.updateStep = (idx, field, value) => {
+window.updateStep = async (idx, field, value) => {
     if (autoMailSequences[idx]) {
         autoMailSequences[idx][field] = value;
+        
+        if (field === 'templateId' && value) {
+            try {
+                const template = autoMailTemplates.find(t => String(t.id) === String(value));
+                if (template) {
+                    // Update the state
+                    autoMailSequences[idx].senderName = template.senderName || "";
+                    autoMailSequences[idx].subject = template.subject || "";
+                    autoMailSequences[idx].htmlContent = template.htmlContent || "";
+                    
+                    // We need to re-render to show the populated fields if they are visible
+                    renderAutoMailSequence();
+                } else {
+                    // Fetch if not in local cache (fallback)
+                    const t = await fetchJson(`/api/automail/templates/${value}`);
+                    if (t) {
+                        autoMailSequences[idx].senderName = t.senderName || "";
+                        autoMailSequences[idx].subject = t.subject || "";
+                        autoMailSequences[idx].htmlContent = t.htmlContent || "";
+                        renderAutoMailSequence();
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch template details", err);
+            }
+        }
     }
 };
+
+window.getAutoMailSequences = () => autoMailSequences;
 
 async function saveAutoMailTemplate() {
     const templateId = templateSelectEl.value;
@@ -302,16 +342,18 @@ async function deleteTemplate() {
 async function saveSequenceConfig() {
     const name = prompt("Enter a name for this sequence:");
     if (!name) return;
-    const steps = [...document.querySelectorAll('.sequence-step-card')].map(card => {
-        const dependsOnSelect = card.querySelector('.step-depends-on');
-        return {
-            templateId: card.querySelector('.step-template-select').value,
-            delayDays: parseInt(card.querySelector('.step-delay').value) || 0,
-            dependsOnIdx: dependsOnSelect ? parseInt(dependsOnSelect.value) : null
-        };
-    }).filter(s => s.templateId);
+    
+    // Use the in-memory state instead of scraping the DOM
+    const steps = autoMailSequences.map(s => ({
+        templateId: s.templateId || "",
+        delayDays: parseInt(s.delayDays) || 0,
+        dependsOnIdx: s.dependsOnIdx !== undefined ? s.dependsOnIdx : null,
+        senderName: (s.senderName || "").trim(),
+        subject: (s.subject || "").trim(),
+        htmlContent: (s.htmlContent || "").trim()
+    })).filter(s => s.senderName && s.subject && s.htmlContent);
 
-    if (steps.length === 0) return alert("Please add at least one step with a template");
+    if (steps.length === 0) return alert("Please add at least one step with complete sender name, subject, and content.");
 
     try {
         const res = await fetch('/api/automail/saved-sequences', {
@@ -322,9 +364,12 @@ async function saveSequenceConfig() {
         if (res.ok) {
             alert("Sequence saved!");
             await loadSavedSequences();
+        } else {
+            const err = await res.json();
+            alert("Error saving sequence: " + (err.error || "Unknown error"));
         }
     } catch (err) {
-        alert("Error saving sequence");
+        alert("Error saving sequence: " + err.message);
     }
 }
 
@@ -348,14 +393,16 @@ export function getAutoMailPayload() {
     if (!enabled) return null;
 
     const smtpIds = [...document.querySelectorAll('input[name="smtp_ids"]:checked')].map(i => i.value);
-    const steps = [...document.querySelectorAll('.sequence-step-card')].map(card => {
-        const dependsOnSelect = card.querySelector('.step-depends-on');
-        return {
-            templateId: card.querySelector('.step-template-select').value,
-            delayDays: parseInt(card.querySelector('.step-delay').value) || 0,
-            dependsOnIdx: dependsOnSelect ? parseInt(dependsOnSelect.value) : null
-        };
-    }).filter(s => s.templateId);
+    
+    // Use the in-memory state
+    const steps = autoMailSequences.map(s => ({
+        templateId: s.templateId || "",
+        delayDays: parseInt(s.delayDays) || 0,
+        dependsOnIdx: s.dependsOnIdx !== undefined ? s.dependsOnIdx : null,
+        senderName: (s.senderName || "").trim(),
+        subject: (s.subject || "").trim(),
+        htmlContent: (s.htmlContent || "").trim()
+    })).filter(s => s.senderName && s.subject && s.htmlContent);
 
     return { smtpIds, steps };
 }

@@ -13,6 +13,19 @@ export const getTemplates = (req, res) => {
     }
 };
 
+export const getTemplate = (req, res) => {
+    const { id } = req.params;
+    const userId = req.session.user.id;
+    try {
+        const template = db.prepare(`SELECT * FROM auto_mail_templates WHERE id = ? AND userId = ?`).get(id, userId);
+        if (!template) return res.status(404).json({ error: 'Template not found.' });
+        res.json({ ...template, smtpAccountIds: JSON.parse(template.smtpAccountIds || '[]') });
+    } catch (error) {
+        console.error('[AutoMail Controller] Error fetching template:', error);
+        res.status(500).json({ error: 'Failed to fetch template.' });
+    }
+};
+
 export const saveTemplate = (req, res) => {
     // Authorization is handled globally by requirePremiumOrAdmin middleware in server.js
     const { id, name, senderName, subject, htmlContent, smtpAccountIds } = req.body;

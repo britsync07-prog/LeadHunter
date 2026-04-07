@@ -518,9 +518,9 @@ function renderEvents() {
 async function startQueuePolling() {
     if (!queueStatusEl) return;
     const updateQueueUI = (status) => {
-        const count = status.total || 0;
+        const count = status.active || 0;
         queueStatusEl.innerHTML = count > 0 
-            ? `<span class="flex items-center gap-1.5 text-amber-600 font-bold"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> ${count} in Queue</span>` 
+            ? `<span class="flex items-center gap-1.5 font-bold" style="color: var(--green);"><span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--green);"></span> ${count} Running</span>` 
             : `<span class="text-slate-400 font-medium">System Idle</span>`;
         queueStatusEl.className = `queue-badge ${count > 0 ? 'queue--active' : 'queue--idle'}`;
     };

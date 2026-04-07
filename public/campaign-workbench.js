@@ -494,14 +494,14 @@ function fillForm(detail) {
   populateTimezoneOptions(config.timezone || '');
   startTimeInput.value = config.startTime || '';
   endTimeInput.value = config.endTime || '';
-  nichesInput.value = (jobParams.niches || []).join('\n');
+  nichesInput.value = Array.isArray(jobParams.niches) ? jobParams.niches.join('\n') : '';
   countryInput.value = jobParams.country || '';
-  citiesInput.value = (jobParams.cities || []).join(', ');
+  citiesInput.value = Array.isArray(jobParams.cities) ? jobParams.cities.join(', ') : '';
   smtpHostInput.value = config.smtpHost || '';
   smtpPortInput.value = config.smtpPort || '';
   smtpUserInput.value = config.smtpUser || '';
   smtpPassInput.value = config.smtpPass || '';
-  smtpAccountIdsInput.value = (config.smtpAccountIds || []).join(', ');
+  smtpAccountIdsInput.value = Array.isArray(config.smtpAccountIds) ? config.smtpAccountIds.join(', ') : '';
   state.sequences = Array.isArray(config.sequences) ? config.sequences.map((step) => ({ ...step })) : [];
   state.expandedSteps = new Set(state.sequences.length > 0 ? [0] : []);
   renderSequences();
