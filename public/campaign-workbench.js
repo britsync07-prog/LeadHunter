@@ -17,7 +17,8 @@ const statOpenRate = document.getElementById('statOpenRate');
 const statClickRate = document.getElementById('statClickRate');
 
 const campaignNameInput = document.getElementById('campaignNameInput');
-const categoryNameInput = document.getElementById('categoryNameInput');
+const categorySelect = document.getElementById('categorySelect');
+const addCategoryBtn = document.getElementById('addCategoryBtn');
 const timezoneInput = document.getElementById('timezoneInput');
 const startTimeInput = document.getElementById('startTimeInput');
 const endTimeInput = document.getElementById('endTimeInput');
@@ -86,7 +87,7 @@ function formatPercent(value) {
 function setReadonly(readonly) {
   const fields = [
     campaignNameInput,
-    categoryNameInput,
+    categorySelect,
     timezoneInput,
     startTimeInput,
     endTimeInput,
@@ -103,10 +104,45 @@ function setReadonly(readonly) {
     field.disabled = readonly;
     field.classList.toggle('bg-slate-100', readonly);
   });
-  categoryNameInput.disabled = true;
+  if (addCategoryBtn) addCategoryBtn.style.display = readonly ? 'none' : 'block';
   addStepBtn.disabled = readonly;
   saveBtn.disabled = readonly;
   modeToggleBtn.textContent = readonly ? 'Switch To Edit' : 'Switch To View';
+}
+
+async function loadCategories() {
+  try {
+    const data = await fetchJson('/api/categories');
+    const categories = data.categories || [];
+    const currentVal = categorySelect.value;
+    categorySelect.innerHTML = '<option value="">-- No Campaign --</option>' + 
+      categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    if (currentVal) categorySelect.value = currentVal;
+  } catch (err) {
+    console.error("Failed to load categories", err);
+  }
+}
+
+function setupCategoryActions() {
+  if (!addCategoryBtn) return;
+  addCategoryBtn.onclick = async (e) => {
+    e.preventDefault();
+    const name = prompt("Enter a name for the new campaign category:");
+    if (!name) return;
+    try {
+      const res = await fetchJson('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() })
+      });
+      if (res.category) {
+        await loadCategories();
+        categorySelect.value = res.category.id;
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
 }
 
 function setCampaignEditorDisabled(disabled) {
@@ -484,13 +520,16 @@ window.toggleSequenceStep = function toggleSequenceStep(index) {
   setCampaignEditorDisabled(type === 'job' && !state.detail?.job?.campaign);
 };
 
-function fillForm(detail) {
+async function fillForm(detail) {
   const campaign = type === 'job' ? detail.job.campaign : detail.campaign;
   const config = campaign?.config || {};
   const jobParams = detail.job?.params || {};
 
   campaignNameInput.value = campaign?.name || '';
-  categoryNameInput.value = detail.job?.category?.name || 'Not linked to a scraper campaign';
+  if (type === 'job') {
+    await loadCategories();
+    categorySelect.value = detail.job?.category?.id || '';
+  }
   populateTimezoneOptions(config.timezone || '');
   startTimeInput.value = config.startTime || '';
   endTimeInput.value = config.endTime || '';
@@ -525,6 +564,7 @@ function buildPayload() {
     payload.niches = nichesInput.value.split('\n').map((item) => item.trim()).filter(Boolean);
     payload.country = countryInput.value.trim();
     payload.cities = citiesInput.value.split(',').map((item) => item.trim()).filter(Boolean);
+    payload.category = categorySelect.value || null;
   }
 
   return payload;
@@ -543,7 +583,8 @@ async function loadDetail() {
   const campaign = type === 'job' ? payload.job.campaign : payload.campaign;
   applyHeader(payload);
   applyStats(campaign || null);
-  fillForm(payload);
+  await fillForm(payload);
+  setupCategoryActions();
   renderRecipients(campaign || null);
   renderEvents(campaign || null);
   renderFiles(payload);

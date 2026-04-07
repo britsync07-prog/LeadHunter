@@ -142,10 +142,15 @@
               <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Campaign Name</span>
               <input id="campaignNameInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
             </label>
-            <label class="block" id="categoryFieldWrap">
-              <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Scraper Campaign</span>
-              <input id="categoryNameInput" type="text" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white" />
-            </label>
+            <div class="block" id="categoryFieldWrap">
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Scraper Campaign</span>
+                <button id="addCategoryBtn" class="text-[10px] font-bold text-brand-primary uppercase tracking-wider hover:underline">+ New</button>
+              </div>
+              <select id="categorySelect" class="w-full px-3 py-2.5 border border-slate-200 rounded-md text-sm bg-white font-mono">
+                <option value="">-- No Campaign --</option>
+              </select>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
