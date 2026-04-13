@@ -389,7 +389,7 @@ async function deleteSequenceConfig() {
 }
 
 export function getAutoMailPayload() {
-    const enabled = enableAutoMailEl?.checked;
+    const enabled = enableAutoMailEl ? enableAutoMailEl.checked : true;
     if (!enabled) return null;
 
     const smtpIds = [...document.querySelectorAll('input[name="smtp_ids"]:checked')].map(i => i.value);

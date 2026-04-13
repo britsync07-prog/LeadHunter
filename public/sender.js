@@ -492,6 +492,9 @@ const validateForm = () => {
   const errors = getLaunchValidationErrors();
   btnLaunchCampaign.disabled = false;
   btnLaunchCampaign.classList.toggle('opacity-80', errors.length > 0);
+  if (errors.length === 0 && senderErrorBox.classList.contains('error-box')) {
+    senderErrorBox.style.display = 'none';
+  }
 };
 
 window.validateForm = validateForm;
