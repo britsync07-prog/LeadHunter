@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const STANDARD_MAX_CONSECUTIVE_FAILURES = 3;
 const ADMIN_MAX_CONSECUTIVE_FAILURES = 4; // initial fail + next 3 fails
 const SMTP_REST_MS = 60 * 60 * 1000;
-const SEND_DELAY_MS = 5000;
+const SEND_DELAY_MS = 30000;
 const SMTP_RETRY_DELAY_MS = 15 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
