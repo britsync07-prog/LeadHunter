@@ -109,7 +109,8 @@ const loadActiveSmtpPool = async (smtpAccountIds, userId) => {
 
 const restSmtpAccount = (dbId) => {
   const restUntil = new Date(Date.now() + SMTP_REST_MS).toISOString();
-  db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ?, restingUntil = ? WHERE id = ?`).run(ADMIN_MAX_CONSECUTIVE_FAILURES, restUntil, dbId);
+  // Reset consecutiveFails to 0 after putting to rest so it has a clean slate when it wakes up
+  db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ?, restingUntil = ? WHERE id = ?`).run(0, restUntil, dbId);
   console.warn(`[SMTP Manager] Account ${dbId} rests until ${restUntil}`);
 };
 
@@ -223,60 +224,35 @@ export const processPendingEmails = async (hostUrlFallback) => {
     ORDER BY r.nextSendAt ASC LIMIT 50
   `).all();
 
-  logSender('Scheduler picked pending recipients', { count: pendings.length });
   if (pendings.length === 0) return;
+  logSender('Scheduler picked pending recipients', { count: pendings.length });
 
+  // Group recipients by campaign to avoid redundant SMTP pool loading and verification
+  const campaigns = {};
   for (const rec of pendings) {
-    const config = JSON.parse(rec.config || '{}');
+    if (!campaigns[rec.campaignId]) {
+      campaigns[rec.campaignId] = {
+        userId: rec.userId,
+        campaignName: rec.campaignName,
+        config: JSON.parse(rec.config || '{}'),
+        recipients: []
+      };
+    }
+    campaigns[rec.campaignId].recipients.push(rec);
+  }
+
+  for (const campaignId in campaigns) {
+    const camp = campaigns[campaignId];
+    const config = camp.config;
     const trackingBaseUrl = config.publicBaseUrl || hostUrlFallback;
-    const normalizedEmail = normalizeRecipientEmail(rec.email);
-    if (!normalizedEmail) {
-      logSender('Recipient email invalid', { campaignId: rec.campaignId, recipientId: rec.id, email: rec.email });
-      db.prepare(`UPDATE recipients SET status = 'bounced', error = ? WHERE id = ?`)
-        .run('Invalid email format', rec.id);
-      markCampaignIfFinished(rec.campaignId);
-      continue;
-    }
-    if (normalizedEmail !== rec.email) {
-      db.prepare(`UPDATE recipients SET email = ? WHERE id = ?`).run(normalizedEmail, rec.id);
-      rec.email = normalizedEmail;
-    }
-    const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(rec.userId);
+    
+    const user = db.prepare("SELECT subscriptionPlan, isAdmin FROM users WHERE id = ?").get(camp.userId);
     const isPremiumOrAdvance = user && (user.subscriptionPlan === 'premium' || user.subscriptionPlan === 'advance' || user.isAdmin);
     const isAdmin = !!user?.isAdmin;
-    
-    const sequences = config.sequences || [{
-       senderName: config.senderName,
-       subject: config.subject,
-       htmlContent: config.htmlContent,
-       delayDays: 0
-    }];
-    
-    if (rec.currentStep >= sequences.length) {
-      logSender('Recipient already completed sequence', { campaignId: rec.campaignId, recipientId: rec.id, currentStep: rec.currentStep });
-      db.prepare(`UPDATE recipients SET status = 'delivered' WHERE id = ?`).run(rec.id);
-      markCampaignIfFinished(rec.campaignId);
-      continue;
-    }
-
-    const currentSeq = sequences[rec.currentStep];
-
-    if (isPremiumOrAdvance && config.timezone && config.startTime && config.endTime) {
-      if (!isWithinWindow(config.timezone, config.startTime, config.endTime)) {
-        logSender('Outside sending window, skipping for now', {
-          campaignId: rec.campaignId,
-          recipientId: rec.id,
-          timezone: config.timezone,
-          startTime: config.startTime,
-          endTime: config.endTime
-        });
-        continue;
-      }
-    }
 
     let smtpPool = [];
     if (isPremiumOrAdvance && config.smtpAccountIds && config.smtpAccountIds.length > 0) {
-      const smtpState = await loadActiveSmtpPool(config.smtpAccountIds, rec.userId);
+      const smtpState = await loadActiveSmtpPool(config.smtpAccountIds, camp.userId);
       smtpPool = smtpState.pool;
       if (smtpPool.length === 0) {
         const reason = smtpState.failures.length > 0
@@ -286,10 +262,14 @@ export const processPendingEmails = async (hostUrlFallback) => {
             : smtpState.activeCount === 0
               ? 'All selected SMTP accounts are currently resting.'
               : 'No usable SMTP accounts were available.';
+        
+        // Only reschedule if ALL are resting. If it's a verification failure, we'll try again next tick.
         if (smtpState.activeCount === 0 && smtpState.earliestRestingUntil) {
-          scheduleCampaignRetryAt(rec.campaignId, reason, smtpState.earliestRestingUntil);
+          scheduleCampaignRetryAt(campaignId, reason, smtpState.earliestRestingUntil);
         } else {
-          scheduleCampaignRetry(rec.campaignId, reason);
+          // If verification failed but they aren't marked 'resting', just push back slightly (1 minute) 
+          // instead of 15 minutes to avoid global pause.
+          scheduleCampaignRetry(campaignId, reason, 60000); 
         }
         continue;
       }
@@ -298,96 +278,106 @@ export const processPendingEmails = async (hostUrlFallback) => {
         const transporter = await verifySmtpConnection({ host: config.smtpHost, port: parseInt(config.smtpPort, 10), user: config.smtpUser, pass: config.smtpPass });
         smtpPool = [{ dbId: 'adhoc', user: config.smtpUser, transporter, consecutiveFails: 0 }];
       } catch (e) {
-        logSender('Direct SMTP verification failed', { campaignId: rec.campaignId, smtpUser: config.smtpUser, error: e.message });
-        scheduleCampaignRetry(rec.campaignId, 'SMTP verification failed: ' + e.message);
+        logSender('Direct SMTP verification failed', { campaignId, smtpUser: config.smtpUser, error: e.message });
+        scheduleCampaignRetry(campaignId, 'SMTP verification failed: ' + e.message, 60000);
         continue;
       }
     }
 
     if (smtpPool.length === 0) {
-      scheduleCampaignRetry(rec.campaignId, 'No usable SMTP configuration found.');
+      scheduleCampaignRetry(campaignId, 'No usable SMTP configuration found.', 60000);
       continue;
     }
 
-    const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
-    const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, trackingBaseUrl);
-    
-    logSender('Attempting send', {
-      campaignId: rec.campaignId,
-      campaignName: rec.campaignName,
-      recipientId: rec.id,
-      email: rec.email,
-      smtpUser: activeSmtp.user,
-      step: rec.currentStep
-    });
-    
-    const result = await sendEmail(
-      activeSmtp.transporter,
-      { name: currentSeq.senderName, email: activeSmtp.user },
-      rec.email,
-      currentSeq.subject,
-      trackedHtml
-    );
+    const sequences = config.sequences || [{
+       senderName: config.senderName,
+       subject: config.subject,
+       htmlContent: config.htmlContent,
+       delayDays: 0
+    }];
 
-    if (result.ok) {
-      logSender('Send succeeded', {
+    for (const rec of camp.recipients) {
+      const normalizedEmail = normalizeRecipientEmail(rec.email);
+      if (!normalizedEmail) {
+        logSender('Recipient email invalid', { campaignId: rec.campaignId, recipientId: rec.id, email: rec.email });
+        db.prepare(`UPDATE recipients SET status = 'bounced', error = ? WHERE id = ?`).run('Invalid email format', rec.id);
+        markCampaignIfFinished(rec.campaignId);
+        continue;
+      }
+      
+      if (rec.currentStep >= sequences.length) {
+        db.prepare(`UPDATE recipients SET status = 'delivered' WHERE id = ?`).run(rec.id);
+        markCampaignIfFinished(rec.campaignId);
+        continue;
+      }
+
+      const currentSeq = sequences[rec.currentStep];
+
+      if (isPremiumOrAdvance && config.timezone && config.startTime && config.endTime) {
+        if (!isWithinWindow(config.timezone, config.startTime, config.endTime)) {
+          // Push back by 30 minutes if outside window
+          const retryAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+          db.prepare(`UPDATE recipients SET nextSendAt = ? WHERE id = ?`).run(retryAt, rec.id);
+          continue;
+        }
+      }
+
+      const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
+      const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, trackingBaseUrl);
+      
+      logSender('Attempting send', {
         campaignId: rec.campaignId,
         recipientId: rec.id,
         email: rec.email,
-        step: rec.currentStep
+        smtpUser: activeSmtp.user
       });
-      if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
-        db.prepare(`UPDATE smtp_accounts SET consecutiveFails = 0 WHERE id = ?`).run(activeSmtp.dbId);
-      }
-      db.prepare(`INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'DELIVERED', '127.0.0.1', 'Scheduled SMTP Queue')`).run(uuidv4(), rec.id, rec.campaignId, rec.id);
+      
+      const result = await sendEmail(
+        activeSmtp.transporter,
+        { name: currentSeq.senderName, email: activeSmtp.user },
+        rec.email,
+        currentSeq.subject,
+        trackedHtml
+      );
 
-      const nextStep = rec.currentStep + 1;
-      if (nextStep < sequences.length) {
-        const nextStepConfig = sequences[nextStep];
-        const nextDelayDays = nextStepConfig.delayDays || 0;
-        
-        // If the next step depends on a specific previous step, we'd ideally know when that step was sent.
-        // For now, we continue the linear progression but respect the delayDays of the next step.
-        let nextDate = new Date();
-        nextDate.setHours(nextDate.getHours() + (nextDelayDays * 24));
-        
-        db.prepare(`UPDATE recipients SET currentStep = ?, nextSendAt = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
-          .run(nextStep, nextDate.toISOString(), rec.id);
-        logSender('Queued next follow-up step', {
-          campaignId: rec.campaignId,
-          recipientId: rec.id,
-          nextStep,
-          dependsOnIdx: nextStepConfig.dependsOnIdx,
-          nextSendAt: nextDate.toISOString()
-        });
+      if (result.ok) {
+        if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
+          db.prepare(`UPDATE smtp_accounts SET consecutiveFails = 0 WHERE id = ?`).run(activeSmtp.dbId);
+        }
+        db.prepare(`INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'DELIVERED', '127.0.0.1', 'Scheduled SMTP Queue')`).run(uuidv4(), rec.id, rec.campaignId, rec.id);
+
+        const nextStep = rec.currentStep + 1;
+        if (nextStep < sequences.length) {
+          const nextStepConfig = sequences[nextStep];
+          const nextDelayDays = nextStepConfig.delayDays || 0;
+          let nextDate = new Date();
+          nextDate.setHours(nextDate.getHours() + (nextDelayDays * 24));
+          db.prepare(`UPDATE recipients SET currentStep = ?, nextSendAt = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`).run(nextStep, nextDate.toISOString(), rec.id);
+        } else {
+          db.prepare(`UPDATE recipients SET status = 'delivered', currentStep = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`).run(nextStep, rec.id);
+        }
       } else {
-        db.prepare(`UPDATE recipients SET status = 'delivered', currentStep = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`)
-          .run(nextStep, rec.id);
-        logSender('Recipient completed final step', { campaignId: rec.campaignId, recipientId: rec.id });
+        const errorMsg = result.error || 'Unknown error';
+        logSender('Send failed', { campaignId: rec.campaignId, email: rec.email, error: errorMsg });
+        
+        if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
+            activeSmtp.consecutiveFails += 1;
+            db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ? WHERE id = ?`).run(activeSmtp.consecutiveFails, activeSmtp.dbId);
+            const maxFails = isPremiumOrAdvance ? ADMIN_MAX_CONSECUTIVE_FAILURES : STANDARD_MAX_CONSECUTIVE_FAILURES;
+            if (activeSmtp.consecutiveFails >= maxFails) {
+              restSmtpAccount(activeSmtp.dbId);
+              // Remove from current in-memory pool so it's not used again this sweep
+              const idx = smtpPool.findIndex(s => s.dbId === activeSmtp.dbId);
+              if (idx > -1) smtpPool.splice(idx, 1);
+            }
+        }
+        db.prepare(`UPDATE recipients SET status = 'bounced', error = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`).run(errorMsg, rec.id);
+        db.prepare(`INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'BOUNCED', '127.0.0.1', 'Scheduled SMTP Queue')`).run(uuidv4(), rec.id, rec.campaignId, rec.id);
       }
-    } else {
-      const errorMsg = result.error || 'Unknown error';
-      logSender('Send failed', {
-        campaignId: rec.campaignId,
-        recipientId: rec.id,
-        email: rec.email,
-        smtpUser: activeSmtp.user,
-        error: errorMsg
-      });
-      if (activeSmtp && activeSmtp.dbId !== 'adhoc') {
-          activeSmtp.consecutiveFails += 1;
-          db.prepare(`UPDATE smtp_accounts SET consecutiveFails = ? WHERE id = ?`).run(activeSmtp.consecutiveFails, activeSmtp.dbId);
-          const maxFails = isPremiumOrAdvance ? ADMIN_MAX_CONSECUTIVE_FAILURES : STANDARD_MAX_CONSECUTIVE_FAILURES;
-          if (activeSmtp.consecutiveFails >= maxFails) {
-            restSmtpAccount(activeSmtp.dbId);
-          }
-      }
-      db.prepare(`UPDATE recipients SET status = 'bounced', error = ?, sentAt = CURRENT_TIMESTAMP WHERE id = ?`).run(errorMsg, rec.id);
-      db.prepare(`INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'BOUNCED', '127.0.0.1', 'Scheduled SMTP Queue')`).run(uuidv4(), rec.id, rec.campaignId, rec.id);
+      
+      markCampaignIfFinished(rec.campaignId);
+      if (camp.recipients.length > 1) await sleep(SEND_DELAY_MS);
     }
-    
-    markCampaignIfFinished(rec.campaignId);
-    await sleep(SEND_DELAY_MS);
   }
 };
 
