@@ -93,6 +93,7 @@ const getCampaignAggregateStats = (campaignId) => {
     LEFT JOIN (
       SELECT campaignId, COUNT(*) as totalSent
       FROM recipients
+      WHERE status != 'pending'
       GROUP BY campaignId
     ) recipient_totals ON recipient_totals.campaignId = base.campaignId
     LEFT JOIN (

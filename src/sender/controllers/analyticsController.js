@@ -12,7 +12,7 @@ const getCampaignAnalytics = (req, res) => {
       SELECT 
         COUNT(id) as totalSent
       FROM recipients
-      WHERE campaignId = ?
+      WHERE campaignId = ? AND status != 'pending'
     `).get(campaignId);
 
     const lifecycleStats = db.prepare(`
@@ -101,7 +101,7 @@ const getAccountAnalytics = (req, res) => {
         COUNT(r.id) as totalSent
       FROM recipients r
       JOIN campaigns c ON r.campaignId = c.id
-      WHERE c.userId = ?
+      WHERE c.userId = ? AND r.status != 'pending'
     `).get(userId);
 
     const lifecycleStats = db.prepare(`
@@ -188,6 +188,7 @@ const getCampaignHistory = (req, res) => {
       LEFT JOIN (
         SELECT campaignId, COUNT(*) as totalSent
         FROM recipients
+        WHERE status != 'pending'
         GROUP BY campaignId
       ) recipient_totals ON recipient_totals.campaignId = c.id
       LEFT JOIN (

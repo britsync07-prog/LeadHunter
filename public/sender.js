@@ -598,12 +598,6 @@ btnLaunchCampaign.addEventListener('click', async () => {
     });
 
     if (result && result.campaignId) {
-      // 2. Mock immediate initial KPI load since it was just accepted into the Delivery Queue
-      kpiTotalSent.innerText = validEmails.length;
-      kpiDeliveryRate.innerText = 'Queued';
-      kpiOpenRate.innerText = '0.0%';
-      kpiClickRate.innerText = '0.0%';
-
       senderErrorBox.className = 'status-box success-box';
       senderErrorBox.innerHTML = `<strong>Success!</strong> ${result.message} Check back shortly for delivery metrics.`;
       senderErrorBox.style.display = 'block';
