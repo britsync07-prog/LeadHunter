@@ -792,7 +792,7 @@ async function deleteCampaign(id) {
 
 async function pauseCampaign(id) {
   try {
-    const res = await fetchJson(`/api/sender/campaigns/${id}/pause`, { method: 'POST' });
+    const res = await API.fetchJson(`/api/sender/campaigns/${id}/pause`, { method: 'POST' });
     if (res.success) {
       loadHistory();
       loadKPIs();
@@ -804,7 +804,7 @@ async function pauseCampaign(id) {
 
 async function resumeCampaign(id) {
   try {
-    const res = await fetchJson(`/api/sender/campaigns/${id}/resume`, { method: 'POST' });
+    const res = await API.fetchJson(`/api/sender/campaigns/${id}/resume`, { method: 'POST' });
     if (res.success) {
       loadHistory();
       loadKPIs();
