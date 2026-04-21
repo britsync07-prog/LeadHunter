@@ -205,13 +205,21 @@ const markCampaignIfFinished = (campaignId) => {
     FROM recipients WHERE campaignId = ?
   `).get(campaignId);
 
+  if (!row) return;
+
   db.prepare(`UPDATE campaigns SET deliveredCount = ?, bouncedCount = ? WHERE id = ?`).run(row.deliveredCount || 0, row.bouncedCount || 0, campaignId);
 
   if (row.total > 0 && row.doneCount === row.total) {
     db.prepare(`UPDATE campaigns SET status = 'completed', abortReason = NULL WHERE id = ?`).run(campaignId);
     
-    const camp = db.prepare(`SELECT name FROM campaigns WHERE id = ?`).get(campaignId);
-    generateReportFiles({ campaignId, campaignName: camp ? camp.name : 'Unknown', originalRecipients: [] });
+    const camp = db.prepare(`SELECT name, config FROM campaigns WHERE id = ?`).get(campaignId);
+    let originalRecipients = [];
+    try {
+      const config = JSON.parse(camp?.config || '{}');
+      originalRecipients = config.normalizedRecipients || [];
+    } catch (e) {}
+    
+    generateReportFiles({ campaignId, campaignName: camp ? camp.name : 'Unknown', originalRecipients });
   }
 };
 
@@ -225,7 +233,18 @@ export const processPendingEmails = async (hostUrlFallback) => {
   `).all();
 
   if (pendings.length === 0) return;
-  logSender('Scheduler picked pending recipients', { count: pendings.length });
+
+  // Immediately "lock" these recipients by pushing their nextSendAt forward.
+  // This prevents concurrent scheduler ticks from picking up the same emails while we work.
+  const lockTime = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minute lock
+  const updateLockStmt = db.prepare(`UPDATE recipients SET nextSendAt = ? WHERE id = ?`);
+  db.transaction(() => {
+    for (const rec of pendings) {
+      updateLockStmt.run(lockTime, rec.id);
+    }
+  })();
+
+  logSender('Scheduler picked and locked pending recipients', { count: pendings.length });
 
   // Group recipients by campaign to avoid redundant SMTP pool loading and verification
   const campaigns = {};
@@ -375,9 +394,10 @@ export const processPendingEmails = async (hostUrlFallback) => {
         db.prepare(`INSERT INTO event_logs (id, eventId, campaignId, recipientId, eventType, ipAddress, userAgent) VALUES (?, ?, ?, ?, 'BOUNCED', '127.0.0.1', 'Scheduled SMTP Queue')`).run(uuidv4(), rec.id, rec.campaignId, rec.id);
       }
       
-      markCampaignIfFinished(rec.campaignId);
       if (camp.recipients.length > 1) await sleep(SEND_DELAY_MS);
     }
+    // Finalize campaign state once after the recipient batch
+    markCampaignIfFinished(campaignId);
   }
 };
 
@@ -415,20 +435,22 @@ const launchCampaign = async (req, res) => {
 
     const campaignId = uuidv4();
     logSender('Campaign queued', { campaignId, campaignName, recipientCount: normalizedRecipients.length, immediate: true });
-    db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
-      campaignId, userId, campaignName, 
-      JSON.stringify({ 
-        sequences: finalSequences, normalizedRecipients, 
-        smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass,
-        timezone, startTime, endTime, publicBaseUrl
-      })
-    );
     
-    const insertStmt = db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`);
+    const configJson = JSON.stringify({ 
+      sequences: finalSequences, normalizedRecipients, 
+      smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass,
+      timezone, startTime, endTime, publicBaseUrl
+    });
+
     db.transaction(() => {
-        for (const email of normalizedRecipients) {
-            insertStmt.run(uuidv4(), campaignId, email);
-        }
+      db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
+        campaignId, userId, campaignName, configJson
+      );
+      
+      const insertStmt = db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`);
+      for (const email of normalizedRecipients) {
+          insertStmt.run(uuidv4(), campaignId, email);
+      }
     })();
 
     // For direct/immediate sends, kick the worker once right away instead of waiting
@@ -561,9 +583,15 @@ const resumeCampaignRoute = async (req, res) => {
 
 const deleteCampaign = (req, res) => {
   const { id } = req.params;
-  const userId = req.session.user?.id;
+  const userId = req.session?.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized.' });
+
   try {
-    db.prepare("DELETE FROM campaigns WHERE id = ? AND userId = ?").run(id, userId);
+    db.transaction(() => {
+      db.prepare("DELETE FROM recipients WHERE campaignId = ?").run(id);
+      db.prepare("DELETE FROM event_logs WHERE campaignId = ?").run(id);
+      db.prepare("DELETE FROM campaigns WHERE id = ? AND userId = ?").run(id, userId);
+    })();
     res.json({ success: true });
   } catch (err) {
     console.error('[Campaign Delete Error]', err);
