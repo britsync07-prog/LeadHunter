@@ -223,14 +223,21 @@ const markCampaignIfFinished = (campaignId) => {
   }
 };
 
-export const processPendingEmails = async (hostUrlFallback) => {
-  const pendings = db.prepare(`
-    SELECT r.*, c.config, c.userId, c.name as campaignName 
+export const processPendingEmails = async (hostUrlFallback, specificCampaignId = null) => {
+  let query = `
+    SELECT r.*, c.userId, c.name as campaignName 
     FROM recipients r 
     JOIN campaigns c ON r.campaignId = c.id
     WHERE r.status = 'pending' AND (r.nextSendAt IS NULL OR r.nextSendAt <= CURRENT_TIMESTAMP) AND c.status = 'sending'
-    ORDER BY r.nextSendAt ASC LIMIT 500
-  `).all();
+  `;
+  const params = [];
+  if (specificCampaignId) {
+    query += ` AND c.id = ?`;
+    params.push(specificCampaignId);
+  }
+  query += ` ORDER BY r.nextSendAt ASC LIMIT 500`;
+  
+  const pendings = db.prepare(query).all(...params);
 
   if (pendings.length === 0) return;
 
@@ -244,16 +251,17 @@ export const processPendingEmails = async (hostUrlFallback) => {
     }
   })();
 
-  logSender('Scheduler picked and locked pending recipients', { count: pendings.length });
+  logSender(specificCampaignId ? `Direct trigger started for campaign ${specificCampaignId}` : 'Scheduler picked and locked pending recipients', { count: pendings.length });
 
   // Group recipients by campaign to avoid redundant SMTP pool loading and verification
   const campaigns = {};
   for (const rec of pendings) {
     if (!campaigns[rec.campaignId]) {
+      const campData = db.prepare(`SELECT config FROM campaigns WHERE id = ?`).get(rec.campaignId);
       campaigns[rec.campaignId] = {
         userId: rec.userId,
         campaignName: rec.campaignName,
-        config: JSON.parse(rec.config || '{}'),
+        config: JSON.parse(campData?.config || '{}'),
         recipients: []
       };
     }
@@ -435,10 +443,10 @@ const launchCampaign = async (req, res) => {
     const publicBaseUrl = `${forwardedProto || req.protocol}://${req.get('host')}`;
 
     const campaignId = uuidv4();
-    logSender('Campaign queued', { campaignId, campaignName, recipientCount: normalizedRecipients.length, immediate: true });
-    
-    const configJson = JSON.stringify({ 
-      sequences: finalSequences, normalizedRecipients, 
+    logSender('Campaign started immediately', { campaignId, campaignName, recipientCount: normalizedRecipients.length, immediate: true });
+
+    const configJson = JSON.stringify({
+      sequences: finalSequences, normalizedRecipients,
       smtpAccountIds, smtpHost, smtpPort, smtpUser, smtpPass,
       timezone, startTime, endTime, publicBaseUrl
     });
@@ -447,7 +455,7 @@ const launchCampaign = async (req, res) => {
       db.prepare(`INSERT INTO campaigns (id, userId, name, status, config) VALUES (?, ?, ?, 'sending', ?)`).run(
         campaignId, userId, campaignName, configJson
       );
-      
+
       const insertStmt = db.prepare(`INSERT OR IGNORE INTO recipients (id, campaignId, email, status, currentStep, nextSendAt) VALUES (?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP)`);
       for (const email of normalizedRecipients) {
           insertStmt.run(uuidv4(), campaignId, email);
@@ -455,14 +463,15 @@ const launchCampaign = async (req, res) => {
     })();
 
     // For direct/immediate sends, kick the worker once right away instead of waiting
-    // for the next scheduler tick.
+    // for the next scheduler tick. We pass campaignId to ensure THIS campaign is prioritized.
     process.nextTick(() => {
-      processPendingEmails(publicBaseUrl).catch((err) => {
+      processPendingEmails(publicBaseUrl, campaignId).catch((err) => {
         console.error('[Campaign Immediate Send Error]', err);
       });
     });
 
-    res.status(202).json({ message: 'Campaign queued successfully.', campaignId, totalRecipients: normalizedRecipients.length });
+    res.status(202).json({ message: 'Campaign started successfully.', campaignId, totalRecipients: normalizedRecipients.length });
+
   } catch (error) {
     console.error('[Campaign Error]', error);
     if (!res.headersSent) res.status(500).json({ error: error.message || 'Internal Error.' });
