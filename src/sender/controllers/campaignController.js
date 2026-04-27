@@ -229,7 +229,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
     FROM recipients r 
     JOIN campaigns c ON r.campaignId = c.id
     WHERE r.status = 'pending' AND (r.nextSendAt IS NULL OR r.nextSendAt <= CURRENT_TIMESTAMP) AND c.status = 'sending'
-    ORDER BY r.nextSendAt ASC LIMIT 50
+    ORDER BY r.nextSendAt ASC LIMIT 500
   `).all();
 
   if (pendings.length === 0) return;
@@ -260,7 +260,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
     campaigns[rec.campaignId].recipients.push(rec);
   }
 
-  for (const campaignId in campaigns) {
+  const campaignPromises = Object.keys(campaigns).map(async (campaignId) => {
     const camp = campaigns[campaignId];
     const config = camp.config;
     const trackingBaseUrl = config.publicBaseUrl || hostUrlFallback;
@@ -290,7 +290,7 @@ export const processPendingEmails = async (hostUrlFallback) => {
           // instead of 15 minutes to avoid global pause.
           scheduleCampaignRetry(campaignId, reason, 60000); 
         }
-        continue;
+        return;
       }
     } else if (config.smtpHost) {
       try {
@@ -299,13 +299,13 @@ export const processPendingEmails = async (hostUrlFallback) => {
       } catch (e) {
         logSender('Direct SMTP verification failed', { campaignId, smtpUser: config.smtpUser, error: e.message });
         scheduleCampaignRetry(campaignId, 'SMTP verification failed: ' + e.message, 60000);
-        continue;
+        return;
       }
     }
 
     if (smtpPool.length === 0) {
       scheduleCampaignRetry(campaignId, 'No usable SMTP configuration found.', 60000);
-      continue;
+      return;
     }
 
     const sequences = config.sequences || [{
@@ -398,7 +398,8 @@ export const processPendingEmails = async (hostUrlFallback) => {
     }
     // Finalize campaign state once after the recipient batch
     markCampaignIfFinished(campaignId);
-  }
+  });
+  await Promise.all(campaignPromises);
 };
 
 const launchCampaign = async (req, res) => {
