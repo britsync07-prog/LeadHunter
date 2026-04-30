@@ -239,6 +239,7 @@ export const processPendingEmails = async (hostUrlFallback, specificCampaignId =
     params.push(...lockedIds);
   }
 
+  // Use strftime to generate a Javascript-compatible ISO string for correct <= comparison
   const query = `
     WITH RankedRecipients AS (
       SELECT r.*, c.userId, c.name as campaignName,
@@ -246,7 +247,7 @@ export const processPendingEmails = async (hostUrlFallback, specificCampaignId =
       FROM recipients r 
       JOIN campaigns c ON r.campaignId = c.id
       WHERE r.status = 'pending' 
-        AND (r.nextSendAt IS NULL OR r.nextSendAt <= CURRENT_TIMESTAMP) 
+        AND (r.nextSendAt IS NULL OR r.nextSendAt <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) 
         AND c.status = 'sending'
         ${campaignFilter}
     )
@@ -257,6 +258,10 @@ export const processPendingEmails = async (hostUrlFallback, specificCampaignId =
   `;
   
   const pendings = db.prepare(query).all(...params);
+  
+  if (pendings.length > 0) {
+    console.log(`[Sender Debug] Sweep found ${pendings.length} pending emails ready to send.`);
+  }
 
   if (pendings.length === 0) return;
 
