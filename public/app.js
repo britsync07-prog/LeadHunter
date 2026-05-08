@@ -440,7 +440,7 @@ getEl("run")?.addEventListener("click", async () => {
                 country: countryEl.value,
                 cities,
                 states,
-                niches: niches.join("\n"),
+                niches,
                 includeGoogleMaps,
                 includeSocial,
                 scrapeMode,

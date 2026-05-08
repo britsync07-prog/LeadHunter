@@ -1,0 +1,17 @@
+1. WORK TITLE:
+LeadHunter: AI-Powered B2B Lead Gen & Outreach
+
+2. WORK DESCRIPTION (Max 549 characters):
+LeadHunter is a complete B2B sales automation tool that finds and contacts potential customers for you. It uses advanced scraping to pull fresh leads from Google Maps and social media, then automates personalized email campaigns to reach them. The system handles the technical heavy lifting—like rotating email accounts and tracking clicks—so users can focus on closing deals. With a clean, modern dashboard, it makes managing cold outreach simple and effective. It's built for scale, ensuring businesses can grow their sales pipeline without manual effort.
+
+3. TAGS:
+Lead Generation, Web Automation, B2B Marketing, Email Outreach, Web Scraping, Sales Automation, CRM, Data Extraction, Dashboard.
+
+4. TOOLS AND SOFTWARE:
+VS Code, GitHub, Postman, SQLite, Docker, PM2, Node.js, Python, Puppeteer, Selenium.
+
+5. SKILLS:
+Full-stack Development, Web Scraping, API Development, CRM/Automation, UI/UX Design, Database Design.
+
+6. INDUSTRY:
+Sales Tech / B2B Marketing.

@@ -43,7 +43,12 @@ const defaultSites = [
 export function expandNiches(baseNiches) {
   const expanded = new Set();
 
-  for (const niche of baseNiches) {
+  // Defensive: if a newline-delimited string arrives instead of an array, split it first.
+  if (typeof baseNiches === 'string') {
+    baseNiches = baseNiches.split('\n');
+  }
+
+  for (const niche of (baseNiches || [])) {
     const trimmed = niche.trim();
     if (!trimmed) continue;
 
