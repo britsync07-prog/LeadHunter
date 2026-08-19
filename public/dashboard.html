@@ -1,101 +1,156 @@
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LeadHunter — Scraper Dashboard</title>
-<link rel="icon" type="image/x-icon" href="/vite.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link
-  href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&amp;family=Fira+Sans:wght@300;400;500;600;700&amp;display=swap"
-  rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="tailwind-config.js"></script>
-<link rel="stylesheet" href="styles.css?v=neo">
+<!doctype html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeadHunter — Scraper Command Center</title>
+  <link rel="icon" type="image/x-icon" href="/vite.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js"></script>
+  <link rel="stylesheet" href="styles.css?v=neo2">
 
   <style>
     /* Premium Job History & Queue Styles */
-    .job-card { border-bottom: 1px solid #f1f5f9; padding: 1.25rem; transition: background 0.2s; }
-    .job-card:hover { background: #f8fafc; }
+    .job-card { border-bottom: 1px solid rgba(255,255,255,0.06); padding: 1.25rem; transition: background 0.2s; }
+    .job-card:hover { background: rgba(255,255,255,0.03); }
     .job-header-v2 { display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem; }
-    .job-status-pill { font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.05em; }
-    .status--running { background: #dcfce7; color: #166534; }
-    .status--stopped { background: #fee2e2; color: #991b1b; }
-    .status--completed { background: #f0f9ff; color: #075985; }
 
     .job-files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; }
     .file-chip { 
         display: flex; align-items: center; gap: 0.5rem; padding: 6px 10px; 
-        border-radius: 8px; border: 1px solid #e2e8f0; background: white;
-        font-size: 11px; transition: all 0.2s; position: relative;
+        border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.8);
+        font-size: 11px; transition: all 0.2s; position: relative; color: #cbd5e1;
     }
-    .file-chip:hover { border-color: var(--blue-primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .file-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #475569; }
+    .file-chip:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(56,189,248,0.15); }
+    .file-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #cbd5e1; }
     
     .file-ops { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
     .file-chip:hover .file-ops { opacity: 1; }
     .file-ops a { 
         padding: 4px; border-radius: 4px; color: #94a3b8; transition: all 0.2s;
     }
-    .file-ops a:hover { background: #f1f5f9; color: var(--blue-primary); }
+    .file-ops a:hover { background: rgba(255,255,255,0.1); color: var(--primary); }
     
     .file--csv { border-left-width: 4px; border-left-color: #10b981; }
-    .file--json { border-left-width: 4px; border-left-color: #3b82f6; }
+    .file--json { border-left-width: 4px; border-left-color: #38bdf8; }
     .file--txt { border-left-width: 4px; border-left-color: #f59e0b; }
-    .file--phone { background: #f5f3ff; }
+    .file--phone { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.3); }
 
-    .queue-badge { transition: all 0.3s; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--border); }
-    .queue--active { border-color: #fbbf24; background: #fffbeb; }
-    .queue--idle { border-color: #e2e8f0; background: #f8fafc; }
+    .city-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 8px;
+      background: rgba(7, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+    }
+    .city-grid label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+    .location-section { margin-top: 12px; }
+    .section-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.06em; }
+    .location-helper { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+    .location-search {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #f8fafc;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .events-feed {
+      max-height: 240px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      background: rgba(7, 10, 18, 0.8);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .events-feed li {
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      color: #cbd5e1;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    .live-count {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
   </style>
+</head>
 
-
-
+<body class="bg-obsidian-950 text-slate-100 font-sans antialiased relative min-h-screen flex">
 
 <!-- Mobile Overlay -->
 <div id="mobileOverlay" class="mobile-overlay"></div>
 
 <!-- Sidebar -->
-
-<!-- Sidebar -->
-<aside
-  class="w-[220px] border-r flex flex-col fixed inset-y-0 left-0 z-50 bg-white/80 backdrop-blur-xl border-slate-200 shadow-[0_8px_32px_rgba(31,38,135,0.07)]">
-  <div
-    class="flex items-center gap-3 p-5 pb-4 border-b text-brand-primary font-bold text-lg tracking-tight border-slate-200">
-    <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-        <img src="/vite.ico" alt="Logo" class="w-full h-full object-cover" />
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-white/10 bg-slate-900">
+      <img src="/vite.ico" alt="Logo" class="w-full h-full object-cover" />
     </div>
     <span>LeadHunter</span>
   </div>
-  <nav class="flex-1 p-3 flex flex-col gap-1.5 overflow-y-auto">
-    <a href="/dashboard.html" id="navScraper"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all bg-brand-primary/10 text-brand-primary border border-brand-primary/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] cursor-default">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+  <nav class="sidebar-nav">
+    <a href="/dashboard.html" id="navScraper" class="nav-item active">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2"></rect>
         <path d="M8 21h8M12 17v4"></path>
       </svg>
       Scraper
     </a>
-    <a href="/sender.html" id="navSender"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/sender.html" id="navSender" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m22 2-7 20-4-9-9-4Z"></path>
         <path d="M22 2 11 13"></path>
       </svg>
       Sender
     </a>
-    <a href="/campaigns.html"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/campaigns.html" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
       </svg>
       Campaigns
     </a>
-    <a href="/checker.html" id="navChecker"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/checker.html" id="navChecker" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 12l2 2 4-4"></path>
         <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
         <path d="M3 12c1 0 3-1 3-3S4 6 3 6 0 7 0 9s2 3 3 3"></path>
@@ -105,47 +160,33 @@
       Checker
     </a>
 
-    <!-- Sticky Upgrade CTA -->
-    <a href="/index.html#pricing"
-      class="flex items-center gap-2.5 px-3 py-2 mt-auto rounded-md font-bold transition-all text-white bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md hover:shadow-lg hover:-translate-y-0.5">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-        stroke-linecap="round" stroke-linejoin="round">
-        <polygon
-          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-        </polygon>
+    <!-- Upgrade CTA -->
+    <a href="/index.html#pricing" class="flex items-center gap-2.5 px-3.5 py-2.5 mt-auto rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-500 to-indigo-600 shadow-glow hover:brightness-110 transition-all border border-white/20">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
       </svg>
       Pro Plans
     </a>
 
-    <!-- Admin Panel Link (only shown to admins via app.js) -->
-    <a id="adminPanelLink" href="/admin.html" style="display:none;"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-semibold transition-all text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <!-- Admin Link -->
+    <a id="adminPanelLink" href="/admin.html" style="display:none;" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-purple-300 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 transition-all mt-2">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
       Admin Panel
     </a>
   </nav>
-  <div class="p-3 border-t flex flex-col gap-2 bg-slate-50 border-slate-200">
-    <!-- Profile Button -->
-    <button id="openProfileBtn"
-      class="flex items-center gap-2 px-3 py-2.5 bg-brand-base hover:bg-brand-hover rounded-md border text-sm text-brand-secondary border-slate-200 transition-all cursor-pointer w-full text-left">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary shrink-0">
+
+  <div class="p-3 border-t border-white/08 flex flex-col gap-2 bg-slate-950/60">
+    <button id="openProfileBtn" class="flex items-center gap-2 px-3 py-2 bg-slate-900/80 hover:bg-slate-800/80 rounded-xl border border-white/10 text-xs text-slate-300 transition-all cursor-pointer w-full text-left">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400 shrink-0">
         <circle cx="12" cy="8" r="5"></circle>
         <path d="M20 21a8 8 0 1 0-16 0"></path>
       </svg>
       <span id="userInfo" class="truncate font-mono text-xs">Loading...</span>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        class="ml-auto shrink-0 text-brand-muted">
-        <path d="m9 18 6-6-6-6" />
-      </svg>
     </button>
-    <button id="logoutBtn"
-      class="flex items-center justify-center gap-2 px-3 py-2 w-full text-sm font-medium text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all cursor-pointer border border-transparent hover:border-red-500/20">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <button id="logoutBtn" class="flex items-center justify-center gap-2 px-3 py-2 w-full text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition-all cursor-pointer border border-rose-500/20">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
         <polyline points="16 17 21 12 16 7"></polyline>
         <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -155,34 +196,28 @@
   </div>
 </aside>
 
-
-<!-- Main Content -->
+<!-- Main Content Area -->
 <div class="lg:ml-[220px] flex-1 flex flex-col min-h-screen w-full overflow-x-hidden">
 
   <!-- Top Bar -->
-  <header
-    class="min-h-[64px] backdrop-blur-md border-b flex flex-wrap items-center justify-between px-4 lg:px-6 sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-slate-200 shadow-sm gap-2 py-2">
-    <div class="flex items-center gap-2 lg:gap-4 flex-wrap">
-      <button id="mobileMenuBtn" class="lg:hidden p-2 -ml-2 text-slate-600 hover:text-brand-primary">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+  <header class="min-h-[64px] border-b flex flex-wrap items-center justify-between px-4 lg:px-6 sticky top-0 z-40 bg-slate-950/80 backdrop-blur-2xl border-white/08 shadow-glass gap-2 py-2">
+    <div class="flex items-center gap-3">
+      <button id="mobileMenuBtn" class="lg:hidden p-2 text-slate-400 hover:text-cyan-400">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="3" y1="12" x2="21" y2="12"></line>
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
       </button>
-      <h1 class="text-lg lg:text-xl font-semibold text-brand-text tracking-tight whitespace-nowrap">Scraper</h1>
+      <h1 class="text-lg lg:text-xl font-display font-bold text-white tracking-tight whitespace-nowrap">Scraper Command</h1>
       <div id="queueStatus" class="queue-badge text-[10px] lg:text-xs"></div>
     </div>
-    <div class="flex items-center gap-2 lg:gap-3 flex-wrap justify-end ml-auto">
-      <!-- Explicit Plan Badge -->
-      <span id="currentPlanEl" class="hidden text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"></span>
-
-      <span id="usageQuotaEl"
-        style="display:none; font-size:11px; font-weight:600; padding:3px 6px; border-radius:4px; background:rgba(59,130,246,0.1); color:var(--blue-primary);"></span>
-      <div class="status-indicator text-xs" id="statusIndicator">
-        <span class="dot dot--idle"></span>
-        <span id="status" class="hidden sm:inline">Idle</span>
+    <div class="flex items-center gap-3 ml-auto">
+      <span id="currentPlanEl" class="hidden text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-400"></span>
+      <span id="usageQuotaEl" style="display:none;" class="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"></span>
+      <div class="flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 border border-white/10" id="statusIndicator">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="status" class="text-slate-300">Idle</span>
       </div>
     </div>
   </header>
@@ -194,73 +229,56 @@
     <div class="flex flex-col gap-6">
 
       <!-- Niches Card -->
-      <div class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-brand-text font-semibold border-slate-200">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary">
+      <div class="glass-card p-5">
+        <div class="pb-3 border-b border-white/08 flex items-center gap-2.5 text-white font-semibold mb-4">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
           </svg>
-          <h2 class="font-semibold text-brand-text m-0 text-base">Niches</h2>
+          <h2 class="font-display font-bold text-white text-base">Target Niches</h2>
         </div>
-        <label for="niches" class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Enter
-          one niche per line</label>
-        <textarea id="niches" rows="5" placeholder="Fitness Trainer
-Yoga Instructor
-Gym Coach"
-          class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"></textarea>
-        <button id="expandNiches"
-          class="text-xs px-2 py-1 text-brand-primary hover:bg-brand-primary/10 rounded border border-transparent transition-colors cursor-pointer w-fit">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" class="inline mr-1">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M12 8v8M8 12h8"></path>
-          </svg>
-          Expand niche ideas
+        <label for="niches" class="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">Enter one niche per line</label>
+        <textarea id="niches" rows="4" placeholder="Fitness Trainer&#10;Yoga Instructor&#10;Gym Coach"
+          class="w-full px-4 py-3 bg-slate-900/80 border border-white/10 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all placeholder:text-slate-600 mb-3"></textarea>
+        <button id="expandNiches" class="text-xs px-3 py-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded-lg border border-cyan-500/20 transition-all cursor-pointer w-fit font-semibold">
+          + Expand Niche Ideas
         </button>
-        <div id="expandedNiches" class="expanded-niches"></div>
+        <div id="expandedNiches" class="mt-3"></div>
       </div>
 
       <!-- Location Card -->
-      <div class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-brand-text font-semibold border-slate-200">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary">
+      <div class="glass-card p-5">
+        <div class="pb-3 border-b border-white/08 flex items-center gap-2.5 text-white font-semibold mb-4">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
             <circle cx="12" cy="10" r="3"></circle>
           </svg>
-          <h2 class="font-semibold text-brand-text m-0 text-base">Details &amp; Location</h2>
+          <h2 class="font-display font-bold text-white text-base">Target Location & Campaign</h2>
         </div>
 
-        <div class="mb-5">
+        <div class="mb-4">
           <div class="flex justify-between items-center mb-1.5 flex-wrap gap-2">
-            <label for="jobCategory" class="block text-xs font-semibold text-brand-muted uppercase tracking-wide">Campaign <span class="badge-optional"
-                style="font-weight:normal;">optional</span></label>
-            <div class="flex gap-1.5">
-              <button id="addCategoryBtn"
-                class="text-[10px] lg:text-xs px-2 py-1 text-brand-primary hover:bg-brand-primary/10 rounded border border-transparent transition-colors cursor-pointer">+
-                New</button>
-              <button id="deleteCategoryBtn"
-                class="text-[10px] lg:text-xs px-2 py-1 text-red-500 hover:bg-red-50 rounded border border-transparent transition-colors cursor-pointer" title="Delete Selected Campaign">
-                Delete</button>
+            <label for="jobCategory" class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Campaign <span class="text-slate-500 font-normal">(optional)</span></label>
+            <div class="flex gap-2">
+              <button id="addCategoryBtn" class="text-xs px-2.5 py-0.5 text-cyan-400 hover:bg-cyan-500/10 rounded border border-cyan-500/20 transition-colors font-bold">+ New</button>
+              <button id="deleteCategoryBtn" class="text-xs px-2.5 py-0.5 text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition-colors font-bold" title="Delete Selected Campaign">Delete</button>
             </div>
           </div>
-          <select id="jobCategory"
-            class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm">
+          <select id="jobCategory" class="w-full px-4 py-2.5 bg-slate-900/80 border border-white/10 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-cyan-500">
             <option value="">-- Select a Campaign --</option>
           </select>
         </div>
 
-        <label for="country"
-          class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Country</label>
-        <select id="country"
-          class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"></select>
+        <div class="mb-4">
+          <label for="country" class="block text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Country</label>
+          <select id="country" class="w-full px-4 py-2.5 bg-slate-900/80 border border-white/10 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-cyan-500"></select>
+        </div>
 
         <div class="location-section">
           <div class="section-header-row">
             <span class="section-label">States / Regions</span>
-            <label class="check-all-label block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">
-              <input type="checkbox" id="selectAllStates"> All
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer">
+              <input type="checkbox" id="selectAllStates" class="accent-cyan-500"> All
             </label>
           </div>
           <div id="states" class="city-grid"></div>
@@ -269,178 +287,162 @@ Gym Coach"
         <div class="location-section">
           <div class="section-header-row">
             <span class="section-label">Cities</span>
-            <label class="check-all-label block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">
-              <input type="checkbox" id="selectAllCities"> All
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer">
+              <input type="checkbox" id="selectAllCities" class="accent-cyan-500"> All
             </label>
           </div>
-          <div class="location-helper">Select specific cities if needed. Leave cities unchecked to use all cities from the selected states.</div>
-          <input
-            id="citySearch"
-            type="search"
-            class="location-search"
-            placeholder="Search cities..."
-            autocomplete="off">
+          <div class="location-helper">Select specific cities or leave blank for all state cities.</div>
+          <input id="citySearch" type="search" class="location-search" placeholder="Search cities..." autocomplete="off">
           <div id="cities" class="city-grid"></div>
         </div>
       </div>
 
-      <!-- Options Card -->
-      <div class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-brand-text font-semibold border-slate-200">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary">
+      <!-- Scrape Options Card -->
+      <div class="glass-card p-5">
+        <div class="pb-3 border-b border-white/08 flex items-center gap-2.5 text-white font-semibold mb-4">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"></path>
           </svg>
-          <h2 class="font-semibold text-brand-text m-0 text-base">Scrape Mode</h2>
+          <h2 class="font-display font-bold text-white text-base">Scrape Sources</h2>
         </div>
 
-        <!-- Source Selection -->
-        <div class="border-t pt-4 mt-2">
-          <label class="block text-xs font-semibold text-brand-muted mb-3 uppercase tracking-wide">Data Sources</label>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all border-slate-200 bg-white shadow-sm" id="mapsSourceLabel">
-              <input type="checkbox" id="includeGoogleMaps" checked class="w-5 h-5 text-brand-primary rounded border-slate-300 focus:ring-brand-primary cursor-pointer">
-              <div class="flex flex-col">
-                <span class="text-sm font-bold text-brand-text">Google Maps</span>
-                <span class="text-[10px] text-brand-muted font-medium">Business Names & Phones</span>
-              </div>
-            </label>
-            <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all border-slate-200 bg-white shadow-sm" id="socialSourceLabel">
-              <input type="checkbox" id="includeSocial" class="w-5 h-5 text-brand-primary rounded border-slate-300 focus:ring-brand-primary cursor-pointer">
-              <div class="flex flex-col">
-                <span class="text-sm font-bold text-brand-text">Social (Emails Only)</span>
-                <span class="text-[10px] text-brand-muted font-medium">LinkedIn, FB, IG, etc.</span>
-              </div>
-            </label>
-          </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer hover:bg-white/05 transition-all border-white/10 bg-slate-900/60" id="mapsSourceLabel">
+            <input type="checkbox" id="includeGoogleMaps" checked class="w-4 h-4 text-cyan-500 rounded border-white/20 accent-cyan-500 cursor-pointer">
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-200">Google Maps</span>
+              <span class="text-[10px] text-slate-400 font-medium">Names, Phones, Sites</span>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer hover:bg-white/05 transition-all border-white/10 bg-slate-900/60" id="socialSourceLabel">
+            <input type="checkbox" id="includeSocial" class="w-4 h-4 text-cyan-500 rounded border-white/20 accent-cyan-500 cursor-pointer">
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-200">Social Search</span>
+              <span class="text-[10px] text-slate-400 font-medium">Direct Emails</span>
+            </div>
+          </label>
         </div>
 
-        <!-- Social Site Selection (Conditional) -->
         <div id="socialSiteSelection" class="mt-4" style="display:none;">
-          <label class="block text-xs font-semibold text-brand-muted mb-2 uppercase tracking-wide">Social Platforms</label>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="linkedin.com/in" class="sm-site-check" checked> LinkedIn
+          <label class="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">Social Platforms</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-white/08">
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="linkedin.com/in" class="sm-site-check accent-cyan-500" checked> LinkedIn
              </label>
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="facebook.com" class="sm-site-check" checked> Facebook
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="facebook.com" class="sm-site-check accent-cyan-500" checked> Facebook
              </label>
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="instagram.com" class="sm-site-check" checked> Instagram
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="instagram.com" class="sm-site-check accent-cyan-500" checked> Instagram
              </label>
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="twitter.com" class="sm-site-check"> Twitter
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="twitter.com" class="sm-site-check accent-cyan-500"> Twitter
              </label>
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="reddit.com" class="sm-site-check"> Reddit
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="reddit.com" class="sm-site-check accent-cyan-500"> Reddit
              </label>
-             <label class="flex items-center gap-2 text-xs font-medium text-brand-text cursor-pointer">
-               <input type="checkbox" value="tiktok.com" class="sm-site-check"> TikTok
+             <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+               <input type="checkbox" value="tiktok.com" class="sm-site-check accent-cyan-500"> TikTok
              </label>
           </div>
         </div>
       </div>
-      
-      <!-- Auto-Mail Card -->
-      <div id="adminAutoMailCard" class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm" style="display:none; border-color: #e2e8f0;">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-slate-800 font-semibold border-slate-200">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500">
+
+      <!-- Integrated Auto-Mail Card (Admin Only) -->
+      <div id="adminAutoMailCard" class="glass-card p-5" style="display:none;">
+        <div class="pb-3 border-b border-white/08 flex items-center gap-2.5 text-white font-semibold mb-4">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400">
             <path d="m22 2-7 20-4-9-9-4Z"></path>
             <path d="M22 2 11 13"></path>
           </svg>
-          <h2 class="font-semibold m-0 text-base">Integrated Auto-Mail</h2>
+          <h2 class="font-display font-bold text-white text-base">Integrated Auto-Mail</h2>
         </div>
 
         <div class="space-y-4">
           <div class="flex items-center gap-2">
-            <input type="checkbox" id="enableAutoMail" class="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
-            <label for="enableAutoMail" class="text-xs font-bold text-red-800 uppercase tracking-wide cursor-pointer">Enable Automated Outreach</label>
+            <input type="checkbox" id="enableAutoMail" class="w-4 h-4 text-cyan-500 rounded border-white/20 accent-cyan-500 cursor-pointer">
+            <label for="enableAutoMail" class="text-xs font-bold text-slate-200 uppercase tracking-wider cursor-pointer">Enable Automated Outreach</label>
           </div>
 
-          <!-- Saved Sequences Toolbar -->
-          <div class="items-center gap-3 bg-red-50 p-3 rounded-lg border border-red-200 mt-2" id="savedSequencesContainer" style="display:none; flex-wrap:wrap;">
-            <select id="savedSequenceSelect" class="flex-1 px-3 py-1.5 border rounded-lg text-sm bg-white border-red-200 focus:outline-none focus:ring-1 focus:ring-red-500 min-w-[200px]">
+          <div class="items-center gap-3 bg-slate-900/80 p-3 rounded-xl border border-white/10 mt-2" id="savedSequencesContainer" style="display:none; flex-wrap:wrap;">
+            <select id="savedSequenceSelect" class="flex-1 px-3 py-1.5 border rounded-lg text-xs bg-slate-950 text-slate-100 border-white/10 focus:outline-none min-w-[200px]">
               <option value="new">-- Custom Sequence --</option>
             </select>
-            <button id="btnSaveSequence" class="px-3 py-1.5 bg-red-600 text-white text-sm font-semibold border-none rounded-lg hover:bg-red-700 transition-colors">Save Current</button>
-            <button id="btnDeleteSequence" class="px-3 py-1.5 bg-white text-red-600 text-sm font-semibold border border-red-200 rounded-lg hover:bg-red-50 transition-colors" style="display:none;">Delete</button>
+            <button id="btnSaveSequence" class="px-3 py-1.5 bg-cyan-500 text-white text-xs font-bold rounded-lg hover:bg-cyan-600 transition-colors">Save Current</button>
+            <button id="btnDeleteSequence" class="px-3 py-1.5 bg-slate-800 text-rose-400 text-xs font-bold border border-rose-500/30 rounded-lg hover:bg-rose-950/40 transition-colors" style="display:none;">Delete</button>
           </div>
 
-          <div id="autoMailSettings" style="display:none;" class="space-y-4 pt-2 border-t border-red-200">
-            <div class="pt-4 border-t border-red-200">
-              <div class="flex items-center justify-between mb-1.5">
-                  <label class="block text-[10px] font-black text-red-800 uppercase tracking-widest">Select SMTP Senders</label>
-                  <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='block'" class="text-[10px] font-medium text-red-600 hover:text-red-800 flex items-center gap-1 bg-white border border-red-200 px-2 py-0.5 rounded shadow-sm transition-colors cursor-pointer">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Email
+          <div id="autoMailSettings" style="display:none;" class="space-y-4 pt-2 border-t border-white/08">
+            <div class="pt-3 border-t border-white/08">
+              <div class="flex items-center justify-between mb-2">
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select SMTP Senders</label>
+                  <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='block'" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-slate-900 border border-cyan-500/30 px-2 py-1 rounded-lg cursor-pointer">
+                    + Add Email
                   </button>
               </div>
               
-              <form id="addSmtpFormObj" onsubmit="window.submitNewSmtp(event)" style="display:none; background: #fef2f2; padding: 12px; border-radius: 6px; border: 1px dashed #fca5a5; margin-bottom: 8px;">
-                <div class="flex gap-2 mb-2">
-                  <input type="text" id="newSmtpHost" placeholder="Host (smtp.gmail.com)" required class="w-full px-2 py-1.5 border border-red-200 rounded text-xs focus:ring-1 focus:ring-red-500 outline-none">
-                  <input type="number" id="newSmtpPort" placeholder="587" value="587" required class="w-24 px-2 py-1.5 border border-red-200 rounded text-xs focus:ring-1 focus:ring-red-500 outline-none">
+              <form id="addSmtpFormObj" onsubmit="window.submitNewSmtp(event)" style="display:none;" class="p-3 bg-slate-950/90 rounded-xl border border-cyan-500/30 mb-3 space-y-2">
+                <div class="flex gap-2">
+                  <input type="text" id="newSmtpHost" placeholder="Host (smtp.gmail.com)" required class="w-full px-3 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-900 text-slate-100">
+                  <input type="number" id="newSmtpPort" placeholder="587" value="587" required class="w-24 px-3 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-900 text-slate-100">
                 </div>
-                <div class="flex gap-2 mb-2">
-                  <input type="text" id="newSmtpUser" placeholder="Email Username" required class="w-full px-2 py-1.5 border border-red-200 rounded text-xs focus:ring-1 focus:ring-red-500 outline-none">
-                  <input type="password" id="newSmtpPass" placeholder="App Password" required class="w-full px-2 py-1.5 border border-red-200 rounded text-xs focus:ring-1 focus:ring-red-500 outline-none">
+                <div class="flex gap-2">
+                  <input type="text" id="newSmtpUser" placeholder="Email Username" required class="w-full px-3 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-900 text-slate-100">
+                  <input type="password" id="newSmtpPass" placeholder="App Password" required class="w-full px-3 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-900 text-slate-100">
                 </div>
-                <div class="flex items-center gap-2">
-                  <button type="submit" id="btnSaveSmtpDash" class="bg-red-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-red-700 cursor-pointer shadow-sm">Verify & Save</button>
-                  <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='none'" class="text-red-800 px-3 py-1.5 rounded text-[10px] font-bold uppercase hover:bg-red-100 cursor-pointer">Cancel</button>
-                  <span id="addSmtpErrorDash" class="text-red-600 text-[10px] truncate max-w-[120px]"></span>
+                <div class="flex items-center gap-2 pt-1">
+                  <button type="submit" id="btnSaveSmtpDash" class="bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-cyan-600 cursor-pointer shadow-glow">Verify & Save</button>
+                  <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='none'" class="text-slate-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase hover:bg-slate-800 cursor-pointer">Cancel</button>
+                  <span id="addSmtpErrorDash" class="text-rose-400 text-[10px] truncate max-w-[120px]"></span>
                 </div>
               </form>
 
-              <div id="autoMailSmtpList" class="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-white/50 border border-red-100 rounded-md">
+              <div id="autoMailSmtpList" class="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-slate-950/60 border border-white/08 rounded-xl">
                 <div class="text-[10px] text-slate-500 italic">No SMTP accounts found in Sender.</div>
               </div>
             </div>
 
-            <div class="pt-4 border-t border-red-200">
-               <label class="block text-[10px] font-black text-red-800 uppercase tracking-widest mb-1.5">Email Sequences</label>
-               <div id="autoMailSequenceContainer" class="space-y-4"></div>
-               <button id="btnAddAutoMailStep" type="button" class="mt-4 w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 border-dashed rounded-md text-xs font-bold uppercase transition-all flex items-center justify-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Follow-Up Email</button>
+            <div class="pt-3 border-t border-white/08">
+               <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Email Sequences</label>
+               <div id="autoMailSequenceContainer" class="space-y-3"></div>
+               <button id="btnAddAutoMailStep" type="button" class="mt-3 w-full py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 border-dashed rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-1">+ Add Follow-Up Email</button>
             </div>
 
-            <div class="pt-4 border-t border-red-200">
-              <label class="block text-[10px] font-black text-red-800 uppercase tracking-widest mb-1.5">Manage Templates</label>
-              <div class="flex flex-col gap-3 p-3 bg-red-50/50 border border-red-100 rounded-lg">
+            <div class="pt-3 border-t border-white/08">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Manage Templates</label>
+              <div class="flex flex-col gap-2.5 p-3 bg-slate-950/60 border border-white/08 rounded-xl">
                 <div class="flex gap-2">
-                  <select id="autoMailTemplateSelect" class="flex-1 px-3 py-2 border rounded-md text-sm font-mono border-red-200 bg-white">
+                  <select id="autoMailTemplateSelect" class="flex-1 px-3 py-2 border rounded-lg text-xs font-mono border-white/10 bg-slate-900 text-slate-100">
                     <option value="new">+ Create New Template</option>
                   </select>
-                  <button id="btnDeleteTemplate" type="button" class="p-2 text-red-400 hover:text-red-600 transition-colors" title="Delete Template">
+                  <button id="btnDeleteTemplate" type="button" class="p-2 text-rose-400 hover:text-rose-300 transition-colors" title="Delete Template">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
                   </button>
                 </div>
-                <input type="text" id="autoMailTemplateName" placeholder="Template Reference Name (e.g. Fitness Promo)" class="w-full px-3 py-2 border rounded-md text-sm border-red-200 focus:ring-1 focus:ring-red-500 outline-none">
-                <input type="text" id="autoMailSenderName" placeholder="Sender Name (e.g. John Doe)" class="w-full px-3 py-2 border rounded-md text-sm border-red-200 focus:ring-1 focus:ring-red-500 outline-none">
-                <input type="text" id="autoMailSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-md text-sm border-red-200 focus:ring-1 focus:ring-red-500 outline-none">
-                <textarea id="autoMailHtml" placeholder="HTML Content" rows="3" class="w-full px-3 py-2 border rounded-md text-xs font-mono border-red-200 focus:ring-1 focus:ring-red-500 outline-none"></textarea>
+                <input type="text" id="autoMailTemplateName" placeholder="Template Reference Name" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100">
+                <input type="text" id="autoMailSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100">
+                <input type="text" id="autoMailSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100">
+                <textarea id="autoMailHtml" placeholder="HTML Content" rows="3" class="w-full px-3 py-2 border rounded-lg text-xs font-mono border-white/10 bg-slate-900 text-slate-100"></textarea>
                 <div class="flex justify-end mt-1">
-                   <button id="btnSaveAutoMailTemplate" type="button" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Save Template</button>
+                   <button id="btnSaveAutoMailTemplate" type="button" class="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-glow">Save Template</button>
                 </div>
               </div>
             </div>
 
-          </div> <!-- closes autoMailSettings -->
-        </div> <!-- closes space-y-4 -->
-      </div> <!-- closes adminAutoMailCard -->
-
-      <!-- Error Box -->
-      <div id="runErrorBox"
-        style="display:none; background-color:#fee2e2; border:1px solid #f87171; color:#991b1b; padding:12px; border-radius:6px; margin-bottom:12px; font-size:13px; line-height:1.4;">
+          </div>
+        </div>
       </div>
 
+      <!-- Error Box -->
+      <div id="runErrorBox" style="display:none;" class="p-4 bg-rose-950/50 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-medium"></div>
+
       <!-- Run Button -->
-      <button id="run"
-        class="mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+      <button id="run" class="btn-primary py-3.5 w-full text-xs uppercase tracking-[0.16em]">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="6 3 20 12 6 21 6 3"></polygon>
         </svg>
-        Run Scraper
+        Run Scraper Engine
       </button>
 
     </div>
@@ -449,60 +451,46 @@ Gym Coach"
     <div class="flex flex-col gap-6">
 
       <!-- Live Events Card -->
-      <div class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm">
-        <div class="pb-3 border-b flex items-center justify-between gap-2.5 text-brand-text font-semibold border-slate-200 flex-wrap">
-          <div class="card-header-left flex items-center gap-2">
+      <div class="glass-card p-5">
+        <div class="pb-3 border-b border-white/08 flex items-center justify-between gap-2.5 text-white font-semibold flex-wrap mb-3">
+          <div class="flex items-center gap-2">
             <span class="live-dot"></span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
             </svg>
-            <h2 class="font-semibold text-brand-text m-0 text-base">Live Activity</h2>
+            <h2 class="font-display font-bold text-white text-base">Live Activity</h2>
           </div>
           <div class="flex gap-2 items-center">
             <div class="live-count" id="liveLeadCount">0 leads</div>
-            <div class="live-count" id="livePhoneCount"
-              style="background:rgba(139,92,246,0.15);border-color:var(--purple);color:var(--purple);">
-              0 phones</div>
+            <div class="live-count" id="livePhoneCount" style="background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.3);color:#c084fc;">0 phones</div>
           </div>
         </div>
-        <ul id="events" class="events-feed"></ul>
+        <ul id="events" class="events-feed mb-3"></ul>
         <div id="currentFiles" class="files-strip">
-          <ul id="files"></ul>
+          <ul id="files" class="flex flex-wrap gap-2"></ul>
         </div>
-        <div id="currentPhones" class="files-strip" style="margin-top:8px">
-          <div
-            style="font-size:11px;font-weight:600;color:var(--purple);letter-spacing:0.05em;margin-bottom:6px;text-transform:uppercase;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
-              <path
-                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.39 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l1.86-1.84a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
-              </path>
-            </svg>
-            Phone / WhatsApp Numbers
-          </div>
-          <ul id="phoneFiles"></ul>
+        <div id="currentPhones" class="files-strip mt-3">
+          <div class="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Phone / WhatsApp Numbers</div>
+          <ul id="phoneFiles" class="flex flex-wrap gap-2"></ul>
         </div>
       </div>
 
       <!-- History Card -->
-      <div class="border rounded-xl bg-white flex flex-col gap-4 p-5 shadow-sm">
-        <div class="pb-3 border-b flex items-center justify-between gap-2.5 text-brand-text font-semibold border-slate-200 flex-wrap">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary">
+      <div class="glass-card p-5">
+        <div class="pb-3 border-b border-white/08 flex items-center justify-between gap-2.5 text-white font-semibold flex-wrap mb-4">
+          <div class="flex items-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
               <path d="M12 7v5l4 2"></path>
             </svg>
-            <h2 style="margin:0;" class="font-semibold text-brand-text m-0 text-base">Job History</h2>
+            <h2 class="font-display font-bold text-white text-base">Job History</h2>
           </div>
-          <select id="historyCategoryFilter"
-            class="min-w-[140px] px-3 py-1.5 border rounded-md text-xs text-brand-text font-mono focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm">
+          <select id="historyCategoryFilter" class="px-3 py-1.5 border rounded-xl text-xs text-slate-200 font-mono bg-slate-900 border-white/10 focus:outline-none">
             <option value="all">All Campaigns</option>
           </select>
         </div>
-        <div id="history" class="history-list"></div>
+        <div id="history" class="history-list space-y-3 max-h-[500px] overflow-y-auto pr-1"></div>
       </div>
 
     </div>
@@ -511,30 +499,24 @@ Gym Coach"
 </div>
 
 <!-- File Preview Modal -->
-<div id="filePreviewModal" class="modal-overlay" style="display:none;">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h3 id="modalFileName">Loading...</h3>
-      <button id="closeModalBtn"
-        class="modal-close-btn mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+<div id="filePreviewModal" class="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4" style="display:none;">
+  <div class="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+    <div class="p-4 border-b border-white/10 flex items-center justify-between bg-slate-950">
+      <h3 id="modalFileName" class="font-mono text-sm text-cyan-400 font-bold truncate">Loading...</h3>
+      <button id="closeModalBtn" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6 6 18"></path>
           <path d="m6 6 12 12"></path>
         </svg>
       </button>
     </div>
-    <div class="modal-body" id="modalFileContent">
-      <!-- Text or Table content injected here -->
-    </div>
-    <div class="modal-footer">
-      <a id="modalDownloadBtn" href="#"
-        class="mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+    <div class="p-4 overflow-auto flex-1 font-mono text-xs text-slate-300" id="modalFileContent"></div>
+    <div class="p-4 border-t border-white/10 bg-slate-950 flex justify-end">
+      <a id="modalDownloadBtn" href="#" class="btn-primary py-2 px-4 text-xs">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
+          <line x1="12" x2="12" y1="15" x2="3"></line>
         </svg>
         Download File
       </a>
@@ -543,29 +525,22 @@ Gym Coach"
 </div>
 
 <!-- ========== PROFILE MODAL ========== -->
-<div id="profileModal"
-  style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
-  <div
-    style="background:#fff; border-radius:20px; width:100%; max-width:480px; margin:16px; box-shadow:0 25px 60px rgba(0,0,0,0.18); overflow:hidden; animation:slideUp 0.25s ease;">
-    <!-- Modal Header -->
+<div id="profileModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.8); backdrop-filter:blur(12px); align-items:center; justify-content:center;">
+  <div style="background:#0b0f19; border:1px solid rgba(255,255,255,0.1); border-radius:24px; width:100%; max-width:480px; margin:16px; box-shadow:0 25px 60px rgba(0,0,0,0.6); overflow:hidden;">
     <div style="padding:24px 24px 0; display:flex; align-items:center; justify-content:space-between;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <div
-          style="width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg,#38bdf8,#6366f1); display:flex; align-items:center; justify-content:center;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
             <circle cx="12" cy="8" r="5" />
             <path d="M20 21a8 8 0 1 0-16 0" />
           </svg>
         </div>
         <div>
-          <div style="font-size:17px; font-weight:700; color:#0f172a; line-height:1.2;" id="profileName">–</div>
+          <div style="font-size:17px; font-weight:700; color:#f8fafc;" id="profileName">–</div>
           <div style="font-size:12px; color:#94a3b8;" id="profileEmail">–</div>
         </div>
       </div>
-      <button id="closeProfileBtn"
-        style="background:none; border:none; cursor:pointer; padding:6px; color:#94a3b8; border-radius:8px; display:flex; align-items:center; transition:background 0.2s;"
-        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
+      <button id="closeProfileBtn" style="background:none; border:none; cursor:pointer; padding:6px; color:#94a3b8; border-radius:8px; display:flex; align-items:center;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6 6 18" />
           <path d="m6 6 12 12" />
@@ -573,42 +548,30 @@ Gym Coach"
       </button>
     </div>
 
-    <!-- Account Summary Cards -->
     <div style="padding:20px 24px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-        <div
-          style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">
-          Plan</div>
-        <div id="profilePlan" style="font-size:14px; font-weight:700; color:#6366f1;">–</div>
+      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
+        <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">Plan</div>
+        <div id="profilePlan" style="font-size:14px; font-weight:700; color:#38bdf8;">–</div>
       </div>
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-        <div
-          style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">
-          Status</div>
+      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
+        <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">Status</div>
         <div id="profileStatus" style="font-size:14px; font-weight:700; color:#10b981;">Active</div>
       </div>
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-        <div
-          style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">
-          Today's Usage</div>
-        <div id="profileDailyUsage" style="font-size:14px; font-weight:700; color:#0f172a;">–</div>
+      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
+        <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">Today's Usage</div>
+        <div id="profileDailyUsage" style="font-size:14px; font-weight:700; color:#f8fafc;">–</div>
       </div>
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-        <div
-          style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">
-          Monthly Usage</div>
-        <div id="profileMonthlyUsage" style="font-size:14px; font-weight:700; color:#0f172a;">–</div>
+      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
+        <div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px;">Monthly Usage</div>
+        <div id="profileMonthlyUsage" style="font-size:14px; font-weight:700; color:#f8fafc;">–</div>
       </div>
     </div>
 
-    <!-- Divider -->
-    <div style="border-top:1px solid #f1f5f9; margin:0 24px;"></div>
+    <div style="border-top:1px solid rgba(255,255,255,0.08); margin:0 24px;"></div>
 
-    <!-- Change Password Section -->
     <div style="padding:20px 24px 24px;">
-      <div
-        style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:14px; display:flex; align-items:center; gap:7px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5">
+      <div style="font-size:13px; font-weight:700; color:#f8fafc; margin-bottom:14px; display:flex; align-items:center; gap:7px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5">
           <rect x="3" y="11" width="18" height="11" rx="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
@@ -616,73 +579,29 @@ Gym Coach"
       </div>
       <form id="changePasswordForm" style="display:flex; flex-direction:column; gap:12px;">
         <div style="position:relative;">
-          <label
-            style="display:block; font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px;">Current
-            Password</label>
-          <input type="password" id="currentPassword" required
-            style="width:100%; box-sizing:border-box; padding:10px 44px 10px 14px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; font-family:'Fira Code',monospace; background:#f8fafc; outline:none; transition:border-color .2s;"
-            onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
-          <button type="button" onclick="togglePwdVisibility('currentPassword','eyeOffCur','eyeOnCur')"
-            style="position:absolute; right:12px; bottom:10px; background:none; border:none; cursor:pointer; color:#94a3b8; padding:0; display:flex;">
-            <svg id="eyeOnCur" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <svg id="eyeOffCur" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
-              <path
-                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-              <line x1="1" y1="1" x2="23" y2="23" />
-            </svg>
+          <label style="display:block; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px;">Current Password</label>
+          <input type="password" id="currentPassword" required style="width:100%; box-sizing:border-box; padding:10px 44px 10px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; font-size:13px; font-family:'JetBrains Mono',monospace; background:rgba(15,23,42,0.9); color:#fff; outline:none;">
+          <button type="button" onclick="togglePwdVisibility('currentPassword','eyeOffCur','eyeOnCur')" style="position:absolute; right:12px; bottom:10px; background:none; border:none; cursor:pointer; color:#94a3b8; padding:0; display:flex;">
+            <svg id="eyeOnCur" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+            <svg id="eyeOffCur" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
           </button>
         </div>
         <div style="position:relative;">
-          <label
-            style="display:block; font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px;">New
-            Password</label>
-          <input type="password" id="newPassword" required minlength="6"
-            style="width:100%; box-sizing:border-box; padding:10px 44px 10px 14px; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; font-family:'Fira Code',monospace; background:#f8fafc; outline:none; transition:border-color .2s;"
-            onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
-          <button type="button" onclick="togglePwdVisibility('newPassword','eyeOffNew','eyeOnNew')"
-            style="position:absolute; right:12px; bottom:10px; background:none; border:none; cursor:pointer; color:#94a3b8; padding:0; display:flex;">
-            <svg id="eyeOnNew" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <svg id="eyeOffNew" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
-              <path
-                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-              <line x1="1" y1="1" x2="23" y2="23" />
-            </svg>
+          <label style="display:block; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px;">New Password</label>
+          <input type="password" id="newPassword" required minlength="6" style="width:100%; box-sizing:border-box; padding:10px 44px 10px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; font-size:13px; font-family:'JetBrains Mono',monospace; background:rgba(15,23,42,0.9); color:#fff; outline:none;">
+          <button type="button" onclick="togglePwdVisibility('newPassword','eyeOffNew','eyeOnNew')" style="position:absolute; right:12px; bottom:10px; background:none; border:none; cursor:pointer; color:#94a3b8; padding:0; display:flex;">
+            <svg id="eyeOnNew" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+            <svg id="eyeOffNew" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
           </button>
         </div>
-        <div id="passwordMessage"
-          style="display:none; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px;"></div>
-        <button type="submit" id="pwdSubmitBtn"
-          style="width:100%; padding:11px; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; transition:opacity .2s; letter-spacing:.02em;">
+        <div id="passwordMessage" style="display:none; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px;"></div>
+        <button type="submit" id="pwdSubmitBtn" style="width:100%; padding:11px; background:linear-gradient(135deg,#38bdf8,#0284c7); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer;">
           Update Password
         </button>
       </form>
     </div>
   </div>
 </div>
-
-<style>
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-</style>
 
 <script>
   function togglePwdVisibility(inputId, eyeOffId, eyeOnId) {
@@ -700,14 +619,11 @@ Gym Coach"
     }
   }
 
-  // Profile modal open/close
   const profileModal = document.getElementById('profileModal');
   const openProfileBtn = document.getElementById('openProfileBtn');
   const closeProfileBtn = document.getElementById('closeProfileBtn');
 
-  function openProfile() {
-    profileModal.style.display = 'flex';
-  }
+  function openProfile() { profileModal.style.display = 'flex'; }
   function closeProfile() {
     profileModal.style.display = 'none';
     document.getElementById('changePasswordForm').reset();
@@ -720,7 +636,6 @@ Gym Coach"
   if (closeProfileBtn) closeProfileBtn.addEventListener('click', closeProfile);
   profileModal.addEventListener('click', (e) => { if (e.target === profileModal) closeProfile(); });
 
-  // Expose a function so app.js can populate the profile data
   window.populateProfileModal = function (user) {
     document.getElementById('profileName').textContent = user.username || '–';
     document.getElementById('profileEmail').textContent = user.email || 'No email on record';
@@ -731,11 +646,11 @@ Gym Coach"
     if (isTrialing) {
       const days = Math.ceil((new Date(user.trialEndsAt) - new Date()) / 86400000);
       planLabel = `Free Trial · ${days}d left`;
-      document.getElementById('profilePlan').style.color = '#3b82f6';
+      document.getElementById('profilePlan').style.color = '#38bdf8';
     } else if (rawPlan === 'premium') {
       document.getElementById('profilePlan').style.color = '#10b981';
     } else {
-      document.getElementById('profilePlan').style.color = '#6366f1';
+      document.getElementById('profilePlan').style.color = '#818cf8';
     }
     document.getElementById('profilePlan').textContent = planLabel.charAt(0).toUpperCase() + planLabel.slice(1);
 
@@ -747,7 +662,6 @@ Gym Coach"
     document.getElementById('profileMonthlyUsage').textContent = `${m} / ${monthlyLimit}`;
   };
 
-  // Change Password form handler
   const changePasswordForm = document.getElementById('changePasswordForm');
   const msgEl = document.getElementById('passwordMessage');
 
@@ -772,15 +686,15 @@ Gym Coach"
       msgEl.style.display = 'block';
       if (res.ok) {
         msgEl.textContent = '✓ Password updated successfully!';
-        msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46;';
+        msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#34d399;';
         changePasswordForm.reset();
       } else {
         msgEl.textContent = data.error || 'Failed to update password.';
-        msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:#fef2f2; border:1px solid #fca5a5; color:#991b1b;';
+        msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:rgba(244,63,94,0.15); border:1px solid rgba(244,63,94,0.3); color:#fb7185;';
       }
     } catch {
       msgEl.textContent = 'Network error. Please try again.';
-      msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:#fef2f2; border:1px solid #fca5a5; color:#991b1b;';
+      msgEl.style.cssText = 'display:block; font-size:12px; font-weight:600; padding:10px 12px; border-radius:8px; background:rgba(244,63,94,0.15); border:1px solid rgba(244,63,94,0.3); color:#fb7185;';
     } finally {
       btn.disabled = false;
       btn.textContent = 'Update Password';
@@ -789,3 +703,6 @@ Gym Coach"
 </script>
 
 <script type="module" src="app.js?v=2.3"></script>
+</body>
+
+</html>

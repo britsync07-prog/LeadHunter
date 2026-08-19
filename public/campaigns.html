@@ -1,223 +1,174 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign Viewer | Local Lead Automation</title>
+    <title>Campaign Viewer | LeadHunter</title>
     <link rel="icon" type="image/x-icon" href="/vite.ico">
-    <link rel="stylesheet" href="styles.css?v=neo">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tailwind-config.js"></script>
+    <link rel="stylesheet" href="styles.css?v=neo2">
+
     <style>
-        /* 3-Panel Layout Styles */
         body {
             overflow: hidden;
-            /* Prevent full body scroll, rely on panel scrolls */
+            background: #070a12;
         }
 
         .categories-layout {
             display: flex;
             height: 100vh;
             width: 100vw;
-            background: var(--bg-body);
+            background: #070a12;
         }
 
-        /* Panel 1: Sidebar (Categories List) */
         .panel-sidebar {
             width: 280px;
             min-width: 280px;
             height: 100vh;
-            border-right: 1px solid var(--border);
-            background: var(--bg-surface);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(11, 15, 25, 0.9);
             display: flex;
             flex-direction: column;
+            backdrop-filter: blur(20px);
         }
 
         .panel-sidebar-header {
             padding: 20px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .panel-sidebar-header h2 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .category-list {
             flex: 1;
             overflow-y: auto;
-            padding: 10px;
+            padding: 12px;
         }
 
         .category-item {
             padding: 12px 14px;
-            border-radius: var(--radius-md);
+            border-radius: 12px;
             cursor: pointer;
             margin-bottom: 4px;
-            transition: background var(--transition-speed);
-            color: var(--text-primary);
+            transition: all 0.2s;
+            color: #cbd5e1;
             font-weight: 500;
+            border: 1px solid transparent;
         }
 
         .category-item:hover {
-            background: var(--bg-hover);
+            background: rgba(255, 255, 255, 0.05);
+            color: #f8fafc;
         }
 
         .category-item.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .category-item.active .category-meta {
-            color: rgba(255, 255, 255, 0.8);
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.08));
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.3);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
         }
 
         .category-meta {
             font-size: 11px;
-            color: var(--text-muted);
+            color: #64748b;
             margin-top: 4px;
         }
 
-        /* Panel 2: Center (Jobs List) */
         .panel-center {
             width: 380px;
             min-width: 380px;
             height: 100vh;
-            border-right: 1px solid var(--border);
-            background: var(--bg-body);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.6);
             display: flex;
             flex-direction: column;
         }
 
         .panel-center-header {
             padding: 20px;
-            border-bottom: 1px solid var(--border);
-            background: var(--bg-surface);
-        }
-
-        .panel-center-header h2 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .panel-center-subtitle {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(11, 15, 25, 0.8);
         }
 
         .jobs-list {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 16px;
         }
 
-        /* Reusing some history-item styles from styles.css */
         .cat-job-card {
-            background: var(--bg-surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
             padding: 14px;
             margin-bottom: 12px;
-            box-shadow: var(--shadow-sm);
+            box-shadow: var(--shadow-glass);
+            transition: all 0.2s;
         }
 
-        .cat-job-card .history-location {
-            margin: 6px 0;
+        .cat-job-card:hover {
+            border-color: rgba(56, 189, 248, 0.3);
         }
 
         .file-chip {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 4px 8px;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
+            padding: 4px 10px;
+            background: rgba(7, 10, 18, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
             font-size: 11px;
-            color: var(--text-primary);
+            color: #cbd5e1;
             cursor: pointer;
             margin: 4px 4px 0 0;
             transition: all 0.2s;
         }
 
-        .file-chip:hover {
-            border-color: var(--primary);
-            color: var(--primary);
+        .file-chip:hover, .file-chip.active {
+            border-color: #38bdf8;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
         }
 
-        .file-chip.active {
-            background: rgba(59, 130, 246, 0.1);
-            border-color: var(--primary);
-            color: var(--primary);
-        }
+        .file-chip.csv { border-color: #10b981; color: #10b981; }
+        .file-chip.csv:hover, .file-chip.csv.active { background: rgba(16, 185, 129, 0.15); }
+        .file-chip.phone { border-color: #c084fc; color: #c084fc; }
+        .file-chip.phone:hover, .file-chip.phone.active { background: rgba(168, 85, 247, 0.15); }
 
-        .file-chip.csv {
-            border-color: #10b981;
-            color: #10b981;
-        }
-
-        .file-chip.csv:hover,
-        .file-chip.csv.active {
-            background: rgba(16, 185, 129, 0.1);
-        }
-
-        .file-chip.phone {
-            border-color: var(--purple);
-            color: var(--purple);
-        }
-
-        .file-chip.phone:hover,
-        .file-chip.phone.active {
-            background: rgba(139, 92, 246, 0.1);
-        }
-
-        /* Panel 3: Right (File Viewer) */
         .panel-right {
             flex: 1;
             height: 100vh;
-            background: var(--bg-card);
-            /* Darker background for contrast */
+            background: #070a12;
             display: flex;
             flex-direction: column;
         }
 
         .panel-right-header {
-            padding: 14px 24px;
-            border-bottom: 1px solid var(--border);
-            background: var(--bg-surface);
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(11, 15, 25, 0.9);
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
-        .panel-right-header h2 {
-            margin: 0;
-            font-size: 15px;
-            font-weight: 500;
-            font-family: 'Fira Code', monospace;
-        }
-
         .file-content-area {
             flex: 1;
             overflow: auto;
-            padding: 0;
-            /* padding controlled by children */
+            padding: 16px;
         }
 
-        /* Empty States */
         .empty-state {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            color: var(--text-muted);
+            color: #64748b;
             text-align: center;
             padding: 40px;
         }
@@ -226,89 +177,62 @@
             width: 48px;
             height: 48px;
             margin-bottom: 16px;
-            opacity: 0.5;
+            opacity: 0.4;
         }
 
-        /* View Controls */
-        .header-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        /* --- MOBILE RESPONSIVENESS for 3-Panel Layout --- */
         @media (max-width: 1024px) {
             .categories-layout {
                 flex-direction: column;
                 height: auto;
                 overflow-y: auto;
             }
-
-            .panel-sidebar,
-            .panel-center,
-            .panel-right {
+            .panel-sidebar, .panel-center, .panel-right {
                 width: 100% !important;
                 min-width: 100% !important;
                 height: auto !important;
-                min-height: auto !important;
                 border-right: none;
-                border-bottom: 1px solid var(--border);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             }
-
-            .panel-sidebar {
-                max-height: 300px;
-            }
-
-            .panel-center {
-                max-height: 400px;
-            }
-
-            .panel-right {
-                min-height: 500px;
-            }
-
-            body {
-                overflow: auto;
-            }
+            .panel-sidebar { max-height: 280px; }
+            .panel-center { max-height: 380px; }
+            .panel-right { min-height: 500px; }
+            body { overflow: auto; }
         }
     </style>
 </head>
 
 <body>
-    <div class="categories-layout">
+    <div class="categories-layout font-sans text-slate-100">
 
         <!-- Left: Navigation & Categories -->
         <div class="panel-sidebar">
             <div class="panel-sidebar-header">
-                <a href="/dashboard.html" id="navScraper"
-                    style="display:inline-flex; align-items:center; gap:6px; color:var(--text-secondary); text-decoration:none; margin-bottom: 16px; font-size:13px;">
+                <a href="/dashboard.html" id="navScraper" class="inline-flex items-center gap-2 text-slate-400 hover:text-cyan-400 font-semibold text-xs mb-4 transition-colors">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="m15 18-6-6 6-6" />
                     </svg>
                     Back to Dashboard
                 </a>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-base font-display font-bold text-white flex items-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400">
                             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
                         </svg>
                         Campaigns
                     </h2>
-                    <a href="/index.html#pricing"
-                        style="background:linear-gradient(to right, #3b82f6, #8b5cf6); color:white; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:bold; text-decoration:none; box-shadow:0 2px 4px rgba(0,0,0,0.1);">Pro</a>
+                    <a href="/index.html#pricing" class="bg-gradient-to-r from-sky-500 to-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-glow hover:brightness-110">Pro</a>
                 </div>
             </div>
             <div class="category-list" id="categoryListContainer">
-                <div class="empty-state" style="padding: 20px;">Loading campaigns...</div>
+                <div class="empty-state text-xs">Loading campaigns...</div>
             </div>
         </div>
 
         <!-- Center: Jobs in Category -->
         <div class="panel-center">
             <div class="panel-center-header">
-                <h2 id="centerTitle">Select a Campaign</h2>
-                <div class="panel-center-subtitle" id="centerSubtitle">Choose a campaign from the left to view its
-                    scraping history.</div>
+                <h2 id="centerTitle" class="text-base font-display font-bold text-white">Select a Campaign</h2>
+                <div class="panel-center-subtitle text-xs text-slate-400 mt-1" id="centerSubtitle">Choose a campaign from the left to view scraping history.</div>
             </div>
             <div class="jobs-list" id="jobsListContainer">
                 <div class="empty-state">
@@ -317,7 +241,7 @@
                         <line x1="9" x2="15" y1="9" y2="9" />
                         <line x1="9" x2="15" y1="15" y2="15" />
                     </svg>
-                    <span>Select a campaign to view jobs.</span>
+                    <span class="text-xs">Select a campaign to view jobs.</span>
                 </div>
             </div>
         </div>
@@ -325,15 +249,13 @@
         <!-- Right: File Viewer -->
         <div class="panel-right">
             <div class="panel-right-header">
-                <h2 id="viewerFileName" style="color:var(--text-muted)">No file selected</h2>
+                <h2 id="viewerFileName" class="text-xs font-mono font-bold text-cyan-400 truncate">No file selected</h2>
                 <div class="header-actions">
-                    <a id="downloadBtn" href="#" class="btn btn--secondary btn--sm" style="display:none;"
-                        target="_blank">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" style="margin-right:6px;">
+                    <a id="downloadBtn" href="#" class="btn-primary py-1.5 px-3 text-xs" style="display:none;" target="_blank">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                             <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" x2="12" y1="15" y2="3" />
+                            <line x1="12" x2="12" y1="15" x2="3" />
                         </svg>
                         Download
                     </a>
@@ -345,7 +267,7 @@
                         <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
                         <polyline points="14 2 14 8 20 8" />
                     </svg>
-                    <span>Select a file from the list to view its contents here.</span>
+                    <span class="text-xs">Select a file from the list to view its contents here.</span>
                 </div>
             </div>
         </div>

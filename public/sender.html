@@ -1,65 +1,80 @@
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LeadHunter — Sender Campaigns</title>
-<link rel="icon" type="image/x-icon" href="/vite.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link
-  href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&amp;family=Fira+Sans:wght@300;400;500;600;700&amp;display=swap"
-  rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="tailwind-config.js"></script>
-<link rel="stylesheet" href="styles.css?v=neo">
+<!doctype html>
+<html lang="en" class="dark">
 
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeadHunter — Sender Campaigns</title>
+  <link rel="icon" type="image/x-icon" href="/vite.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="tailwind-config.js"></script>
+  <link rel="stylesheet" href="styles.css?v=neo2">
 
+  <style>
+    .campaign-builder-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 1024px) {
+      .campaign-builder-split {
+        grid-template-columns: 1fr;
+      }
+    }
+    .upload-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 32px 20px;
+      text-align: center;
+      background: rgba(11, 15, 25, 0.6);
+      transition: all 0.2s;
+    }
+    .upload-zone:hover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.05);
+    }
+  </style>
+</head>
 
-
-<!-- Sidebar (Cloned exactly from dashboard.html for seamless navigation) -->
+<body class="bg-obsidian-950 text-slate-100 font-sans antialiased relative min-h-screen flex">
 
 <!-- Mobile Overlay -->
 <div id="mobileOverlay" class="mobile-overlay"></div>
 
 <!-- Sidebar -->
-<aside
-  class="w-[220px] border-r flex flex-col fixed inset-y-0 left-0 z-50 bg-white/80 backdrop-blur-xl border-slate-200 shadow-[0_8px_32px_rgba(31,38,135,0.07)]">
-  <div
-    class="flex items-center gap-3 p-5 pb-4 border-b text-brand-primary font-bold text-lg tracking-tight border-slate-200">
-    <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-        <img src="/vite.ico" alt="Logo" class="w-full h-full object-cover" />
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-white/10 bg-slate-900">
+      <img src="/vite.ico" alt="Logo" class="w-full h-full object-cover" />
     </div>
     <span>LeadHunter</span>
   </div>
-  <nav class="flex-1 p-3 flex flex-col gap-1.5 overflow-y-auto">
-    <a href="/dashboard.html" id="navScraper"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+  <nav class="sidebar-nav">
+    <a href="/dashboard.html" id="navScraper" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2"></rect>
         <path d="M8 21h8M12 17v4"></path>
       </svg>
       Scraper
     </a>
-    <a href="/sender.html" id="navSender"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all bg-brand-primary/10 text-brand-primary border border-brand-primary/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] cursor-default">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/sender.html" id="navSender" class="nav-item active">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m22 2-7 20-4-9-9-4Z"></path>
         <path d="M22 2 11 13"></path>
       </svg>
       Sender
     </a>
-    <a href="/campaigns.html"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/campaigns.html" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
       </svg>
       Campaigns
     </a>
-    <a href="/checker.html" id="navChecker"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-md font-medium transition-all text-brand-secondary hover:bg-brand-hover hover:text-brand-text border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <a href="/checker.html" id="navChecker" class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 12l2 2 4-4"></path>
         <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
         <path d="M3 12c1 0 3-1 3-3S4 6 3 6 0 7 0 9s2 3 3 3"></path>
@@ -70,31 +85,23 @@
     </a>
 
     <!-- Sticky Upgrade CTA -->
-    <a href="/index.html#pricing"
-      class="flex items-center gap-2.5 px-3 py-2 mt-auto mb-2 rounded-md font-bold transition-all text-white bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 border border-transparent">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-        stroke-linecap="round" stroke-linejoin="round">
-        <polygon
-          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-        </polygon>
+    <a href="/index.html#pricing" class="flex items-center gap-2.5 px-3.5 py-2.5 mt-auto mb-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-500 to-indigo-600 shadow-glow hover:brightness-110 transition-all border border-white/20">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
       </svg>
       Pro Plans
     </a>
   </nav>
-  <div class="p-3 border-t flex flex-col gap-2 bg-slate-50 border-slate-200">
-    <div
-      class="flex items-center gap-2 px-3 py-2.5 bg-brand-base rounded-md border text-sm text-brand-secondary border-slate-200">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" class="text-brand-primary shrink-0">
+  <div class="p-3 border-t border-white/08 flex flex-col gap-2 bg-slate-950/60">
+    <div class="flex items-center gap-2 px-3 py-2 bg-slate-900/80 rounded-xl border border-white/10 text-xs text-slate-300">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan-400 shrink-0">
         <circle cx="12" cy="8" r="5"></circle>
         <path d="M20 21a8 8 0 1 0-16 0"></path>
       </svg>
       <span id="userInfo" class="truncate font-mono text-xs">Loading...</span>
     </div>
-    <button id="logoutBtn"
-      class="flex items-center justify-center gap-2 px-3 py-2 w-full text-sm font-medium text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all cursor-pointer border border-transparent hover:border-red-500/20">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+    <button id="logoutBtn" class="flex items-center justify-center gap-2 px-3 py-2 w-full text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition-all cursor-pointer border border-rose-500/20">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
         <polyline points="16 17 21 12 16 7"></polyline>
         <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -104,28 +111,25 @@
   </div>
 </aside>
 
-
 <!-- Main Content Area -->
 <div class="lg:ml-[220px] flex-1 flex flex-col min-h-screen w-full overflow-x-hidden">
-  <header
-    class="min-h-[64px] backdrop-blur-md border-b flex flex-wrap items-center justify-between px-4 lg:px-6 sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-slate-200 shadow-sm gap-2 py-2">
-    <div class="flex items-center gap-2 lg:gap-4 flex-wrap">
-      <button id="mobileMenuBtn" class="lg:hidden p-2 -ml-2 text-slate-600 hover:text-brand-primary">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+  <header class="min-h-[64px] border-b flex flex-wrap items-center justify-between px-4 lg:px-6 sticky top-0 z-40 bg-slate-950/80 backdrop-blur-2xl border-white/08 shadow-glass gap-2 py-2">
+    <div class="flex items-center gap-3">
+      <button id="mobileMenuBtn" class="lg:hidden p-2 text-slate-400 hover:text-cyan-400">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="3" y1="12" x2="21" y2="12"></line>
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
       </button>
-      <h1 class="text-lg lg:text-xl font-semibold text-brand-text tracking-tight whitespace-nowrap">Sender</h1>
+      <h1 class="text-lg lg:text-xl font-display font-bold text-white tracking-tight whitespace-nowrap">Sender Campaigns</h1>
       <div id="campaignStatusBadge" class="queue-badge text-[10px] lg:text-xs" style="display:none;"></div>
     </div>
   </header>
 
-  <div class="dashboard-content">
+  <div class="p-4 lg:p-6 w-full max-w-7xl mx-auto flex flex-col gap-6">
 
-    <!-- Top KPI Row (Data-Dense Design) -->
+    <!-- Top KPI Row -->
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-icon blue-glow">
@@ -184,229 +188,161 @@
     <!-- Campaign Builder Split View -->
     <div class="campaign-builder-split">
       <!-- LEFT: Configuration -->
-      <div class="builder-config border rounded-xl overflow-hidden h-fit flex flex-col gap-4 p-5">
-        <div class="pb-3 border-b flex items-center justify-between gap-2.5 border-slate-200">
-          <h2 class="card-title font-semibold text-brand-text m-0 text-base">Compose Campaign</h2>
+      <div class="builder-config glass-card p-5 flex flex-col gap-4">
+        <div class="pb-3 border-b border-white/08 flex items-center justify-between gap-2.5">
+          <h2 class="font-display font-bold text-white text-base">Compose Campaign</h2>
           <div id="savedSequencesContainer" class="flex items-center gap-2">
-            <select id="savedSequenceSelect" class="px-3 py-1.5 border rounded-md text-xs font-mono border-slate-200 bg-white shadow-sm focus:ring-1 focus:ring-brand-primary outline-none">
+            <select id="savedSequenceSelect" class="px-3 py-1.5 border rounded-xl text-xs font-mono border-white/10 bg-slate-900 text-slate-100 outline-none">
               <option value="new">-- Custom Sequence --</option>
             </select>
-            <button id="btnSaveSequence" class="p-1.5 text-brand-primary hover:bg-brand-primary/10 rounded-md transition-all border border-slate-200 shadow-sm" title="Save Current Sequence">
+            <button id="btnSaveSequence" class="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded-lg border border-cyan-500/30 shadow-sm" title="Save Current Sequence">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
             </button>
-            <button id="btnDeleteSequence" style="display:none;" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all border border-slate-200 shadow-sm" title="Delete Sequence">
+            <button id="btnDeleteSequence" style="display:none;" class="p-1.5 text-rose-400 hover:bg-rose-950/30 rounded-lg border border-rose-500/30 shadow-sm" title="Delete Sequence">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
             </button>
           </div>
         </div>
 
         <!-- Manage Templates Section -->
-        <div id="templateManagerBlock" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Manage Email Templates</label>
+        <div id="templateManagerBlock" class="p-3 bg-slate-950/60 border border-white/08 rounded-xl">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Manage Email Templates</label>
           <div class="flex flex-col gap-2">
             <div class="flex gap-2">
-              <select id="autoMailTemplateSelect" class="flex-1 px-3 py-2 border rounded-md text-xs font-mono border-slate-200 bg-white">
+              <select id="autoMailTemplateSelect" class="flex-1 px-3 py-2 border rounded-lg text-xs font-mono border-white/10 bg-slate-900 text-slate-100">
                 <option value="new">+ Create New Template</option>
               </select>
-              <button id="btnDeleteTemplate" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Delete Template">
+              <button id="btnDeleteTemplate" class="p-2 text-rose-400 hover:text-rose-300 transition-colors" title="Delete Template">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
               </button>
             </div>
             <div class="grid grid-cols-1 gap-2">
-              <input type="text" id="autoMailTemplateName" placeholder="Template Name (e.g. Real Estate Intro)" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
+              <input type="text" id="autoMailTemplateName" placeholder="Template Name (e.g. Real Estate Intro)" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100 focus:border-cyan-500 outline-none">
               <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="autoMailSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
-                <input type="text" id="autoMailSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none">
+                <input type="text" id="autoMailSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100 focus:border-cyan-500 outline-none">
+                <input type="text" id="autoMailSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100 focus:border-cyan-500 outline-none">
               </div>
-              <textarea id="autoMailHtml" placeholder="HTML Content" rows="2" class="w-full px-3 py-2 border rounded-md text-[10px] font-mono border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none"></textarea>
+              <textarea id="autoMailHtml" placeholder="HTML Content" rows="2" class="w-full px-3 py-2 border rounded-lg text-[11px] font-mono border-white/10 bg-slate-900 text-slate-100 focus:border-cyan-500 outline-none"></textarea>
             </div>
             <div class="flex justify-end pt-1">
-               <button id="btnSaveAutoMailTemplate" class="bg-brand-primary hover:bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase transition-colors shadow-sm">Save Template</button>
+               <button id="btnSaveAutoMailTemplate" class="bg-cyan-500 hover:bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-glow">Save Template</button>
             </div>
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Campaign Name <span
-              class="required">*</span></label>
-          <input type="text" id="campaignName"
-            class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"
-            placeholder="e.g. Q4 Real Estate Outreach">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Campaign Name <span class="text-rose-400">*</span></label>
+          <input type="text" id="campaignName" class="w-full px-4 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-xs text-slate-100 font-mono focus:border-cyan-500 outline-none" placeholder="e.g. Q4 Real Estate Outreach">
         </div>
 
-        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Send Mode</label>
+        <div class="p-3 bg-slate-950/60 border border-white/08 rounded-xl">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Send Mode</label>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" id="modeDirectBtn" class="px-3 py-2 rounded-md border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-semibold transition-colors">
+            <button type="button" id="modeDirectBtn" class="px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-bold transition-colors">
               Direct Email
             </button>
-            <button type="button" id="modeSequenceBtn" class="px-3 py-2 rounded-md border border-slate-200 bg-white text-slate-500 text-xs font-semibold transition-colors">
+            <button type="button" id="modeSequenceBtn" class="px-3 py-2 rounded-lg border border-white/10 bg-slate-900 text-slate-400 text-xs font-bold transition-colors">
               Follow-up Sequence
             </button>
           </div>
-          <p class="mt-2 text-[11px] text-slate-500">Direct Email sends one email immediately. Follow-up Sequence keeps multi-step flow, saved sequences, templates, and timing controls.</p>
+          <p class="mt-2 text-[11px] text-slate-400">Direct Email sends immediately. Follow-up Sequence supports multi-step timing & tracking.</p>
         </div>
 
-        <div id="directMailComposer" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Direct Email Content</label>
+        <div id="directMailComposer" class="p-3 bg-slate-950/60 border border-white/08 rounded-xl">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Direct Email Content</label>
           <div class="grid grid-cols-1 gap-2">
             <div class="grid grid-cols-2 gap-2">
-              <input type="text" id="directSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none bg-white">
-              <input type="text" id="directSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-md text-xs border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none bg-white">
+              <input type="text" id="directSenderName" placeholder="Sender Name" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100 outline-none">
+              <input type="text" id="directSubject" placeholder="Email Subject" class="w-full px-3 py-2 border rounded-lg text-xs border-white/10 bg-slate-900 text-slate-100 outline-none">
             </div>
-            <textarea id="directHtmlContent" placeholder="HTML Email Content" rows="6" class="w-full px-3 py-2 border rounded-md text-[11px] font-mono border-slate-200 focus:ring-1 focus:ring-brand-primary outline-none bg-white"></textarea>
+            <textarea id="directHtmlContent" placeholder="HTML Email Content" rows="6" class="w-full px-3 py-2 border rounded-lg text-[11px] font-mono border-white/10 bg-slate-900 text-slate-100 outline-none"></textarea>
           </div>
         </div>
 
-
-        <!-- STANDARD USER SMTP CONFIG (Hidden for Admins) -->
-        <div id="standardSmtpBlock"
-          style="background: var(--bg-surface); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 16px;">
-          <h4
-            style="margin-bottom: 12px; font-size: 14px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <!-- Standard User SMTP Block -->
+        <div id="standardSmtpBlock" class="p-4 bg-slate-950/60 border border-white/08 rounded-xl space-y-3">
+          <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2 uppercase tracking-wider">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
               <polyline points="22,6 12,13 2,6"></polyline>
             </svg>
-            SMTP Configuration <span class="required">*</span>
+            SMTP Configuration <span class="text-rose-400">*</span>
           </h4>
 
-          <div class="form-row" style="margin-bottom: 12px;">
-            <div class="form-group half" style="margin-bottom: 0;">
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">SMTP
-                Host</label>
-              <input type="text" id="smtpHost"
-                class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"
-                placeholder="smtp.gmail.com">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">SMTP Host</label>
+              <input type="text" id="smtpHost" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-xs text-slate-100 font-mono outline-none" placeholder="smtp.gmail.com">
             </div>
-            <div class="form-group half" style="margin-bottom: 0; max-width: 100px;">
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Port</label>
-              <input type="number" id="smtpPort"
-                class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"
-                placeholder="587" value="587">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Port</label>
+              <input type="number" id="smtpPort" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-xs text-slate-100 font-mono outline-none" placeholder="587" value="587">
             </div>
           </div>
 
-          <div class="form-row" style="margin-bottom: 0;">
-            <div class="form-group half" style="margin-bottom: 0;">
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Username
-                (Email)</label>
-              <input type="text" id="smtpUser"
-                class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"
-                placeholder="you@example.com">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Username</label>
+              <input type="text" id="smtpUser" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-xs text-slate-100 font-mono outline-none" placeholder="you@example.com">
             </div>
-            <div class="form-group half" style="margin-bottom: 0;">
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">App
-                Password</label>
-              <input type="password" id="smtpPass"
-                class="w-full px-3 py-2.5 border rounded-md text-sm text-brand-text font-mono focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/50 transition-all placeholder:text-brand-border border-slate-200 bg-white shadow-sm"
-                placeholder="••••••••">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">App Password</label>
+              <input type="password" id="smtpPass" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-xs text-slate-100 font-mono outline-none" placeholder="••••••••">
             </div>
           </div>
         </div>
 
-        <!-- PREMIUM/ADMIN MULTI-SMTP BLOCK (Hidden for standard users) -->
-        <div id="adminSmtpBlock"
-          style="display: none; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="font-size: 14px; color: #1e293b; display: flex; align-items: center; gap: 8px; margin:0;">
-              <svg width="16" height="16" fill="none" class="text-indigo-600" stroke="currentColor" stroke-width="2"
-                viewBox="0 0 24 24">
+        <!-- Premium Multi-SMTP Block -->
+        <div id="adminSmtpBlock" style="display: none;" class="p-4 bg-slate-950/60 border border-white/08 rounded-xl">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2 uppercase tracking-wider">
+              <svg width="14" height="14" fill="none" class="text-purple-400" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                 <polyline points="22,6 12,13 2,6"></polyline>
               </svg>
-              Multi-SMTP Load Balancing <span
-                class="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full ml-1">Admin & Premium</span>
+              Multi-SMTP Load Balancing
             </h4>
-            <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='block'"
-              class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded shadow-sm transition-colors cursor-pointer">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg> Add Email
+            <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='block'" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-slate-900 border border-cyan-500/30 px-2 py-1 rounded-lg cursor-pointer">
+              + Add Email
             </button>
           </div>
 
-          <!-- Add New SMTP Form (Hidden by default) -->
-          <form id="addSmtpFormObj" onsubmit="submitNewSmtp(event)"
-            style="display:none; background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 12px;">
-            <div class="form-row text-xs" style="margin-bottom: 8px;">
-              <div class="form-group half" style="margin-bottom:0;"><input type="text" id="newSmtpHost"
-                  placeholder="Host (e.g. smtp.gmail.com)" required
-                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
-              <div class="form-group half" style="margin-bottom:0; max-width:80px;"><input type="number"
-                  id="newSmtpPort" placeholder="587" value="587" required
-                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+          <form id="addSmtpFormObj" onsubmit="submitNewSmtp(event)" style="display:none;" class="p-3 bg-slate-900 rounded-xl border border-cyan-500/30 mb-3 space-y-2">
+            <div class="grid grid-cols-3 gap-2">
+              <input type="text" id="newSmtpHost" placeholder="Host (smtp.gmail.com)" required class="col-span-2 px-2.5 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-950 text-slate-100">
+              <input type="number" id="newSmtpPort" placeholder="587" value="587" required class="px-2.5 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-950 text-slate-100">
             </div>
-            <div class="form-row text-xs" style="margin-bottom: 8px;">
-              <div class="form-group half" style="margin-bottom:0;"><input type="text" id="newSmtpUser"
-                  placeholder="Email" required
-                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
-              <div class="form-group half" style="margin-bottom:0;"><input type="password" id="newSmtpPass"
-                  placeholder="App Password" required
-                  class="w-full px-2 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"></div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="newSmtpUser" placeholder="Email" required class="px-2.5 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-950 text-slate-100">
+              <input type="password" id="newSmtpPass" placeholder="App Password" required class="px-2.5 py-1.5 border border-white/10 rounded-lg text-xs bg-slate-950 text-slate-100">
             </div>
-            <div class="flex items-center gap-2">
-              <button type="submit" id="btnSaveSmtp"
-                class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-700 cursor-pointer">Verify
-                & Save</button>
-              <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='none'"
-                class="text-slate-500 px-3 py-1.5 rounded text-xs hover:bg-slate-100 cursor-pointer">Cancel</button>
-              <span id="addSmtpError" class="text-red-500 text-xs truncate"></span>
+            <div class="flex items-center gap-2 pt-1">
+              <button type="submit" id="btnSaveSmtp" class="bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-cyan-600 cursor-pointer shadow-glow">Verify & Save</button>
+              <button type="button" onclick="document.getElementById('addSmtpFormObj').style.display='none'" class="text-slate-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase hover:bg-slate-800 cursor-pointer">Cancel</button>
+              <span id="addSmtpError" class="text-rose-400 text-[10px] truncate"></span>
             </div>
           </form>
 
-          <!-- List of Saved Accounts -->
           <div id="smtpAccountsList" class="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
             <div class="text-xs text-slate-500 italic py-2">Loading accounts...</div>
           </div>
-          <p class="text-[11px] text-slate-500 mt-2 leading-tight">Selected emails will rotate sequentially in a loop.
-            Failed emails (4 consecutive send errors) automatically rest for 1 hour, then rejoin.</p>
-
-          <!-- ADMIN ONLY: Timezone & Sending Window -->
-          <div id="adminSchedulingBlock" style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed #cbd5e1;">
-            <h4 style="font-size: 14px; color: #1e293b; display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              Sending Window
-            </h4>
-            <div class="form-group" style="margin-bottom: 12px;">
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Timezone</label>
-              <select id="scheduleTimezone" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm font-sans">
-                <!-- Populated via JS -->
-              </select>
-            </div>
-            <div class="form-row" style="margin-bottom: 0;">
-              <div class="form-group half" style="margin-bottom: 0;">
-                <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Start Time</label>
-                <input type="time" id="scheduleStart" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm" value="09:00">
-              </div>
-              <div class="form-group half" style="margin-bottom: 0;">
-                <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">End Time</label>
-                <input type="time" id="scheduleEnd" class="w-full px-3 py-2 border rounded-md text-sm text-brand-text focus:outline-none focus:border-brand-primary border-slate-200 bg-white shadow-sm" value="17:00">
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div id="sequenceBlock" class="pt-2 border-t border-slate-200">
-           <div class="flex items-center justify-between mb-2">
-             <label class="block text-xs font-semibold text-brand-muted uppercase tracking-wide">Email Sequence <span class="required">*</span></label>
-             <button id="btnAddSequenceStep" class="text-xs font-medium text-brand-primary hover:text-blue-600 flex items-center gap-1 bg-brand-primary/10 px-2.5 py-1 rounded shadow-sm transition-colors cursor-pointer border border-brand-primary/20">
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Follow-up
+        <!-- Sequence Steps Block -->
+        <div id="sequenceBlock" class="pt-3 border-t border-white/08">
+           <div class="flex items-center justify-between mb-3">
+             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Sequence <span class="text-rose-400">*</span></label>
+             <button id="btnAddSequenceStep" class="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-500/10 px-2.5 py-1 rounded-lg transition-colors border border-cyan-500/30 cursor-pointer">
+               + Add Follow-up
              </button>
            </div>
-           <div id="sequenceContainer" class="flex flex-col gap-0 min-h-[150px]"></div>
+           <div id="sequenceContainer" class="flex flex-col gap-3 min-h-[150px]"></div>
         </div>
 
-        <div id="senderErrorBox" class="error-box" style="display: none;"></div>
+        <div id="senderErrorBox" class="p-3 bg-rose-950/50 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-medium" style="display: none;"></div>
 
-        <button id="btnLaunchCampaign"
-          class="mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2"
-          disabled="">
-          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <button id="btnLaunchCampaign" class="btn-primary py-3.5 w-full text-xs font-bold uppercase tracking-[0.16em]" disabled="">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path d="M22 2L11 13"></path>
             <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
           </svg>
@@ -415,19 +351,17 @@
       </div>
 
       <!-- RIGHT: Audience & Targets -->
-      <div class="builder-audience border rounded-xl overflow-hidden h-fit flex flex-col gap-4 p-5">
-        <div class="pb-3 border-b flex items-center gap-2.5 text-brand-text font-semibold border-slate-200">
-          <h2 class="card-title font-semibold text-brand-text m-0 text-base">Target Audience</h2>
+      <div class="builder-audience glass-card p-5 flex flex-col gap-4">
+        <div class="pb-3 border-b border-white/08 flex items-center gap-2.5">
+          <h2 class="font-display font-bold text-white text-base">Target Audience</h2>
         </div>
 
         <!-- Audience Mode Tabs -->
-        <div class="flex gap-1 bg-slate-100 p-1 rounded-lg">
-          <button id="tabCsvBtn" onclick="window.switchAudienceTab('csv')"
-            class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all bg-white shadow-sm text-brand-primary">
+        <div class="flex gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-white/08">
+          <button id="tabCsvBtn" onclick="window.switchAudienceTab('csv')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all bg-slate-900 text-cyan-400 shadow-sm border border-white/10">
             📄 Upload CSV
           </button>
-          <button id="tabScraperBtn" onclick="window.switchAudienceTab('scraper')"
-            class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-slate-500 hover:text-brand-primary">
+          <button id="tabScraperBtn" onclick="window.switchAudienceTab('scraper')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all text-slate-400 hover:text-slate-200">
             🔍 Scraper Campaigns
           </button>
         </div>
@@ -435,19 +369,15 @@
         <!-- CSV Upload Tab -->
         <div id="tabCsvPanel">
           <div class="upload-zone relative group overflow-hidden" id="csvDropZone">
-            <svg width="32" height="32" fill="none" class="group-hover:stroke-blue-500 transition-colors"
-              stroke="var(--blue-primary)" stroke-width="1.5" viewBox="0 0 24 24">
+            <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="mx-auto text-cyan-400 mb-2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
-            <h4>Upload Recipients List</h4>
-            <p>Drag &amp; drop your <code>.csv</code> or <code>.txt</code> lead file here</p>
-            <input type="file" id="audienceFile" accept=".csv,.txt"
-              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50">
-            <button
-              class="ui-btn-secondary btn-sm mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2 relative z-10 pointer-events-none"
-              id="btnBrowseFile">Browse Files</button>
+            <h4 class="text-sm font-bold text-white">Upload Recipients List</h4>
+            <p class="text-xs text-slate-400 mt-1">Drag &amp; drop your <code>.csv</code> or <code>.txt</code> lead file here</p>
+            <input type="file" id="audienceFile" accept=".csv,.txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50">
+            <button class="btn-secondary py-2 px-4 text-xs font-bold uppercase tracking-wider mt-4 relative z-10 pointer-events-none" id="btnBrowseFile">Browse Files</button>
           </div>
         </div>
 
@@ -455,53 +385,43 @@
         <div id="tabScraperPanel" style="display:none;">
           <div class="flex flex-col gap-3">
             <div>
-              <label class="block text-xs font-semibold text-brand-muted mb-1.5 uppercase tracking-wide">Select Campaign</label>
-              <select id="scraperCampaignSelect" class="w-full px-3 py-2 border rounded-md text-sm font-mono border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-brand-primary">
+              <label class="block text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Select Campaign</label>
+              <select id="scraperCampaignSelect" class="w-full px-3 py-2.5 border rounded-xl text-xs font-mono border-white/10 bg-slate-900 text-slate-100 focus:outline-none">
                 <option value="">-- Loading campaigns... --</option>
               </select>
             </div>
 
-            <div id="scraperJobsList" class="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1" style="display:none;">
-              <!-- Job checkboxes injected by JS -->
-            </div>
+            <div id="scraperJobsList" class="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1" style="display:none;"></div>
+            <div id="scraperSummaryBar" class="text-xs text-slate-400 italic" style="display:none;"></div>
 
-            <div id="scraperSummaryBar" class="text-xs text-slate-500 italic" style="display:none;"></div>
-
-            <button id="btnLoadScraperEmails" style="display:none;"
-              class="w-full py-2 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <button id="btnLoadScraperEmails" style="display:none;" class="btn-primary py-2.5 w-full text-xs font-bold uppercase tracking-wider">
               Load Selected Jobs into Audience
             </button>
           </div>
         </div>
 
         <div id="audiencePreview" class="audience-preview" style="display:none;">
-          <div class="audience-stats">
-            <div class="audience-stat-bubble">
-              <span class="stat-num" id="parsedCount">0</span>
-              <span class="stat-label">Valid Emails</span>
+          <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/08 mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl font-mono font-bold text-cyan-400" id="parsedCount">0</span>
+              <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Valid Lead Emails</span>
             </div>
-            <button
-              class="ui-btn-danger btn-icon mt-2 w-full py-2.5 bg-brand-primary hover:bg-blue-600 text-white rounded-md text-sm font-semibold transition-all duration-200 flex items-center justify-center shadow-glow cursor-pointer gap-2"
-              id="btnClearAudience" title="Remove Audience">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
-                </path>
+            <button class="p-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-lg transition-all" id="btnClearAudience" title="Remove Audience">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
               </svg>
             </button>
           </div>
 
-          <div class="audience-list-wrapper">
-            <table class="data-table dense-table">
+          <div class="max-h-64 overflow-y-auto rounded-xl border border-white/08 bg-slate-950/80">
+            <table>
               <thead>
                 <tr>
                   <th>Email</th>
                   <th>Status</th>
                 </tr>
               </thead>
-              <tbody id="audienceTableBody">
-                <!-- JS Injection -->
-              </tbody>
+              <tbody id="audienceTableBody" class="font-mono text-xs"></tbody>
             </table>
           </div>
         </div>
@@ -509,43 +429,38 @@
     </div>
 
     <!-- Campaign History Section -->
-    <div class="mt-8 border rounded-xl overflow-hidden bg-white shadow-sm mb-12">
-      <div class="p-5 border-b flex items-center justify-between bg-slate-50/50">
+    <div class="glass-card p-5 mb-12">
+      <div class="pb-4 border-b border-white/08 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <svg width="20" height="20" fill="none" stroke="var(--text-primary)" stroke-width="2" viewBox="0 0 24 24">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-cyan-400">
             <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
-          <h2 class="text-base font-semibold text-brand-text m-0">Campaign History</h2>
+          <h2 class="text-base font-display font-bold text-white">Campaign Dispatch History</h2>
         </div>
-        <button id="btnRefreshHistory"
-          class="text-xs font-medium text-brand-primary hover:text-blue-600 flex items-center gap-1 transition-colors">
+        <button id="btnRefreshHistory" class="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-            </path>
+            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
           </svg>
-          Refresh
+          Refresh History
         </button>
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
+      <div class="overflow-x-auto rounded-xl border border-white/08 bg-slate-950/60 mt-4">
+        <table>
           <thead>
-            <tr
-              class="bg-slate-50 text-xs font-semibold text-brand-muted uppercase tracking-wider border-b border-slate-200">
-              <th class="px-5 py-3">Campaign Name</th>
-              <th class="px-5 py-3">Status</th>
-              <th class="px-5 py-3 text-center">Sent</th>
-              <th class="px-5 py-3 text-center">Delivered</th>
-              <th class="px-5 py-3 text-center">Bounced</th>
-              <th class="px-5 py-3">Date</th>
-              <th class="px-5 py-3">Actions / Errors</th>
+            <tr>
+              <th>Campaign Name</th>
+              <th>Status</th>
+              <th class="text-center">Sent</th>
+              <th class="text-center">Delivered</th>
+              <th class="text-center">Bounced</th>
+              <th>Date</th>
+              <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="historyTableBody" class="text-sm divide-y divide-slate-100">
-            <!-- JS Injection -->
+          <tbody id="historyTableBody" class="font-mono text-xs">
             <tr>
-              <td colspan="7" class="px-5 py-10 text-center text-brand-muted">
-                Loading campaign history...
+              <td colspan="7" class="px-5 py-8 text-center text-slate-500">
+                Loading campaign dispatch history...
               </td>
             </tr>
           </tbody>
@@ -559,3 +474,6 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script type="module" src="app.js"></script>
 <script type="module" src="sender.js"></script>
+</body>
+
+</html>
