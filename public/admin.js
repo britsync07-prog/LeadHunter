@@ -11,6 +11,9 @@ let allUsers = [];
 let editingUserId = null;
 let deletingUserId = null;
 
+// Tracking toggle state (loaded from server on init)
+let trackingSettings = { openTrackingEnabled: true, clickTrackingEnabled: true };
+
 const PLAN_CONFIG = {
     premium: { cls: 'plan-premium', label: 'Premium' },
     advance: { cls: 'plan-advance', label: 'Advance' },
@@ -31,11 +34,68 @@ document.addEventListener('DOMContentLoaded', async () => {
         const usernameEl = document.getElementById('adminUsername');
         if (usernameEl) usernameEl.textContent = `admin: ${user.username}`;
         
-        await loadUsers();
+        // Load users and tracking settings in parallel
+        await Promise.all([loadUsers(), loadTrackingSettings()]);
     } catch (err) {
         console.error("Admin init failed:", err);
     }
 });
+
+// --- TRACKING SETTINGS ---
+async function loadTrackingSettings() {
+    try {
+        const data = await API.fetchJson('/api/admin/tracking-settings');
+        trackingSettings = data;
+        renderTrackingToggles();
+    } catch (err) {
+        console.error('Failed to load tracking settings:', err);
+    }
+}
+
+function renderTrackingToggles() {
+    applyToggle('toggleOpen',  'knobOpen',  trackingSettings.openTrackingEnabled);
+    applyToggle('toggleClick', 'knobClick', trackingSettings.clickTrackingEnabled);
+}
+
+function applyToggle(btnId, knobId, isEnabled) {
+    const btn  = document.getElementById(btnId);
+    const knob = document.getElementById(knobId);
+    if (!btn || !knob) return;
+    // Swap background colour class
+    if (isEnabled) {
+        btn.classList.remove('bg-slate-300');
+        btn.classList.add('bg-emerald-500');
+    } else {
+        btn.classList.remove('bg-emerald-500');
+        btn.classList.add('bg-slate-300');
+    }
+    // Slide knob
+    knob.style.transform = isEnabled ? 'translateX(20px)' : 'translateX(0)';
+}
+
+window.toggleTracking = async function(type) {
+    const key      = type === 'open' ? 'openTrackingEnabled' : 'clickTrackingEnabled';
+    const newValue = !trackingSettings[key];
+
+    // Optimistic update
+    trackingSettings[key] = newValue;
+    renderTrackingToggles();
+
+    try {
+        await API.fetchJson('/api/admin/tracking-settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: newValue })
+        });
+    } catch (err) {
+        // Rollback on server error
+        trackingSettings[key] = !newValue;
+        renderTrackingToggles();
+        alert('Failed to update tracking setting. Please try again.');
+    }
+};
+
+
 
 async function loadUsers(q = '') {
     try {

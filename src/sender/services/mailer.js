@@ -19,28 +19,39 @@ const createTransporter = (smtpConfig) => {
 
 /**
  * Injects the Open Tracking pixel and wraps all <a> tags with the HMAC secure redirect Base64 payload.
- * 
+ * Both behaviours can be disabled independently via the options object.
+ *
  * @param {string} rawHtml - The raw email body from the Composer
  * @param {string} recipientId - Unique ID of the Recipient record
  * @param {string} hostUrl - The base URL of the Sender dashboard (e.g., http://localhost:3000)
- * @returns {string} The fully weaponized tracked HTML string ready to send
+ * @param {object} [options]
+ * @param {boolean} [options.openTrackingEnabled=true]  - Whether to inject the 1x1 open-tracking pixel
+ * @param {boolean} [options.clickTrackingEnabled=true] - Whether to wrap links with signed redirect URLs
+ * @returns {string} The fully tracked (or partially tracked) HTML string ready to send
  */
-const injectTrackingHtml = (rawHtml, recipientId, hostUrl) => {
+const injectTrackingHtml = (rawHtml, recipientId, hostUrl, {
+    openTrackingEnabled  = true,
+    clickTrackingEnabled = true
+} = {}) => {
     // 1. Load HTML into Cheerio parser
     const $ = cheerio.load(rawHtml, null, false); // false prevents Cheerio from wrapping in <html><body>
 
-    // 2. Wrap all anchor tags for Click Tracking
-    $('a').each((i, el) => {
-        const originalHref = $(el).attr('href');
-        if (originalHref && (originalHref.startsWith('http://') || originalHref.startsWith('https://'))) {
-            const trackingUrl = generateSignedUrl(hostUrl, recipientId, originalHref);
-            $(el).attr('href', trackingUrl);
-        }
-    });
+    // 2. Wrap all anchor tags for Click Tracking (only when enabled)
+    if (clickTrackingEnabled) {
+        $('a').each((i, el) => {
+            const originalHref = $(el).attr('href');
+            if (originalHref && (originalHref.startsWith('http://') || originalHref.startsWith('https://'))) {
+                const trackingUrl = generateSignedUrl(hostUrl, recipientId, originalHref);
+                $(el).attr('href', trackingUrl);
+            }
+        });
+    }
 
-    // 3. Inject the 1x1 Transparent Open Tracking Pixel at the very end
-    const pixelUrl = `${hostUrl}/track/o/${recipientId}.gif`;
-    $.root().append(`<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;" />`);
+    // 3. Inject the 1x1 Transparent Open Tracking Pixel at the very end (only when enabled)
+    if (openTrackingEnabled) {
+        const pixelUrl = `${hostUrl}/track/o/${recipientId}.gif`;
+        $.root().append(`<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;" />`);
+    }
 
     return $.html();
 };

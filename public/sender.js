@@ -48,6 +48,9 @@ const kpiDeliveryRate = document.getElementById('kpiDeliveryRate');
 const kpiOpenRate = document.getElementById('kpiOpenRate');
 const kpiClickRate = document.getElementById('kpiClickRate');
 
+// Platform tracking state (fetched from server; used to show/hide "Tracking Off" badges)
+let trackingState = { openTrackingEnabled: true, clickTrackingEnabled: true };
+
 // History
 const historyTableBody = document.getElementById('historyTableBody');
 const btnRefreshHistory = document.getElementById('btnRefreshHistory');
@@ -659,13 +662,28 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- KPI DATA FETCHING ---
 const loadKPIs = async () => {
   try {
-    const data = await API.fetchJson('/api/sender/analytics/account');
+    // Fetch analytics and tracking-settings in parallel for speed
+    const [data, tracking] = await Promise.all([
+      API.fetchJson('/api/sender/analytics/account'),
+      API.fetchJson('/api/sender/tracking-settings').catch(() => null)
+    ]);
+
+    // Update tracking state
+    if (tracking) trackingState = tracking;
+
     if (data && data.metrics) {
-      kpiTotalSent.innerText = data.rawCounts.sent.toLocaleString();
+      kpiTotalSent.innerText    = data.rawCounts.sent.toLocaleString();
       kpiDeliveryRate.innerText = data.metrics.deliveryRate;
-      kpiOpenRate.innerText = data.metrics.openRate;
-      kpiClickRate.innerText = data.metrics.clickThroughRate;
+      kpiOpenRate.innerText     = data.metrics.openRate;
+      kpiClickRate.innerText    = data.metrics.clickThroughRate;
     }
+
+    // Show / hide "Tracking Off" badges on the KPI cards
+    const openBadge  = document.getElementById('openTrackingBadge');
+    const clickBadge = document.getElementById('clickTrackingBadge');
+    if (openBadge)  openBadge.style.display  = trackingState.openTrackingEnabled  ? 'none' : 'inline';
+    if (clickBadge) clickBadge.style.display = trackingState.clickTrackingEnabled ? 'none' : 'inline';
+
   } catch (err) {
     console.error("Failed to load KPIs:", err);
   }
@@ -746,8 +764,14 @@ const loadHistory = async () => {
           <div class="flex items-center justify-between gap-2">
             <div class="flex-1">
               <div class="text-xs text-brand-muted mb-2 flex flex-wrap gap-3">
-                <span>Opens: <strong class="text-brand-text">${camp.uniqueOpens || 0}</strong></span>
-                <span>Clicks: <strong class="text-brand-text">${camp.uniqueClicks || 0}</strong></span>
+                <span>Opens: ${trackingState.openTrackingEnabled
+                  ? `<strong class="text-brand-text">${camp.uniqueOpens || 0}</strong>`
+                  : `<span style="color:#b45309;font-weight:600;">Tracking Off</span>`
+                }</span>
+                <span>Clicks: ${trackingState.clickTrackingEnabled
+                  ? `<strong class="text-brand-text">${camp.uniqueClicks || 0}</strong>`
+                  : `<span style="color:#b45309;font-weight:600;">Tracking Off</span>`
+                }</span>
               </div>
               ${camp.abortReason ? `<div class="text-xs text-red-500 max-w-xs break-words">${camp.abortReason}</div>` : `<span class="text-xs text-brand-muted">No errors logged</span>`}
               ${downloadsHtml}

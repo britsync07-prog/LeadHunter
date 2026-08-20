@@ -32,7 +32,7 @@ import { getCampaignDetail, normalizeCampaignConfigInput, normalizeStringArray }
 // Sender & Tracking Routes
 import trackingRoutes from "./sender/routes/trackingRoutes.js";
 import apiRoutes from "./sender/routes/apiRoutes.js";
-import db from "./sender/models/db.js";
+import db, { getSetting, setSetting } from "./sender/models/db.js";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_dummy");
@@ -387,6 +387,32 @@ app.patch("/api/admin/users/:id/suspend", requireAdmin, (req, res) => {
   if (req.params.id === req.session.user.id) return res.status(400).json({ error: "Self-suspension blocked" });
   db.prepare("UPDATE users SET isSuspended = ? WHERE id = ?").run(suspended ? 1 : 0, req.params.id);
   res.json({ success: true });
+});
+
+// --- TRACKING SETTINGS ROUTES ---
+// Admin: read current tracking toggle state
+app.get("/api/admin/tracking-settings", requireAdmin, (req, res) => {
+  res.json({
+    openTrackingEnabled:  getSetting('openTrackingEnabled',  '1') === '1',
+    clickTrackingEnabled: getSetting('clickTrackingEnabled', '1') === '1',
+  });
+});
+
+// Admin: update one or both tracking toggles
+app.patch("/api/admin/tracking-settings", requireAdmin, express.json(), (req, res) => {
+  const { openTrackingEnabled, clickTrackingEnabled } = req.body;
+  if (typeof openTrackingEnabled  === 'boolean') setSetting('openTrackingEnabled',  openTrackingEnabled  ? '1' : '0');
+  if (typeof clickTrackingEnabled === 'boolean') setSetting('clickTrackingEnabled', clickTrackingEnabled ? '1' : '0');
+  console.log(`[Admin] Tracking settings updated — open:${getSetting('openTrackingEnabled')} click:${getSetting('clickTrackingEnabled')}`);
+  res.json({ success: true });
+});
+
+// All authenticated users: read-only access (used to show "Tracking Off" badges on Sender page)
+app.get("/api/sender/tracking-settings", requireAuth, (req, res) => {
+  res.json({
+    openTrackingEnabled:  getSetting('openTrackingEnabled',  '1') === '1',
+    clickTrackingEnabled: getSetting('clickTrackingEnabled', '1') === '1',
+  });
 });
 
 // --- AUTH ROUTES ---

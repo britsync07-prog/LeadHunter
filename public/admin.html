@@ -206,6 +206,48 @@
             </div>
         </div>
 
+        <!-- Tracking Settings Card -->
+        <div class="px-4 lg:px-6 pb-2">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h2 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                <line x1="12" y1="20" x2="12.01" y2="20"/>
+              </svg>
+              Platform Tracking Settings
+            </h2>
+            <div class="flex flex-col divide-y divide-slate-100">
+
+              <!-- Open Rate Toggle -->
+              <div class="flex items-center justify-between py-3">
+                <div>
+                  <div class="text-sm font-semibold text-slate-800">Open Rate Tracking</div>
+                  <div class="text-xs text-slate-400 mt-0.5">Injects a 1×1 pixel into emails. <span class="font-medium text-slate-500">OFF → Open Rate is 0% for all users.</span></div>
+                </div>
+                <button id="toggleOpen" onclick="toggleTracking('open')" title="Toggle Open Rate Tracking"
+                  class="relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer bg-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 shrink-0">
+                  <span id="knobOpen" class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200"></span>
+                </button>
+              </div>
+
+              <!-- Click Rate Toggle -->
+              <div class="flex items-center justify-between py-3">
+                <div>
+                  <div class="text-sm font-semibold text-slate-800">Click Rate Tracking</div>
+                  <div class="text-xs text-slate-400 mt-0.5">Wraps links with signed redirect URLs. <span class="font-medium text-slate-500">OFF → CTR is 0% for all users.</span></div>
+                </div>
+                <button id="toggleClick" onclick="toggleTracking('click')" title="Toggle Click Rate Tracking"
+                  class="relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer bg-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 shrink-0">
+                  <span id="knobClick" class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200"></span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
         <!-- Search & table -->
         <div class="px-6 pb-6 flex-1">
             <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">

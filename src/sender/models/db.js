@@ -196,8 +196,41 @@ const initDb = () => {
   safeAlter(`ALTER TABLE recipients ADD COLUMN error TEXT`);
   safeAlter(`ALTER TABLE recipients ADD COLUMN currentStep INTEGER DEFAULT 0`);
   safeAlter(`ALTER TABLE recipients ADD COLUMN nextSendAt DATETIME`);
+
+  // Platform-wide settings table (admin-controlled toggles, feature flags, etc.)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+  // Seed defaults — both tracking features ON
+  db.exec(`
+    INSERT OR IGNORE INTO platform_settings (key, value) VALUES ('openTrackingEnabled',  '1');
+    INSERT OR IGNORE INTO platform_settings (key, value) VALUES ('clickTrackingEnabled', '1');
+  `);
 };
 
 initDb();
+
+/**
+ * Read a platform setting by key. Returns defaultValue if not found.
+ * @param {string} key
+ * @param {string|null} defaultValue
+ * @returns {string|null}
+ */
+export function getSetting(key, defaultValue = null) {
+  const row = db.prepare('SELECT value FROM platform_settings WHERE key = ?').get(key);
+  return row ? row.value : defaultValue;
+}
+
+/**
+ * Write (upsert) a platform setting.
+ * @param {string} key
+ * @param {string|number|boolean} value
+ */
+export function setSetting(key, value) {
+  db.prepare('INSERT OR REPLACE INTO platform_settings (key, value) VALUES (?, ?)').run(key, String(value));
+}
 
 export default db;

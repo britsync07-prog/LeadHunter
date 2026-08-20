@@ -1,4 +1,4 @@
-import db from '../models/db.js';
+import db, { getSetting } from '../models/db.js';
 import { createTransporter, injectTrackingHtml, sendEmail } from '../services/mailer.js';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
@@ -348,6 +348,10 @@ export const processPendingEmails = async (hostUrlFallback, specificCampaignId =
            delayDays: 0
         }];
 
+        // Read platform-level tracking flags once per campaign batch (not per email — efficient)
+        const openTrackingEnabled  = getSetting('openTrackingEnabled',  '1') === '1';
+        const clickTrackingEnabled = getSetting('clickTrackingEnabled', '1') === '1';
+
         for (const rec of camp.recipients) {
           const normalizedEmail = normalizeRecipientEmail(rec.email);
           if (!normalizedEmail) {
@@ -374,7 +378,13 @@ export const processPendingEmails = async (hostUrlFallback, specificCampaignId =
           }
 
           const activeSmtp = smtpPool[Math.floor(Math.random() * smtpPool.length)];
-          const trackedHtml = injectTrackingHtml(currentSeq.htmlContent, rec.id, trackingBaseUrl);
+          const trackedHtml = injectTrackingHtml(
+            currentSeq.htmlContent,
+            rec.id,
+            trackingBaseUrl,
+            { openTrackingEnabled, clickTrackingEnabled }
+          );
+
           
           logSender('Attempting send', {
             campaignId: rec.campaignId,
