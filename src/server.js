@@ -515,6 +515,185 @@ app.post("/api/admin/system-smtp/test", requireAdmin, express.json(), async (req
   }
 });
 
+// --- ADMIN NEWSLETTER & BROADCAST ROUTES ---
+function getNewsletterAudienceSql(segment) {
+  const baseWhere = "isSuspended = 0 AND email IS NOT NULL AND TRIM(email) != ''";
+  switch (segment) {
+    case 'premium':
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere} AND subscriptionPlan = 'premium'`;
+    case 'advance':
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere} AND subscriptionPlan = 'advance'`;
+    case 'free':
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere} AND subscriptionPlan = 'free'`;
+    case 'expired':
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere} AND (subscriptionPlan = 'expired' OR subscriptionPlan = 'none' OR subscriptionPlan IS NULL)`;
+    case 'admins':
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere} AND isAdmin = 1`;
+    case 'all':
+    default:
+      return `SELECT id, username, email, subscriptionPlan FROM users WHERE ${baseWhere}`;
+  }
+}
+
+function personalizeNewsletterHtml(templateHtml, user, publicBaseUrl) {
+  const planLabel = (user.subscriptionPlan || 'free').toUpperCase();
+  const loginUrl = `${publicBaseUrl.replace(/\/+$/, '')}/login.html`;
+  return templateHtml
+    .replace(/\{\{\s*username\s*\}\}/gi, user.username || 'User')
+    .replace(/\{\{\s*email\s*\}\}/gi, user.email || '')
+    .replace(/\{\{\s*plan\s*\}\}/gi, planLabel)
+    .replace(/\{\{\s*loginUrl\s*\}\}/gi, loginUrl)
+    .replace(/\{\{\s*appUrl\s*\}\}/gi, publicBaseUrl);
+}
+
+// Audience Count
+app.get("/api/admin/newsletter/audience-count", requireAdmin, (req, res) => {
+  const segment = req.query.segment || 'all';
+  const sql = getNewsletterAudienceSql(segment);
+  const rows = db.prepare(sql).all();
+  res.json({ count: rows.length, segment });
+});
+
+// Broadcast History
+app.get("/api/admin/newsletter/history", requireAdmin, (req, res) => {
+  const broadcasts = db.prepare("SELECT id, subject, targetSegment, recipientCount, sentCount, failedCount, status, senderName, senderEmail, createdAt, completedAt FROM newsletter_broadcasts ORDER BY createdAt DESC LIMIT 50").all();
+  res.json({ broadcasts });
+});
+
+// Broadcast Detail
+app.get("/api/admin/newsletter/broadcasts/:id", requireAdmin, (req, res) => {
+  const broadcast = db.prepare("SELECT * FROM newsletter_broadcasts WHERE id = ?").get(req.params.id);
+  if (!broadcast) return res.status(404).json({ error: "Broadcast not found." });
+  res.json({ broadcast });
+});
+
+// Send Test Newsletter to Admin
+app.post("/api/admin/newsletter/test", requireAdmin, express.json(), async (req, res) => {
+  const { subject, htmlContent, testEmail } = req.body || {};
+  if (!subject || !htmlContent) {
+    return res.status(400).json({ error: "Subject and HTML content are required." });
+  }
+
+  const targetRecipient = testEmail || req.session.user.email || req.session.user.username;
+  if (!targetRecipient || !targetRecipient.includes('@')) {
+    return res.status(400).json({ error: "A valid test recipient email address is required." });
+  }
+
+  const smtpConfig = getSystemSmtpConfig();
+  if (!smtpConfig) {
+    return res.status(400).json({ error: "System SMTP is not configured. Please configure SMTP settings above first." });
+  }
+
+  try {
+    const forwardedProto = req.get('x-forwarded-proto');
+    const publicBaseUrl = process.env.PUBLIC_URL || `${forwardedProto || req.protocol}://${req.get('host')}`;
+    const transporter = createSystemTransporter(smtpConfig);
+
+    const dummyUser = {
+      username: req.session.user.username || 'Admin Preview',
+      email: targetRecipient,
+      subscriptionPlan: 'premium'
+    };
+
+    const renderedSubject = personalizeNewsletterHtml(subject, dummyUser, publicBaseUrl);
+    const renderedHtml = personalizeNewsletterHtml(htmlContent, dummyUser, publicBaseUrl);
+
+    await transporter.sendMail({
+      from: `"${smtpConfig.fromName}" <${smtpConfig.fromEmail}>`,
+      to: targetRecipient,
+      subject: `[TEST] ${renderedSubject}`,
+      html: renderedHtml
+    });
+
+    res.json({ success: true, message: `Test newsletter delivered to ${targetRecipient}` });
+  } catch (err) {
+    console.error("[Newsletter Test Send Error]:", err);
+    res.status(400).json({ error: `Failed to send test email: ${err.message}` });
+  }
+});
+
+// Broadcast Newsletter to Segment
+app.post("/api/admin/newsletter/broadcast", requireAdmin, express.json(), async (req, res) => {
+  const { subject, htmlContent, targetSegment, senderName, senderEmail } = req.body || {};
+  if (!subject || !htmlContent) {
+    return res.status(400).json({ error: "Subject and HTML content are required." });
+  }
+
+  const smtpConfig = getSystemSmtpConfig();
+  if (!smtpConfig) {
+    return res.status(400).json({ error: "System SMTP is not configured. Please configure SMTP settings first." });
+  }
+
+  const segment = targetSegment || 'all';
+  const recipients = db.prepare(getNewsletterAudienceSql(segment)).all();
+
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: `No eligible active recipients found in category '${segment}'.` });
+  }
+
+  const broadcastId = uuidv4();
+  const fromName = senderName || smtpConfig.fromName;
+  const fromEmail = senderEmail || smtpConfig.fromEmail;
+
+  // Insert broadcast record
+  db.prepare(`
+    INSERT INTO newsletter_broadcasts (id, subject, targetSegment, recipientCount, sentCount, failedCount, status, htmlContent, senderName, senderEmail)
+    VALUES (?, ?, ?, ?, 0, 0, 'sending', ?, ?, ?)
+  `).run(broadcastId, subject, segment, recipients.length, htmlContent, fromName, fromEmail);
+
+  const forwardedProto = req.get('x-forwarded-proto');
+  const publicBaseUrl = process.env.PUBLIC_URL || `${forwardedProto || req.protocol}://${req.get('host')}`;
+
+  // Respond immediately so admin UI doesn't hang
+  res.json({
+    success: true,
+    broadcastId,
+    recipientCount: recipients.length,
+    message: `Broadcast started for ${recipients.length} recipients in '${segment}' segment.`
+  });
+
+  // Execute async background broadcast loop
+  (async () => {
+    let sent = 0;
+    let failed = 0;
+    const transporter = createSystemTransporter(smtpConfig);
+
+    console.log(`[Newsletter] Starting background broadcast ${broadcastId} to ${recipients.length} users (${segment})`);
+
+    for (const user of recipients) {
+      try {
+        const userSubject = personalizeNewsletterHtml(subject, user, publicBaseUrl);
+        const userHtml = personalizeNewsletterHtml(htmlContent, user, publicBaseUrl);
+
+        await transporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
+          to: user.email,
+          subject: userSubject,
+          html: userHtml
+        });
+        sent++;
+      } catch (err) {
+        console.error(`[Newsletter Error] Failed to send to ${user.email}:`, err.message);
+        failed++;
+      }
+
+      // Small throttle delay between sends
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    db.prepare(`
+      UPDATE newsletter_broadcasts 
+      SET sentCount = ?, failedCount = ?, status = 'completed', completedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(sent, failed, broadcastId);
+
+    console.log(`[Newsletter] Completed broadcast ${broadcastId}: ${sent} sent, ${failed} failed.`);
+  })().catch(err => {
+    console.error(`[Newsletter Fatal Error] Broadcast ${broadcastId} failed:`, err);
+    db.prepare("UPDATE newsletter_broadcasts SET status = 'failed' WHERE id = ?").run(broadcastId);
+  });
+});
+
 // --- AUTH ROUTES ---
 app.post("/api/auth/forgot-password", async (req, res) => {
   const { emailOrUsername } = req.body || {};

@@ -227,6 +227,28 @@ const initDb = () => {
     CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
     CREATE INDEX IF NOT EXISTS idx_password_resets_userId ON password_resets(userId);
   `);
+
+  // Newsletter & Announcement Broadcasts Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS newsletter_broadcasts (
+      id TEXT PRIMARY KEY,
+      subject TEXT NOT NULL,
+      targetSegment TEXT NOT NULL,
+      recipientCount INTEGER DEFAULT 0,
+      sentCount INTEGER DEFAULT 0,
+      failedCount INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'completed',
+      htmlContent TEXT NOT NULL,
+      senderName TEXT,
+      senderEmail TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completedAt DATETIME
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_newsletter_broadcasts_created ON newsletter_broadcasts(createdAt);
+  `);
 };
 
 initDb();

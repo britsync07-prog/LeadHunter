@@ -265,13 +265,489 @@ window.submitTestSmtp = async function(e) {
     } finally {
         if (btn) btn.disabled = false;
     }
+// --- VIEW NAVIGATION (USERS vs NEWSLETTER) ---
+window.switchAdminView = function(view) {
+    const tabUsers = document.getElementById('navTabUsers');
+    const tabNews = document.getElementById('navTabNewsletters');
+    const viewUsers = document.getElementById('viewUsersSection');
+    const viewNews = document.getElementById('viewNewslettersSection');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageSubtitle = document.getElementById('pageSubtitle');
+    const btnCreate = document.getElementById('btnHeaderCreateUser');
+
+    if (view === 'newsletters') {
+        if (tabUsers) {
+            tabUsers.className = 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 w-full text-left transition-colors cursor-pointer';
+        }
+        if (tabNews) {
+            tabNews.className = 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 w-full text-left transition-colors cursor-pointer';
+        }
+        if (viewUsers) viewUsers.classList.add('hidden');
+        if (viewNews) viewNews.classList.remove('hidden');
+
+        if (pageTitle) pageTitle.textContent = 'Newsletter & Announcements Broadcast';
+        if (pageSubtitle) pageSubtitle.textContent = 'Broadcast targeted emails across user tiers using your platform SMTP';
+        if (btnCreate) btnCreate.classList.add('hidden');
+
+        // Init newsletter view data
+        onNewsletterSegmentChange();
+        loadNewsletterHistory();
+
+        // If editor is empty, pre-load announcement template
+        const editor = document.getElementById('news_htmlContent');
+        if (editor && !editor.value.trim()) {
+            loadNewsletterTemplate('announcement');
+        }
+    } else {
+        if (tabUsers) {
+            tabUsers.className = 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 w-full text-left transition-colors cursor-pointer';
+        }
+        if (tabNews) {
+            tabNews.className = 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 w-full text-left transition-colors cursor-pointer';
+        }
+        if (viewUsers) viewUsers.classList.remove('hidden');
+        if (viewNews) viewNews.classList.add('hidden');
+
+        if (pageTitle) pageTitle.textContent = 'Users & Platform Settings';
+        if (pageSubtitle) pageSubtitle.textContent = 'Manage accounts, global tracking, and system SMTP';
+        if (btnCreate) btnCreate.classList.remove('hidden');
+    }
+};
+
+// --- NEWSLETTER TEMPLATES ---
+const NEWSLETTER_TEMPLATES = {
+    announcement: {
+        subject: "🚀 Big Updates & New Features inside LeadHunter!",
+        html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .hero { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%); padding: 36px 28px; text-align: center; color: #ffffff; }
+    .hero h1 { margin: 0 0 10px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+    .hero p { margin: 0; font-size: 14px; opacity: 0.9; }
+    .content { padding: 32px 28px; line-height: 1.6; }
+    .badge { display: inline-block; background: #e0e7ff; color: #4338ca; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; margin-bottom: 12px; }
+    .feature-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 20px 0; }
+    .btn { display: inline-block; background: #4f46e5; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 10px; margin: 20px 0; }
+    .footer { padding: 20px 28px; background: #f8fafc; border-top: 1px solid #f1f5f9; font-size: 12px; color: #64748b; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hero">
+      <div class="badge">Major Platform Update</div>
+      <h1>Hello, {{username}}!</h1>
+      <p>We've rolled out powerful new enhancements to supercharge your workflow.</p>
+    </div>
+    <div class="content">
+      <p style="font-size: 15px; color: #334155;">We are thrilled to announce a brand new suite of features designed to make lead discovery and email outreach faster and more effective than ever before.</p>
+      
+      <div class="feature-box">
+        <h3 style="margin-top: 0; font-size: 16px; color: #1e1b4b;">✨ What's New:</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.7;">
+          <li><strong>Real-time Audience Filtering:</strong> Laser-target leads by country, niche, and tier.</li>
+          <li><strong>High-Speed Sender Engine:</strong> Accelerated delivery with intelligent SMTP rotation.</li>
+          <li><strong>Advanced Deliverability Tracking:</strong> Granular insights into open rates and click performance.</li>
+        </ul>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="{{loginUrl}}" class="btn" target="_blank">Access Your Dashboard</a>
+      </div>
+
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 20px;">Your Current Account Tier: <strong style="color: #4f46e5;">{{plan}}</strong></p>
+    </div>
+    <div class="footer">
+      &copy; ${new Date().getFullYear()} LeadHunter Platform. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>`
+    },
+    feature: {
+        subject: "✨ Feature Release: Discover the latest tools in LeadHunter",
+        html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
+    .header { padding: 28px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+    .content { padding: 32px 28px; line-height: 1.6; }
+    .pill { background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; display: inline-block; }
+    .btn { display: inline-block; background: #2563eb; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 8px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span class="pill">Feature Spotlight</span>
+      <h2 style="margin: 12px 0 0; color: #0f172a;">New Tools Are Now Live</h2>
+    </div>
+    <div class="content">
+      <p>Hi <strong>{{username}}</strong>,</p>
+      <p>We're constantly improving LeadHunter to provide you with the highest quality data and fastest outreach pipeline. Here is what just landed in your account:</p>
+      <ul style="color: #475569; font-size: 14px; line-height: 1.8;">
+        <li>⚡ Instant Verification & Deliverability Health Checks</li>
+        <li>🎯 Smart Category Segmentation for Bulk Campaigns</li>
+        <li>📊 Redesigned KPI Metrics and Real-time Activity Logs</li>
+      </ul>
+      <div style="text-align: center;">
+        <a href="{{loginUrl}}" class="btn" target="_blank">Try New Features Now</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+    },
+    maintenance: {
+        subject: "⚠️ Scheduled System Maintenance Notice",
+        html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
+    .header { background: #fef3c7; border-bottom: 1px solid #fde68a; padding: 24px 28px; }
+    .content { padding: 28px; line-height: 1.6; }
+    .time-box { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 14px; margin: 16px 0; font-family: monospace; font-size: 13px; color: #92400e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h2 style="margin: 0; color: #92400e; font-size: 18px;">⚠️ Scheduled System Maintenance</h2>
+    </div>
+    <div class="content">
+      <p>Dear <strong>{{username}}</strong>,</p>
+      <p>To ensure optimal platform reliability and performance, we will be conducting scheduled system maintenance during the window below:</p>
+      <div class="time-box">
+        <strong>Window:</strong> Sunday, 02:00 UTC – 04:00 UTC (Estimated 2 Hours)
+      </div>
+      <p style="font-size: 13px; color: #64748b;">During this brief maintenance window, campaign dispatching may experience momentary pauses. All queues will automatically resume immediately following completion.</p>
+    </div>
+  </div>
+</body>
+</html>`
+    },
+    offer: {
+        subject: "🎁 Special Invitation: Upgrade your LeadHunter Account",
+        html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
+    .header { background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; padding: 32px 28px; text-align: center; }
+    .content { padding: 32px 28px; line-height: 1.6; }
+    .btn { display: inline-block; background: #059669; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 10px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1 style="margin: 0 0 8px; font-size: 22px;">Upgrade Your LeadHunter Tier</h1>
+      <p style="margin: 0; opacity: 0.9; font-size: 14px;">Unlock Unlimited Scrapes, Multi-SMTP Rotation & Priority Queues</p>
+    </div>
+    <div class="content">
+      <p>Hello <strong>{{username}}</strong>,</p>
+      <p>Take your outreach to the next level by upgrading your account plan. Premium accounts enjoy full access to our multi-SMTP rotating pool, unlimited niche expansions, and high-priority lead scrapers.</p>
+      <div style="text-align: center;">
+        <a href="{{loginUrl}}" class="btn" target="_blank">Upgrade to Premium Today</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+    },
+    blank: {
+        subject: "LeadHunter Announcement",
+        html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
+    .card { max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 28px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Hello {{username}},</h2>
+    <p>Write your message here...</p>
+  </div>
+</body>
+</html>`
+    }
+};
+
+window.loadNewsletterTemplate = function(tplKey) {
+    const tpl = NEWSLETTER_TEMPLATES[tplKey];
+    if (!tpl) return;
+    const subjectEl = document.getElementById('news_subject');
+    const contentEl = document.getElementById('news_htmlContent');
+
+    if (subjectEl) subjectEl.value = tpl.subject;
+    if (contentEl) contentEl.value = tpl.html;
+
+    updateNewsletterPreview();
+};
+
+window.updateNewsletterPreview = function() {
+    const content = document.getElementById('news_htmlContent')?.value || '';
+    const iframe = document.getElementById('news_previewIframe');
+    if (!iframe) return;
+
+    // Substitute preview sample placeholders
+    const rendered = content
+        .replace(/\{\{\s*username\s*\}\}/gi, 'John Doe')
+        .replace(/\{\{\s*email\s*\}\}/gi, 'johndoe@example.com')
+        .replace(/\{\{\s*plan\s*\}\}/gi, 'PREMIUM')
+        .replace(/\{\{\s*loginUrl\s*\}\}/gi, window.location.origin + '/login.html')
+        .replace(/\{\{\s*appUrl\s*\}\}/gi, window.location.origin);
+
+    iframe.srcdoc = rendered;
+};
+
+window.insertNewsletterTag = function(tag) {
+    const editor = document.getElementById('news_htmlContent');
+    if (!editor) return;
+
+    const startPos = editor.selectionStart || editor.value.length;
+    const endPos = editor.selectionEnd || editor.value.length;
+    const textBefore = editor.value.substring(0, startPos);
+    const textAfter = editor.value.substring(endPos, editor.value.length);
+
+    editor.value = textBefore + tag + textAfter;
+    editor.selectionStart = editor.selectionEnd = startPos + tag.length;
+    editor.focus();
+
+    updateNewsletterPreview();
+};
+
+window.onNewsletterSegmentChange = async function() {
+    const select = document.getElementById('news_targetSegment');
+    const counter = document.getElementById('audienceLiveCounter');
+    const segment = select?.value || 'all';
+
+    if (counter) counter.textContent = 'Calculating...';
+
+    try {
+        const data = await API.fetchJson(`/api/admin/newsletter/audience-count?segment=${encodeURIComponent(segment)}`);
+        if (counter) {
+            const count = data.count || 0;
+            counter.textContent = `${count} recipient${count !== 1 ? 's' : ''} eligible`;
+        }
+    } catch (err) {
+        if (counter) counter.textContent = 'Error loading count';
+    }
+};
+
+window.sendNewsletterTestEmail = async function() {
+    const subject = document.getElementById('news_subject')?.value?.trim();
+    const htmlContent = document.getElementById('news_htmlContent')?.value?.trim();
+    const testEmail = document.getElementById('news_testEmail')?.value?.trim();
+    const alertEl = document.getElementById('newsletterAlert');
+    const btn = document.getElementById('btnSendNewsTest');
+
+    if (!subject || !htmlContent) {
+        alert('Please provide both a subject line and HTML body for your newsletter.');
+        return;
+    }
+
+    if (alertEl) {
+        alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-4 bg-blue-50 text-blue-700 border border-blue-200';
+        alertEl.textContent = 'Sending test newsletter via System SMTP...';
+        alertEl.classList.remove('hidden');
+    }
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await API.fetchJson('/api/admin/newsletter/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, htmlContent, testEmail })
+        });
+
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-4 bg-emerald-50 text-emerald-700 border border-emerald-200';
+            alertEl.textContent = res.message || 'Test newsletter delivered successfully!';
+        }
+    } catch (err) {
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-4 bg-red-50 text-red-600 border border-red-200';
+            alertEl.textContent = err.message || 'Failed to send test newsletter.';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.openBroadcastConfirmModal = async function() {
+    const subject = document.getElementById('news_subject')?.value?.trim();
+    const htmlContent = document.getElementById('news_htmlContent')?.value?.trim();
+    const segment = document.getElementById('news_targetSegment')?.value || 'all';
+
+    if (!subject || !htmlContent) {
+        alert('Please provide both a subject line and HTML content before broadcasting.');
+        return;
+    }
+
+    const modal = document.getElementById('broadcastConfirmModal');
+    const segmentNameEl = document.getElementById('confirmSegmentName');
+    const recipientCountEl = document.getElementById('confirmRecipientCount');
+
+    const segmentLabels = {
+        all: 'All Registered Users',
+        premium: 'Premium Plan Users',
+        advance: 'Advance Plan Users',
+        free: 'Free Trial Users',
+        expired: 'Expired / Unpaid Users',
+        admins: 'Admin Accounts Only'
+    };
+
+    if (segmentNameEl) segmentNameEl.textContent = segmentLabels[segment] || segment;
+    if (recipientCountEl) recipientCountEl.textContent = 'Counting recipients...';
+
+    if (modal) modal.classList.add('open');
+
+    try {
+        const data = await API.fetchJson(`/api/admin/newsletter/audience-count?segment=${encodeURIComponent(segment)}`);
+        if (recipientCountEl) {
+            recipientCountEl.textContent = `${data.count || 0} active users`;
+        }
+    } catch (err) {
+        if (recipientCountEl) recipientCountEl.textContent = 'Error calculating';
+    }
+};
+
+window.closeBroadcastConfirmModal = function(e) {
+    if (e && e.target !== e.currentTarget && e.currentTarget !== e.target.closest('.modal-backdrop')) return;
+    const modal = document.getElementById('broadcastConfirmModal');
+    if (modal) modal.classList.remove('open');
+};
+
+window.executeNewsletterBroadcast = async function() {
+    const subject = document.getElementById('news_subject')?.value?.trim();
+    const htmlContent = document.getElementById('news_htmlContent')?.value?.trim();
+    const targetSegment = document.getElementById('news_targetSegment')?.value || 'all';
+    const alertEl = document.getElementById('newsletterAlert');
+    const btn = document.getElementById('btnExecuteBroadcast');
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await API.fetchJson('/api/admin/newsletter/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, htmlContent, targetSegment })
+        });
+
+        closeBroadcastConfirmModal();
+
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-4 bg-emerald-50 text-emerald-700 border border-emerald-200';
+            alertEl.textContent = `🚀 ${res.message || 'Broadcast successfully queued and transmitting in background.'}`;
+            alertEl.classList.remove('hidden');
+        }
+
+        // Refresh broadcast history table
+        setTimeout(loadNewsletterHistory, 1000);
+    } catch (err) {
+        alert(`Broadcast Failed: ${err.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.loadNewsletterHistory = async function() {
+    const tbody = document.getElementById('newsletterHistoryTableBody');
+    if (!tbody) return;
+
+    try {
+        const data = await API.fetchJson('/api/admin/newsletter/history');
+        const list = data.broadcasts || [];
+
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">No newsletters broadcast yet.</td></tr>`;
+            return;
+        }
+
+        const segmentBadgeCls = {
+            premium: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            advance: 'bg-purple-50 text-purple-700 border-purple-200',
+            free: 'bg-blue-50 text-blue-700 border-blue-200',
+            expired: 'bg-slate-100 text-slate-600 border-slate-200',
+            admins: 'bg-violet-50 text-violet-700 border-violet-200',
+            all: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+        };
+
+        tbody.innerHTML = list.map(b => {
+            const dateStr = b.createdAt ? new Date(b.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
+            const badgeClass = segmentBadgeCls[b.targetSegment] || 'bg-slate-100 text-slate-600 border-slate-200';
+            const statusColor = b.status === 'completed' ? 'text-emerald-600' : b.status === 'sending' ? 'text-blue-600 animate-pulse' : 'text-amber-600';
+
+            return `
+                <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td class="px-5 py-3.5 font-semibold text-slate-800 max-w-xs truncate">${Utils.escapeHtml(b.subject)}</td>
+                    <td class="px-5 py-3.5"><span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border ${badgeClass}">${b.targetSegment}</span></td>
+                    <td class="px-5 py-3.5 text-center font-mono font-bold text-slate-700">${b.recipientCount || 0}</td>
+                    <td class="px-5 py-3.5 text-center font-mono text-xs">
+                        <span class="font-bold ${statusColor}">${b.sentCount || 0} sent</span>
+                        ${b.failedCount > 0 ? `<span class="text-red-500 font-bold ml-1">(${b.failedCount} fail)</span>` : ''}
+                    </td>
+                    <td class="px-5 py-3.5 text-xs text-slate-400 font-mono">${dateStr}</td>
+                    <td class="px-5 py-3.5 text-right">
+                        <button onclick="viewArchivedNewsletter('${b.id}')"
+                            class="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded border border-indigo-200 transition-colors cursor-pointer">
+                            View HTML
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-500 text-xs">Failed to load broadcast history.</td></tr>`;
+    }
+};
+
+window.viewArchivedNewsletter = async function(id) {
+    const modal = document.getElementById('viewNewsletterModal');
+    const subjectEl = document.getElementById('viewNewsSubject');
+    const metaEl = document.getElementById('viewNewsMeta');
+    const iframe = document.getElementById('viewNewsIframe');
+
+    if (modal) modal.classList.add('open');
+    if (metaEl) metaEl.textContent = 'Fetching archive content...';
+
+    try {
+        const data = await API.fetchJson(`/api/admin/newsletter/broadcasts/${id}`);
+        const b = data.broadcast || {};
+
+        if (subjectEl) subjectEl.textContent = b.subject || 'Newsletter Archive';
+        if (metaEl) {
+            metaEl.textContent = `Segment: ${b.targetSegment.toUpperCase()} · Sent to: ${b.recipientCount || 0} users · Date: ${new Date(b.createdAt).toLocaleString()}`;
+        }
+        if (iframe) iframe.srcdoc = b.htmlContent || '<p>No content archived.</p>';
+    } catch (err) {
+        if (metaEl) metaEl.textContent = 'Failed to load archive content.';
+    }
+};
+
+window.closeViewNewsletterModal = function(e) {
+    if (e && e.target !== e.currentTarget && e.currentTarget !== e.target.closest('.modal-backdrop')) return;
+    const modal = document.getElementById('viewNewsletterModal');
+    if (modal) modal.classList.remove('open');
 };
 
 
-
-
-
-async function loadUsers(q = '') {
     try {
         const data = await API.getAdminUsers(q);
         allUsers = data.users || [];
