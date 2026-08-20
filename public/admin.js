@@ -34,8 +34,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const usernameEl = document.getElementById('adminUsername');
         if (usernameEl) usernameEl.textContent = `admin: ${user.username}`;
         
-        // Load users and tracking settings in parallel
-        await Promise.all([loadUsers(), loadTrackingSettings()]);
+        // Load users, tracking settings, and system SMTP settings in parallel
+        await Promise.all([loadUsers(), loadTrackingSettings(), loadSystemSmtpSettings()]);
     } catch (err) {
         console.error("Admin init failed:", err);
     }
@@ -94,6 +94,180 @@ window.toggleTracking = async function(type) {
         alert('Failed to update tracking setting. Please try again.');
     }
 };
+
+// --- SYSTEM SMTP SETTINGS ---
+async function loadSystemSmtpSettings() {
+    try {
+        const data = await API.fetchJson('/api/admin/system-smtp');
+        const smtp = data.smtp || {};
+
+        const hostEl = document.getElementById('sys_smtp_host');
+        const portEl = document.getElementById('sys_smtp_port');
+        const secureEl = document.getElementById('sys_smtp_secure');
+        const userEl = document.getElementById('sys_smtp_user');
+        const passEl = document.getElementById('sys_smtp_pass');
+        const fromNameEl = document.getElementById('sys_smtp_from_name');
+        const fromEmailEl = document.getElementById('sys_smtp_from_email');
+        const badgeEl = document.getElementById('systemSmtpStatusBadge');
+
+        if (hostEl) hostEl.value = smtp.host || '';
+        if (portEl) portEl.value = smtp.port || 587;
+        if (secureEl) secureEl.checked = !!smtp.secure;
+        if (userEl) userEl.value = smtp.user || '';
+        if (passEl) passEl.value = smtp.pass || '';
+        if (fromNameEl) fromNameEl.value = smtp.fromName || 'LeadHunter Security';
+        if (fromEmailEl) fromEmailEl.value = smtp.fromEmail || '';
+
+        if (badgeEl) {
+            const isConfigured = smtp.host && smtp.user && smtp.pass;
+            if (isConfigured) {
+                badgeEl.textContent = 'Configured & Active';
+                badgeEl.className = 'plan-badge bg-emerald-100 text-emerald-700';
+            } else {
+                badgeEl.textContent = 'Not Configured';
+                badgeEl.className = 'plan-badge bg-amber-100 text-amber-700';
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load system SMTP settings:', err);
+    }
+}
+
+window.saveSystemSmtp = async function(e) {
+    e.preventDefault();
+    const alertEl = document.getElementById('systemSmtpAlert');
+    const btn = document.getElementById('btnSaveSystemSmtp');
+
+    if (alertEl) {
+        alertEl.className = 'text-xs font-medium hidden p-3 rounded-lg mb-3';
+        alertEl.textContent = '';
+    }
+
+    const payload = {
+        host: document.getElementById('sys_smtp_host')?.value?.trim() || '',
+        port: parseInt(document.getElementById('sys_smtp_port')?.value || '587', 10),
+        secure: document.getElementById('sys_smtp_secure')?.checked || false,
+        user: document.getElementById('sys_smtp_user')?.value?.trim() || '',
+        pass: document.getElementById('sys_smtp_pass')?.value?.trim() || '',
+        fromName: document.getElementById('sys_smtp_from_name')?.value?.trim() || 'LeadHunter Security',
+        fromEmail: document.getElementById('sys_smtp_from_email')?.value?.trim() || ''
+    };
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await API.fetchJson('/api/admin/system-smtp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-3 bg-emerald-50 text-emerald-700 border border-emerald-200';
+            alertEl.textContent = res.message || 'System SMTP configuration saved successfully.';
+            alertEl.classList.remove('hidden');
+        }
+
+        const badgeEl = document.getElementById('systemSmtpStatusBadge');
+        if (badgeEl) {
+            badgeEl.textContent = 'Configured & Active';
+            badgeEl.className = 'plan-badge bg-emerald-100 text-emerald-700';
+        }
+    } catch (err) {
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-3 bg-red-50 text-red-600 border border-red-200';
+            alertEl.textContent = err.message || 'Failed to save system SMTP configuration.';
+            alertEl.classList.remove('hidden');
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.togglePasswordVisibility = function(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!input) return;
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) {
+            icon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+        }
+    } else {
+        input.type = 'password';
+        if (icon) {
+            icon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+        }
+    }
+};
+
+window.openTestSmtpModal = function() {
+    const modal = document.getElementById('testSmtpModal');
+    const resultEl = document.getElementById('testSmtpResult');
+    if (resultEl) {
+        resultEl.className = 'text-xs font-medium hidden p-3 rounded-lg';
+        resultEl.textContent = '';
+    }
+    if (modal) modal.classList.add('open');
+};
+
+window.closeTestSmtpModal = function(e) {
+    if (e && e.target !== e.currentTarget && e.currentTarget !== e.target.closest('.modal-backdrop')) return;
+    const modal = document.getElementById('testSmtpModal');
+    if (modal) modal.classList.remove('open');
+};
+
+window.submitTestSmtp = async function(e) {
+    e.preventDefault();
+    const recipient = document.getElementById('test_smtp_recipient')?.value?.trim();
+    const resultEl = document.getElementById('testSmtpResult');
+    const btn = document.getElementById('btnRunSmtpTest');
+
+    if (!recipient) return;
+
+    if (resultEl) {
+        resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
+        resultEl.textContent = 'Connecting to SMTP server and verifying credentials...';
+        resultEl.classList.remove('hidden');
+    }
+
+    if (btn) btn.disabled = true;
+
+    // Collect current form inputs to test in-flight values
+    const payload = {
+        host: document.getElementById('sys_smtp_host')?.value?.trim() || '',
+        port: parseInt(document.getElementById('sys_smtp_port')?.value || '587', 10),
+        secure: document.getElementById('sys_smtp_secure')?.checked || false,
+        user: document.getElementById('sys_smtp_user')?.value?.trim() || '',
+        pass: document.getElementById('sys_smtp_pass')?.value?.trim() || '',
+        fromName: document.getElementById('sys_smtp_from_name')?.value?.trim() || 'LeadHunter Security',
+        fromEmail: document.getElementById('sys_smtp_from_email')?.value?.trim() || '',
+        testRecipient: recipient
+    };
+
+    try {
+        const res = await API.fetchJson('/api/admin/system-smtp/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (resultEl) {
+            resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200';
+            resultEl.textContent = res.message || 'SMTP verified and test email sent successfully!';
+        }
+    } catch (err) {
+        if (resultEl) {
+            resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-red-50 text-red-600 border border-red-200';
+            resultEl.textContent = err.message || 'SMTP verification failed.';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+
 
 
 

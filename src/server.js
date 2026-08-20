@@ -22,7 +22,19 @@ import juice from "juice";
 import rateLimit from "express-rate-limit"; // Security
 import compression from "compression"; // Performance
 import helmet from "helmet"; // Security
-import { authenticate, requireAuth, registerUser, changePassword, adminResetPassword, initAuth } from "./auth.js";
+import { 
+  authenticate, 
+  requireAuth, 
+  registerUser, 
+  changePassword, 
+  adminResetPassword, 
+  initAuth,
+  getSystemSmtpConfig,
+  createSystemTransporter,
+  requestPasswordReset,
+  verifyPasswordResetToken,
+  completePasswordReset
+} from "./auth.js";
 import { JobQueue } from "./queue.js";
 import { expandNiches } from "./scraper.js";
 import * as autoMailController from "./sender/controllers/autoMailController.js";
@@ -181,6 +193,8 @@ const apiLimiter = rateLimit({
 
 app.use("/api/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/auth/reset-password", authLimiter);
 app.use("/api/", apiLimiter);
 
 const locationCache = {
@@ -415,7 +429,115 @@ app.get("/api/sender/tracking-settings", requireAuth, (req, res) => {
   });
 });
 
+// --- ADMIN SYSTEM SMTP (FORGOT PASSWORD & PLATFORM NOTIFICATIONS) ---
+app.get("/api/admin/system-smtp", requireAdmin, (req, res) => {
+  const config = {
+    host: getSetting('system_smtp_host') || '',
+    port: getSetting('system_smtp_port') || '587',
+    secure: getSetting('system_smtp_secure') === '1',
+    user: getSetting('system_smtp_user') || '',
+    pass: getSetting('system_smtp_pass') || '',
+    fromName: getSetting('system_smtp_from_name') || 'LeadHunter Security',
+    fromEmail: getSetting('system_smtp_from_email') || ''
+  };
+  res.json({ smtp: config });
+});
+
+app.post("/api/admin/system-smtp", requireAdmin, express.json(), (req, res) => {
+  const { host, port, secure, user, pass, fromName, fromEmail } = req.body || {};
+  if (!host || !user) {
+    return res.status(400).json({ error: "Host and Username are required." });
+  }
+  setSetting('system_smtp_host', String(host).trim());
+  setSetting('system_smtp_port', String(port || 587).trim());
+  setSetting('system_smtp_secure', secure ? '1' : '0');
+  setSetting('system_smtp_user', String(user).trim());
+  if (pass !== undefined && pass !== null) {
+    setSetting('system_smtp_pass', String(pass).trim());
+  }
+  setSetting('system_smtp_from_name', String(fromName || 'LeadHunter Security').trim());
+  setSetting('system_smtp_from_email', String(fromEmail || user).trim());
+
+  console.log(`[Admin] System SMTP settings updated by user ${req.session.user.username}`);
+  res.json({ success: true, message: "System SMTP configuration saved successfully." });
+});
+
+app.post("/api/admin/system-smtp/test", requireAdmin, express.json(), async (req, res) => {
+  const { host, port, secure, user, pass, fromName, fromEmail, testRecipient } = req.body || {};
+
+  let config = null;
+  if (host && user && pass) {
+    config = {
+      host: String(host).trim(),
+      port: parseInt(port || '587', 10),
+      secure: Boolean(secure),
+      user: String(user).trim(),
+      pass: String(pass).trim(),
+      fromName: String(fromName || 'LeadHunter Test').trim(),
+      fromEmail: String(fromEmail || user).trim()
+    };
+  } else {
+    config = getSystemSmtpConfig();
+  }
+
+  if (!config || !config.host || !config.user || !config.pass) {
+    return res.status(400).json({ error: "Incomplete SMTP configuration. Please provide host, username, and password." });
+  }
+
+  try {
+    const transporter = createSystemTransporter(config);
+    await transporter.verify();
+
+    if (testRecipient && String(testRecipient).includes('@')) {
+      await transporter.sendMail({
+        from: `"${config.fromName}" <${config.fromEmail}>`,
+        to: String(testRecipient).trim(),
+        subject: "LeadHunter — System SMTP Test",
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 28px; background: #f8fafc; border-radius: 14px; max-width: 500px; margin: 20px auto; border: 1px solid #e2e8f0;">
+            <h2 style="color: #4f46e5; margin-top: 0;">SMTP Test Successful!</h2>
+            <p style="color: #334155; line-height: 1.5;">Your LeadHunter platform SMTP server is properly connected and transmitting transactional emails.</p>
+            <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+              <strong>Host:</strong> ${config.host}:${config.port}<br/>
+              <strong>Sender:</strong> ${config.fromName} &lt;${config.fromEmail}&gt;<br/>
+              <strong>Timestamp:</strong> ${new Date().toISOString()}
+            </div>
+          </div>
+        `
+      });
+      return res.json({ success: true, message: `SMTP connection verified and test email successfully delivered to ${testRecipient}!` });
+    }
+
+    return res.json({ success: true, message: "SMTP connection verified successfully!" });
+  } catch (err) {
+    console.error("[Admin SMTP Test Error]:", err);
+    return res.status(400).json({ error: `SMTP Connection Failed: ${err.message}` });
+  }
+});
+
 // --- AUTH ROUTES ---
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { emailOrUsername } = req.body || {};
+  const forwardedProto = req.get('x-forwarded-proto');
+  const publicBaseUrl = process.env.PUBLIC_URL || `${forwardedProto || req.protocol}://${req.get('host')}`;
+  const result = await requestPasswordReset(emailOrUsername, publicBaseUrl);
+  if (result.error) return res.status(400).json({ error: result.error });
+  return res.json(result);
+});
+
+app.post("/api/auth/verify-reset-token", (req, res) => {
+  const { token } = req.body || {};
+  const result = verifyPasswordResetToken(token);
+  if (!result.valid) return res.status(400).json({ error: result.error, valid: false });
+  return res.json(result);
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  const result = await completePasswordReset(token, newPassword);
+  if (result.error) return res.status(400).json({ error: result.error });
+  return res.json(result);
+});
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) return res.status(400).json({ error: "Missing fields" });

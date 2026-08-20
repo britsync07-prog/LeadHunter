@@ -209,6 +209,24 @@ const initDb = () => {
     INSERT OR IGNORE INTO platform_settings (key, value) VALUES ('openTrackingEnabled',  '1');
     INSERT OR IGNORE INTO platform_settings (key, value) VALUES ('clickTrackingEnabled', '1');
   `);
+
+  // Password Resets Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      expiresAt DATETIME NOT NULL,
+      usedAt DATETIME,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+    CREATE INDEX IF NOT EXISTS idx_password_resets_userId ON password_resets(userId);
+  `);
 };
 
 initDb();

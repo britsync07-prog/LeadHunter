@@ -112,7 +112,7 @@
         </button>
       </form>
       <div class="mt-4 text-center">
-        <a href="https://discord.gg/WYEmRXRbmn" target="_blank" class="text-xs font-semibold text-brand-secondary hover:text-brand-primary transition-colors">Forgot password?</a>
+        <button type="button" onclick="openForgotPasswordModal()" class="text-xs font-semibold text-brand-secondary hover:text-brand-primary transition-colors cursor-pointer">Forgot password?</button>
       </div>
       <div id="error"
         class="hidden mt-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium shadow-sm">
@@ -126,6 +126,54 @@
       </div>
     </div>
   </div>
+
+  <!-- ========== FORGOT PASSWORD MODAL ========== -->
+  <div id="forgotPasswordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeForgotPasswordModal(event)">
+    <div class="bg-white/95 backdrop-blur-2xl border border-white/60 rounded-[28px] p-7 shadow-glass ring-1 ring-brand-border/60 w-full max-w-[420px] relative z-10" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-bold text-brand-text">Reset Password</h3>
+        </div>
+        <button type="button" onclick="closeForgotPasswordModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="text-xs text-brand-secondary mb-5 leading-relaxed">
+        Enter your registered username or email address and we'll dispatch a secure password reset link to your inbox.
+      </p>
+
+      <form id="forgotPasswordForm" onsubmit="submitForgotPassword(event)">
+        <div class="mb-4">
+          <label for="forgotEmailOrUsername" class="block text-xs font-bold text-brand-secondary mb-2 tracking-wide uppercase">Username or Email</label>
+          <input type="text" id="forgotEmailOrUsername" name="emailOrUsername" required
+            class="w-full px-4 py-3 bg-white/80 border border-brand-border rounded-xl text-sm text-brand-text font-mono focus:bg-white focus:outline-none focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 transition-all shadow-inner"
+            placeholder="admin or email@example.com" />
+        </div>
+
+        <div id="forgotResultAlert" class="text-xs font-medium hidden p-3 rounded-xl mb-4 leading-relaxed"></div>
+
+        <button type="submit" id="btnForgotSubmit"
+          class="w-full py-3 bg-gradient-to-r from-brand-primary to-brand-cta hover:brightness-105 text-white rounded-xl text-xs font-bold tracking-[0.15em] uppercase transition-all shadow-glow cursor-pointer flex items-center justify-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m22 2-7 20-4-9-9-4Z"></path>
+            <path d="M22 2 11 13"></path>
+          </svg>
+          Send Reset Link
+        </button>
+      </form>
+    </div>
+  </div>
+
   <script>
     const toggleBtn = document.getElementById("togglePassword");
     const pwdInput = document.getElementById("password");
@@ -138,6 +186,77 @@
       eyeOn.classList.toggle('hidden');
       eyeOff.classList.toggle('hidden');
     });
+
+    function openForgotPasswordModal() {
+      const modal = document.getElementById('forgotPasswordModal');
+      const alert = document.getElementById('forgotResultAlert');
+      if (alert) {
+        alert.className = 'text-xs font-medium hidden p-3 rounded-xl mb-4 leading-relaxed';
+        alert.textContent = '';
+      }
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function closeForgotPasswordModal(e) {
+      if (e && e.target !== e.currentTarget && e.currentTarget !== e.target.closest('#forgotPasswordModal')) return;
+      const modal = document.getElementById('forgotPasswordModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    async function submitForgotPassword(e) {
+      e.preventDefault();
+      const input = document.getElementById('forgotEmailOrUsername');
+      const alert = document.getElementById('forgotResultAlert');
+      const btn = document.getElementById('btnForgotSubmit');
+      const value = input?.value?.trim();
+
+      if (!value) return;
+
+      if (alert) {
+        alert.className = 'text-xs font-medium p-3 rounded-xl mb-4 leading-relaxed bg-blue-50 text-blue-700 border border-blue-200';
+        alert.textContent = 'Generating secure reset link and sending email...';
+        alert.classList.remove('hidden');
+      }
+
+      if (btn) btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailOrUsername: value })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          if (alert) {
+            alert.className = 'text-xs font-medium p-3 rounded-xl mb-4 leading-relaxed bg-emerald-50 text-emerald-700 border border-emerald-200';
+            alert.textContent = data.message || 'If an account matches that username or email, a reset link has been dispatched to your inbox.';
+          }
+          if (input) input.value = '';
+        } else {
+          if (alert) {
+            alert.className = 'text-xs font-medium p-3 rounded-xl mb-4 leading-relaxed bg-red-50 text-red-600 border border-red-200';
+            alert.textContent = data.error || 'Failed to process request. Please try again.';
+          }
+        }
+      } catch (err) {
+        if (alert) {
+          alert.className = 'text-xs font-medium p-3 rounded-xl mb-4 leading-relaxed bg-red-50 text-red-600 border border-red-200';
+          alert.textContent = 'Network error. Please check your connection and try again.';
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const username = e.target.username.value;
