@@ -267,6 +267,154 @@ window.submitTestSmtp = async function(e) {
     }
 };
 
+// --- DEDICATED NEWSLETTER SMTP SETTINGS ---
+async function loadNewsletterSmtpSettings() {
+    try {
+        const data = await API.fetchJson('/api/admin/newsletter-smtp');
+        const badge = document.getElementById('newsSmtpStatusBadge');
+
+        if (data.configured) {
+            if (badge) {
+                badge.className = 'plan-badge bg-emerald-50 text-emerald-700 border border-emerald-200';
+                badge.textContent = 'Configured & Active';
+            }
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
+            setVal('news_smtp_host', data.host || '');
+            setVal('news_smtp_port', data.port || 587);
+            setVal('news_smtp_user', data.user || '');
+            setVal('news_smtp_from_name', data.fromName || '');
+            setVal('news_smtp_from_email', data.fromEmail || '');
+
+            const secureEl = document.getElementById('news_smtp_secure');
+            if (secureEl) secureEl.checked = Boolean(data.secure);
+
+            const passEl = document.getElementById('news_smtp_pass');
+            if (passEl && data.passSet) {
+                passEl.placeholder = '•••••••••••• (Saved)';
+                passEl.required = false;
+            }
+        } else {
+            if (badge) {
+                badge.className = 'plan-badge bg-amber-50 text-amber-700 border border-amber-200';
+                badge.textContent = 'Not Configured';
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load newsletter SMTP settings:', err);
+    }
+}
+
+window.saveNewsletterSmtp = async function(e) {
+    e.preventDefault();
+    const alertEl = document.getElementById('newsSmtpAlert');
+    const btn = document.getElementById('btnSaveNewsSmtp');
+
+    const host = document.getElementById('news_smtp_host')?.value?.trim();
+    const port = parseInt(document.getElementById('news_smtp_port')?.value || '587', 10);
+    const secure = document.getElementById('news_smtp_secure')?.checked || false;
+    const user = document.getElementById('news_smtp_user')?.value?.trim();
+    const pass = document.getElementById('news_smtp_pass')?.value?.trim();
+    const fromName = document.getElementById('news_smtp_from_name')?.value?.trim();
+    const fromEmail = document.getElementById('news_smtp_from_email')?.value?.trim();
+
+    if (!host || !user) {
+        alert('Please provide SMTP Host and Username/Email.');
+        return;
+    }
+
+    const payload = { host, port, secure, user, fromName, fromEmail };
+    if (pass) payload.pass = pass;
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await API.fetchJson('/api/admin/newsletter-smtp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-3 bg-emerald-50 text-emerald-700 border border-emerald-200';
+            alertEl.textContent = res.message || 'Newsletter SMTP settings saved successfully!';
+            alertEl.classList.remove('hidden');
+        }
+        await loadNewsletterSmtpSettings();
+    } catch (err) {
+        if (alertEl) {
+            alertEl.className = 'text-xs font-medium p-3 rounded-lg mb-3 bg-red-50 text-red-600 border border-red-200';
+            alertEl.textContent = err.message || 'Failed to save Newsletter SMTP settings.';
+            alertEl.classList.remove('hidden');
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.openTestNewsSmtpModal = function() {
+    const modal = document.getElementById('testNewsSmtpModal');
+    const resultEl = document.getElementById('testNewsSmtpResult');
+    if (resultEl) {
+        resultEl.className = 'text-xs font-medium hidden p-3 rounded-lg';
+        resultEl.textContent = '';
+    }
+    if (modal) modal.classList.add('open');
+};
+
+window.closeTestNewsSmtpModal = function(e) {
+    if (e && e.target !== e.currentTarget && e.currentTarget !== e.target.closest('.modal-backdrop')) return;
+    const modal = document.getElementById('testNewsSmtpModal');
+    if (modal) modal.classList.remove('open');
+};
+
+window.submitTestNewsSmtp = async function(e) {
+    e.preventDefault();
+    const recipient = document.getElementById('test_news_smtp_recipient')?.value?.trim();
+    const resultEl = document.getElementById('testNewsSmtpResult');
+    const btn = document.getElementById('btnRunNewsSmtpTest');
+
+    if (!recipient) return;
+
+    if (resultEl) {
+        resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
+        resultEl.textContent = 'Connecting to Newsletter SMTP server and verifying...';
+        resultEl.classList.remove('hidden');
+    }
+
+    if (btn) btn.disabled = true;
+
+    const payload = {
+        host: document.getElementById('news_smtp_host')?.value?.trim() || '',
+        port: parseInt(document.getElementById('news_smtp_port')?.value || '587', 10),
+        secure: document.getElementById('news_smtp_secure')?.checked || false,
+        user: document.getElementById('news_smtp_user')?.value?.trim() || '',
+        pass: document.getElementById('news_smtp_pass')?.value?.trim() || '',
+        fromName: document.getElementById('news_smtp_from_name')?.value?.trim() || 'LeadHunter Newsletter',
+        fromEmail: document.getElementById('news_smtp_from_email')?.value?.trim() || '',
+        testRecipient: recipient
+    };
+
+    try {
+        const res = await API.fetchJson('/api/admin/newsletter-smtp/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (resultEl) {
+            resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200';
+            resultEl.textContent = res.message || 'Newsletter SMTP verified and test email delivered!';
+        }
+    } catch (err) {
+        if (resultEl) {
+            resultEl.className = 'text-xs font-medium p-3 rounded-lg bg-red-50 text-red-600 border border-red-200';
+            resultEl.textContent = err.message || 'Newsletter SMTP test failed.';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
 // --- VIEW NAVIGATION (USERS vs NEWSLETTER) ---
 window.switchAdminView = function(view) {
     const tabUsers = document.getElementById('navTabUsers');
@@ -288,10 +436,11 @@ window.switchAdminView = function(view) {
         if (viewNews) viewNews.classList.remove('hidden');
 
         if (pageTitle) pageTitle.textContent = 'Newsletter & Announcements Broadcast';
-        if (pageSubtitle) pageSubtitle.textContent = 'Broadcast targeted emails across user tiers using your platform SMTP';
+        if (pageSubtitle) pageSubtitle.textContent = 'Dedicated newsletter SMTP configuration & audience broadcast';
         if (btnCreate) btnCreate.classList.add('hidden');
 
         // Init newsletter view data
+        loadNewsletterSmtpSettings();
         onNewsletterSegmentChange();
         loadNewsletterHistory();
 

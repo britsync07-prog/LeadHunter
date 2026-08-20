@@ -31,6 +31,8 @@ import {
   initAuth,
   getSystemSmtpConfig,
   createSystemTransporter,
+  getNewsletterSmtpConfig,
+  createNewsletterTransporter,
   requestPasswordReset,
   verifyPasswordResetToken,
   completePasswordReset
@@ -515,6 +517,96 @@ app.post("/api/admin/system-smtp/test", requireAdmin, express.json(), async (req
   }
 });
 
+// --- DEDICATED NEWSLETTER SMTP ROUTES ---
+app.get("/api/admin/newsletter-smtp", requireAdmin, (req, res) => {
+  const config = getNewsletterSmtpConfig();
+  if (!config) {
+    return res.json({ configured: false });
+  }
+  res.json({
+    configured: true,
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    user: config.user,
+    passSet: Boolean(config.pass),
+    fromName: config.fromName,
+    fromEmail: config.fromEmail
+  });
+});
+
+app.post("/api/admin/newsletter-smtp", requireAdmin, express.json(), (req, res) => {
+  const { host, port, secure, user, pass, fromName, fromEmail } = req.body || {};
+  if (!host || !user) {
+    return res.status(400).json({ error: "Host and Username/Email are required." });
+  }
+  setSetting('newsletter_smtp_host', String(host).trim());
+  setSetting('newsletter_smtp_port', String(port || 587).trim());
+  setSetting('newsletter_smtp_secure', secure ? '1' : '0');
+  setSetting('newsletter_smtp_user', String(user).trim());
+  if (pass !== undefined && pass !== null && pass !== '') {
+    setSetting('newsletter_smtp_pass', String(pass).trim());
+  }
+  setSetting('newsletter_smtp_from_name', String(fromName || 'LeadHunter Newsletter').trim());
+  setSetting('newsletter_smtp_from_email', String(fromEmail || user).trim());
+
+  console.log(`[Admin] Dedicated Newsletter SMTP settings updated by user ${req.session.user.username}`);
+  res.json({ success: true, message: "Newsletter SMTP configuration saved successfully." });
+});
+
+app.post("/api/admin/newsletter-smtp/test", requireAdmin, express.json(), async (req, res) => {
+  const { host, port, secure, user, pass, fromName, fromEmail, testRecipient } = req.body || {};
+
+  let config = null;
+  if (host && user && pass) {
+    config = {
+      host: String(host).trim(),
+      port: parseInt(port || '587', 10),
+      secure: Boolean(secure),
+      user: String(user).trim(),
+      pass: String(pass).trim(),
+      fromName: String(fromName || 'LeadHunter Newsletter').trim(),
+      fromEmail: String(fromEmail || user).trim()
+    };
+  } else {
+    config = getNewsletterSmtpConfig();
+  }
+
+  if (!config || !config.host || !config.user || !config.pass) {
+    return res.status(400).json({ error: "Incomplete Newsletter SMTP configuration. Please provide host, username, and password." });
+  }
+
+  try {
+    const transporter = createNewsletterTransporter(config);
+    await transporter.verify();
+
+    if (testRecipient && String(testRecipient).includes('@')) {
+      await transporter.sendMail({
+        from: `"${config.fromName}" <${config.fromEmail}>`,
+        to: String(testRecipient).trim(),
+        subject: "LeadHunter — Newsletter SMTP Test",
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 28px; background: #f8fafc; border-radius: 14px; max-width: 500px; margin: 20px auto; border: 1px solid #e2e8f0;">
+            <h2 style="color: #4338ca; margin-top: 0;">Newsletter SMTP Connected!</h2>
+            <p style="color: #334155; line-height: 1.5;">Your dedicated Newsletter SMTP server is successfully verified and ready to dispatch marketing broadcasts.</p>
+            <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+              <strong>Host:</strong> ${config.host}:${config.port}<br/>
+              <strong>Sender:</strong> ${config.fromName} &lt;${config.fromEmail}&gt;<br/>
+              <strong>Timestamp:</strong> ${new Date().toISOString()}
+            </div>
+          </div>
+        `
+      });
+      return res.json({ success: true, message: `Newsletter SMTP verified and test email successfully delivered to ${testRecipient}!` });
+    }
+
+    return res.json({ success: true, message: "Newsletter SMTP connection verified successfully!" });
+  } catch (err) {
+    console.error("[Admin Newsletter SMTP Test Error]:", err);
+    return res.status(400).json({ error: `Newsletter SMTP Connection Failed: ${err.message}` });
+  }
+});
+
 // --- ADMIN NEWSLETTER & BROADCAST ROUTES ---
 function getNewsletterAudienceSql(segment) {
   const baseWhere = "isSuspended = 0 AND email IS NOT NULL AND TRIM(email) != ''";
@@ -567,7 +659,7 @@ app.get("/api/admin/newsletter/broadcasts/:id", requireAdmin, (req, res) => {
   res.json({ broadcast });
 });
 
-// Send Test Newsletter to Admin
+// Send Test Newsletter to Admin (using dedicated Newsletter SMTP)
 app.post("/api/admin/newsletter/test", requireAdmin, express.json(), async (req, res) => {
   const { subject, htmlContent, testEmail } = req.body || {};
   if (!subject || !htmlContent) {
@@ -579,15 +671,15 @@ app.post("/api/admin/newsletter/test", requireAdmin, express.json(), async (req,
     return res.status(400).json({ error: "A valid test recipient email address is required." });
   }
 
-  const smtpConfig = getSystemSmtpConfig();
+  const smtpConfig = getNewsletterSmtpConfig();
   if (!smtpConfig) {
-    return res.status(400).json({ error: "System SMTP is not configured. Please configure SMTP settings above first." });
+    return res.status(400).json({ error: "Newsletter SMTP is not configured. Please configure the Newsletter SMTP settings in the tab above first." });
   }
 
   try {
     const forwardedProto = req.get('x-forwarded-proto');
     const publicBaseUrl = process.env.PUBLIC_URL || `${forwardedProto || req.protocol}://${req.get('host')}`;
-    const transporter = createSystemTransporter(smtpConfig);
+    const transporter = createNewsletterTransporter(smtpConfig);
 
     const dummyUser = {
       username: req.session.user.username || 'Admin Preview',
@@ -612,16 +704,16 @@ app.post("/api/admin/newsletter/test", requireAdmin, express.json(), async (req,
   }
 });
 
-// Broadcast Newsletter to Segment
+// Broadcast Newsletter to Segment (using dedicated Newsletter SMTP)
 app.post("/api/admin/newsletter/broadcast", requireAdmin, express.json(), async (req, res) => {
   const { subject, htmlContent, targetSegment, senderName, senderEmail } = req.body || {};
   if (!subject || !htmlContent) {
     return res.status(400).json({ error: "Subject and HTML content are required." });
   }
 
-  const smtpConfig = getSystemSmtpConfig();
+  const smtpConfig = getNewsletterSmtpConfig();
   if (!smtpConfig) {
-    return res.status(400).json({ error: "System SMTP is not configured. Please configure SMTP settings first." });
+    return res.status(400).json({ error: "Newsletter SMTP is not configured. Please configure the Newsletter SMTP settings first." });
   }
 
   const segment = targetSegment || 'all';
@@ -656,7 +748,7 @@ app.post("/api/admin/newsletter/broadcast", requireAdmin, express.json(), async 
   (async () => {
     let sent = 0;
     let failed = 0;
-    const transporter = createSystemTransporter(smtpConfig);
+    const transporter = createNewsletterTransporter(smtpConfig);
 
     console.log(`[Newsletter] Starting background broadcast ${broadcastId} to ${recipients.length} users (${segment})`);
 

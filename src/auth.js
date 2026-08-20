@@ -154,12 +154,60 @@ export function getSystemSmtpConfig() {
 }
 
 /**
- * Creates a Nodemailer transporter using system SMTP configuration.
+ * Creates a Nodemailer transporter using system SMTP configuration (Forgot Password & System Alerts).
  */
 export function createSystemTransporter(configOverride = null) {
   const config = configOverride || getSystemSmtpConfig();
   if (!config) {
     throw new Error("System SMTP is not configured. Please contact the administrator.");
+  }
+
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass
+    }
+  });
+}
+
+/**
+ * Reads the dedicated Newsletter / Marketing SMTP configuration.
+ */
+export function getNewsletterSmtpConfig() {
+  const host = getSetting('newsletter_smtp_host');
+  const port = parseInt(getSetting('newsletter_smtp_port') || '587', 10);
+  const secureSetting = getSetting('newsletter_smtp_secure');
+  const secure = secureSetting === '1' || port === 465;
+  const user = getSetting('newsletter_smtp_user');
+  const pass = getSetting('newsletter_smtp_pass');
+  const fromName = getSetting('newsletter_smtp_from_name') || 'LeadHunter Newsletter';
+  const fromEmail = getSetting('newsletter_smtp_from_email') || user;
+
+  if (!host || !user || !pass) {
+    return null;
+  }
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    fromName,
+    fromEmail
+  };
+}
+
+/**
+ * Creates a Nodemailer transporter using dedicated Newsletter SMTP configuration.
+ */
+export function createNewsletterTransporter(configOverride = null) {
+  const config = configOverride || getNewsletterSmtpConfig();
+  if (!config) {
+    throw new Error("Dedicated Newsletter SMTP is not configured. Please configure Newsletter SMTP settings in the admin panel first.");
   }
 
   return nodemailer.createTransport({

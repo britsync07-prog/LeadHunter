@@ -406,6 +406,104 @@
 
         <!-- ==================== VIEW 2: NEWSLETTER BROADCAST ==================== -->
         <div id="viewNewslettersSection" class="hidden flex-1 flex flex-col min-w-0">
+            <!-- Dedicated Newsletter SMTP Configuration Card -->
+            <div class="px-4 lg:px-6 pt-4 pb-2">
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-600">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                      Dedicated Newsletter SMTP (Marketing & Announcements)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Separate SMTP server dedicated strictly for audience broadcasts</p>
+                  </div>
+                  <span id="newsSmtpStatusBadge" class="plan-badge bg-slate-100 text-slate-500">Checking...</span>
+                </div>
+
+                <form id="newsSmtpForm" onsubmit="saveNewsletterSmtp(event)">
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Newsletter SMTP Host</label>
+                      <input id="news_smtp_host" type="text" required placeholder="smtp.mailgun.org"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SMTP Port</label>
+                      <input id="news_smtp_port" type="number" required placeholder="587"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                    </div>
+                    <div class="flex items-center pt-6">
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input id="news_smtp_secure" type="checkbox" class="w-4 h-4 rounded accent-indigo-600">
+                        <span class="text-xs font-semibold text-slate-600">SSL/TLS (Port 465)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SMTP Username / Login</label>
+                      <input id="news_smtp_user" type="text" required placeholder="newsletter@domain.com"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                    </div>
+                    <div class="relative">
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SMTP Password / API Key</label>
+                      <div class="relative">
+                        <input id="news_smtp_pass" type="password" required placeholder="••••••••••••"
+                          class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50 pr-10" />
+                        <button type="button" onclick="togglePasswordVisibility('news_smtp_pass', 'eyeNewsPass')"
+                          class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                          <svg id="eyeNewsPass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Sender Name (From Name)</label>
+                      <input id="news_smtp_from_name" type="text" placeholder="LeadHunter Team"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Sender Email (From Address)</label>
+                      <input id="news_smtp_from_email" type="email" placeholder="newsletter@leadhunter.uk"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                    </div>
+                  </div>
+
+                  <div id="newsSmtpAlert" class="text-xs font-medium hidden p-3 rounded-lg mb-3"></div>
+
+                  <div class="flex items-center gap-3 pt-2">
+                    <button type="submit" id="btnSaveNewsSmtp"
+                      class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer shadow-sm flex items-center gap-1.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                      </svg>
+                      Save Newsletter SMTP
+                    </button>
+
+                    <button type="button" onclick="openTestNewsSmtpModal()"
+                      class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer border border-slate-200 flex items-center gap-1.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m22 2-7 20-4-9-9-4Z"></path>
+                        <path d="M22 2 11 13"></path>
+                      </svg>
+                      Test Connection
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <!-- Composer Card -->
             <div class="px-4 lg:px-6 py-4">
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:p-6 mb-6">
@@ -748,6 +846,43 @@
                         <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
                     </svg>
                     Send Test Email Now
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== TEST NEWSLETTER SMTP MODAL ========== -->
+    <div id="testNewsSmtpModal" class="modal-backdrop" onclick="closeTestNewsSmtpModal(event)">
+        <div class="modal-box bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-600">
+                        <path d="m22 2-7 20-4-9-9-4Z"></path>
+                        <path d="M22 2 11 13"></path>
+                    </svg>
+                    Test Newsletter SMTP
+                </h2>
+                <button onclick="closeTestNewsSmtpModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="testNewsSmtpForm" class="p-6 flex flex-col gap-4" onsubmit="submitTestNewsSmtp(event)">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Recipient Email for Test Message</label>
+                    <input id="test_news_smtp_recipient" type="email" required placeholder="your-email@example.com"
+                        class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-indigo-400 bg-slate-50" />
+                </div>
+                <div id="testNewsSmtpResult" class="text-xs font-medium hidden p-3 rounded-lg"></div>
+                <button type="submit" id="btnRunNewsSmtpTest"
+                    class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm transition-colors cursor-pointer flex items-center justify-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13"></path>
+                        <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+                    </svg>
+                    Send Newsletter Test Email
                 </button>
             </form>
         </div>
