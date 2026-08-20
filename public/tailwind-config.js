@@ -1,35 +1,32 @@
 tailwind.config = {
-    darkMode: 'class',
+    darkMode: 'class', // Keeping class for potential future toggles, but defaulting to light
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Work Sans', 'Manrope', 'sans-serif'],
-                display: ['Outfit', 'Space Grotesk', 'sans-serif'],
+                sans: ['Manrope', 'sans-serif'],
+                display: ['Space Grotesk', 'sans-serif'],
                 mono: ['JetBrains Mono', 'monospace'],
             },
             colors: {
                 brand: {
-                    base: '#f8fafc',
-                    card: '#ffffff',
-                    hover: '#f1f5f9',
-                    cta: '#C8102E',
-                    primary: '#012169',
-                    darkblue: '#000c2b',
-                    red: '#C8102E',
-                    text: '#0f172a',
-                    secondary: '#475569',
-                    muted: '#64748b',
-                    border: '#e2e8f0',
+                    base: '#f5f1e8',
+                    card: '#fffdf9',
+                    hover: '#efe5d8',
+                    cta: '#ef7d57',
+                    primary: '#145b73',
+                    text: '#10212b',
+                    secondary: '#51616b',
+                    muted: '#8a989d',
+                    border: '#d8d0c3',
                 }
             },
             boxShadow: {
-                'glass': '0 20px 40px rgba(1, 33, 105, 0.08)',
-                'glow': '0 10px 25px rgba(200, 16, 46, 0.25)',
-                'card': '0 10px 30px rgba(1, 33, 105, 0.06)',
+                'glass': '0 18px 45px rgba(16, 33, 43, 0.08)',
+                'glow': '0 18px 40px rgba(20, 91, 115, 0.18)',
+                'card': '0 12px 30px rgba(16, 33, 43, 0.08)',
             },
             backgroundImage: {
-                'gradient-mesh': 'radial-gradient(circle at 10% 10%, rgba(1, 33, 105, 0.08), transparent 30%), radial-gradient(circle at 90% 90%, rgba(200, 16, 46, 0.06), transparent 35%), linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
-                'uk-gradient': 'linear-gradient(135deg, #012169 0%, #000c2b 100%)',
+                'gradient-mesh': 'radial-gradient(circle at top left, rgba(20,91,115,0.18), transparent 35%), radial-gradient(circle at top right, rgba(239,125,87,0.16), transparent 32%), linear-gradient(180deg, #f8f4ec 0%, #f2ece1 100%)'
             }
         }
     }

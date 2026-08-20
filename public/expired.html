@@ -1,69 +1,86 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trial Ended | LeadHunter Outreach</title>
-    <link rel="icon" type="image/x-icon" href="/vite.ico">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="tailwind-config.js"></script>
-    <link rel="stylesheet" href="styles.css?v=neo2">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-blue': '#012169',
+                        'brand-red': '#C8102E',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #f8fafc;
+        }
+        .uk-gradient {
+            background: linear-gradient(135deg, #012169 0%, #000c2b 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
 </head>
-<body class="bg-obsidian-950 min-h-screen flex items-center justify-center p-4 text-slate-100 font-sans antialiased relative overflow-hidden">
-    <!-- Ambient background glow mesh -->
-    <div class="fixed inset-0 pointer-events-none z-0">
-        <div class="absolute top-[-10%] left-[-10%] w-[38rem] h-[38rem] bg-rose-500/10 rounded-full blur-[140px]"></div>
-        <div class="absolute bottom-[-10%] right-[-10%] w-[34rem] h-[34rem] bg-indigo-500/10 rounded-full blur-[140px]"></div>
-    </div>
-
-    <div class="max-w-2xl w-full relative z-10">
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
         <!-- Main Card -->
-        <div class="double-bezel border-rose-500/30 shadow-2xl">
-            <div class="double-bezel-inner p-8 sm:p-12 text-center">
+        <div class="glass-card rounded-[40px] overflow-hidden shadow-2xl border-t-8 border-brand-red">
+            <div class="p-12 text-center">
                 <!-- Icon/Badge -->
-                <div class="w-20 h-20 bg-rose-500/15 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-glow">
-                    <svg class="w-10 h-10 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-8">
+                    <svg class="w-10 h-10 text-brand-red" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="8" x2="12" y2="12"></line>
                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
                     </svg>
                 </div>
 
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-400 mb-4">
-                    Access Period Concluded
-                </div>
-                <h1 class="text-3xl sm:text-4xl font-display font-bold text-white mb-4 tracking-tight uppercase">TRIAL EXPIRED</h1>
-                <p class="text-sm sm:text-base text-slate-400 mb-8 max-w-lg mx-auto leading-relaxed">Your 3-day enterprise access to LeadHunter has concluded. Upgrade your subscription to unlock unlimited B2B lead scraping & cold outreach capabilities.</p>
+                <h1 class="text-4xl md:text-5xl font-black text-slate-900 mb-6 tracking-tight uppercase">TRIAL EXPIRED</h1>
+                <p class="text-xl text-slate-500 mb-10 font-medium">Your 3-day enterprise access to LeadHunter has concluded. To keep your B2B engine running, please select a plan.</p>
 
                 <!-- Pricing Quick View -->
-                <div class="grid sm:grid-cols-2 gap-4 mb-8">
-                    <div class="p-6 rounded-2xl bg-slate-900/80 border border-cyan-500/30 shadow-glow text-left">
-                        <div class="text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-2">Advance Plan</div>
-                        <div class="text-3xl font-display font-bold text-white mb-1">£79 <span class="text-xs font-normal text-slate-400">/mo</span></div>
-                        <div class="text-xs text-slate-400 font-mono">1,000 leads/day &bull; Direct Mail</div>
+                <div class="grid sm:grid-cols-2 gap-4 mb-10">
+                    <div class="p-6 rounded-3xl bg-brand-blue/5 border border-brand-blue/10 shadow-lg">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-brand-blue mb-2">Advance</div>
+                        <div class="text-2xl font-black text-brand-blue">£79</div>
+                        <div class="text-[10px] text-brand-blue/60">1,000 leads/day</div>
                     </div>
-                    <div class="p-6 rounded-2xl bg-slate-900/80 border border-purple-500/30 shadow-glow text-left">
-                        <div class="text-[10px] font-bold uppercase tracking-widest text-purple-400 mb-2">Premium Plan</div>
-                        <div class="text-3xl font-display font-bold text-white mb-1">£449 <span class="text-xs font-normal text-slate-400">/mo</span></div>
-                        <div class="text-xs text-slate-400 font-mono">6,000 leads/day &bull; Multi-SMTP</div>
+                    <div class="p-6 rounded-3xl bg-slate-50 border border-slate-100">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Premium</div>
+                        <div class="text-2xl font-black text-slate-900">£449</div>
+                        <div class="text-[10px] text-slate-500">6,000 leads/day</div>
                     </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="/index.html#pricing" class="btn-primary py-3.5 px-8 text-xs font-bold uppercase tracking-[0.16em]">
-                        RENEW ACCESS NOW
+                    <a href="/index.html#pricing" class="px-10 py-5 bg-brand-red text-white rounded-2xl font-black text-lg hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 transform hover:-translate-y-1">
+                        RENEW ACCESS
                     </a>
-                    <button id="logoutBtn" class="btn-secondary py-3.5 px-8 text-xs font-bold uppercase tracking-[0.16em]">
+                    <button id="logoutBtn" class="px-10 py-5 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all">
                         LOGOUT
                     </button>
                 </div>
             </div>
+
+            <!-- Footer Decorative -->
+            <div class="uk-gradient h-20 flex items-center justify-center">
+                <span class="text-white/40 text-[10px] font-black uppercase tracking-[0.4em]">LeadHunter Enterprise</span>
+            </div>
         </div>
         
-        <p class="text-center mt-6 text-slate-500 text-xs font-medium">Need help? <a href="https://discord.gg/WYEmRXRbmn" target="_blank" class="text-cyan-400 font-bold hover:underline ml-1">Contact Support</a></p>
+        <p class="text-center mt-8 text-slate-400 text-sm font-medium">Need help? <a href="#" class="text-brand-blue font-bold">Contact British Support</a></p>
     </div>
 
     <script>

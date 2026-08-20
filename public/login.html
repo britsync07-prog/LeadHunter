@@ -1,21 +1,20 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LeadHunter — Secure Login</title>
+  <title>LeadHunter — Login</title>
   <link rel="icon" type="image/x-icon" href="/vite.ico">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
     rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="tailwind-config.js"></script>
-  <link rel="stylesheet" href="styles.css">
 
   <!-- Auto-redirect if already logged in -->
   <script>
@@ -34,105 +33,99 @@
 </head>
 
 <body
-  class="bg-obsidian-950 flex items-center justify-center min-h-screen text-slate-100 font-sans antialiased relative overflow-hidden selection:bg-cyan-500/30 selection:text-cyan-200">
-  
-  <!-- Ambient background glow mesh -->
-  <div class="fixed inset-0 pointer-events-none z-0">
-    <div class="absolute top-[-10%] left-[-10%] w-[38rem] h-[38rem] bg-sky-500/10 rounded-full blur-[140px]"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[34rem] h-[34rem] bg-indigo-500/10 rounded-full blur-[140px]"></div>
-    <div class="absolute top-[40%] right-[30%] w-[24rem] h-[24rem] bg-emerald-500/05 rounded-full blur-[120px]"></div>
-  </div>
+  class="bg-brand-base flex items-center justify-center min-h-screen text-brand-text font-sans antialiased relative overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-mesh opacity-90"></div>
+  <div class="absolute inset-0 opacity-30" style="background-image:linear-gradient(rgba(16,33,43,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(16,33,43,0.05) 1px, transparent 1px); background-size:26px 26px;"></div>
+  <div class="absolute top-[-8%] left-[-4%] w-[32rem] h-[32rem] bg-brand-primary/20 rounded-full blur-[120px]"></div>
+  <div class="absolute bottom-[-8%] right-[-2%] w-[26rem] h-[26rem] bg-brand-cta/25 rounded-full blur-[110px]"></div>
 
-  <div class="w-full max-w-[440px] p-6 relative z-10">
-    <!-- Header Logo -->
-    <div class="flex items-center gap-3 justify-center mb-8">
-      <div class="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 border border-white/10 bg-slate-900/80 shadow-glow">
-        <img src="/vite.ico" alt="Logo" class="w-7 h-7 object-contain" />
+  <div class="w-full max-w-[420px] p-6 relative z-10">
+    <div class="flex items-center gap-3 justify-center mb-10 text-3xl font-display font-bold text-brand-text tracking-tight">
+      <div class="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 shadow-glass border border-white/70 ring-1 ring-brand-border/60">
+        <img src="/vite.ico" alt="Logo" class="w-full h-full object-cover" />
       </div>
-      <span class="text-2xl font-display font-bold text-white tracking-tight">LeadHunter</span>
+      LeadHunter
     </div>
 
-    <!-- Outer double-bezel wrapper -->
-    <div class="double-bezel">
-      <div class="double-bezel-inner">
-        <div class="text-center mb-8">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400 mb-4">
-            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            Command Center
-          </div>
-          <h1 class="text-2xl font-display font-bold text-white tracking-tight mb-1.5">Welcome Back</h1>
-          <p class="text-xs text-slate-400 font-medium">Enter your credentials to access your workspace</p>
+    <div
+      class="bg-white/76 backdrop-blur-2xl border border-white/50 rounded-[28px] p-8 shadow-glass ring-1 ring-brand-border/60">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 border border-brand-border/70 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-primary mb-5">Secure Workspace</div>
+        <div class="text-3xl font-display font-bold text-brand-text tracking-tight mb-2">Welcome back</div>
+        <div class="text-sm font-medium text-brand-secondary">Sign in to your command center</div>
+      </div>
+
+      <form id="loginForm">
+        <div class="mb-5">
+          <label for="username"
+            class="block text-xs font-bold text-brand-secondary mb-2 tracking-wide uppercase">Username or Email</label>
+          <input type="text" id="username" name="username"
+            class="w-full px-4 py-3.5 bg-white/80 border border-brand-border rounded-2xl text-sm text-brand-text font-mono focus:bg-white focus:outline-none focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 transition-all duration-300 shadow-inner"
+            placeholder="admin or email@example.com" required autocomplete="username" />
         </div>
 
-        <form id="loginForm" class="space-y-5">
-          <div>
-            <label for="username"
-              class="block text-[11px] font-bold text-slate-300 mb-2 tracking-wider uppercase">Username or Email</label>
-            <input type="text" id="username" name="username"
-              class="w-full px-4 py-3 bg-slate-900/80 border border-white/10 rounded-xl text-sm text-slate-100 font-mono placeholder:text-slate-500 focus:bg-slate-900 focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all duration-200"
-              placeholder="admin or user@company.com" required autocomplete="username" />
+        <div class="mb-5 relative">
+          <label for="password"
+            class="block text-xs font-bold text-brand-secondary mb-2 tracking-wide uppercase">Password</label>
+          <div class="relative">
+            <input type="password" id="password" name="password"
+              class="w-full px-4 py-3.5 bg-white/80 border border-brand-border rounded-2xl text-sm text-brand-text font-mono focus:bg-white focus:outline-none focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/10 transition-all duration-300 shadow-inner pr-12"
+              placeholder="••••••••" required autocomplete="current-password" />
+            <button type="button" id="togglePassword"
+              class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-brand-primary cursor-pointer transition-colors duration-200">
+              <!-- Eye Off Icon (default hidden) -->
+              <svg id="eyeOffIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="hidden">
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+                </path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+              <!-- Eye Icon (default showing) -->
+              <svg id="eyeOnIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
           </div>
-
-          <div>
-            <label for="password"
-              class="block text-[11px] font-bold text-slate-300 mb-2 tracking-wider uppercase">Password</label>
-            <div class="relative">
-              <input type="password" id="password" name="password"
-                class="w-full px-4 py-3 bg-slate-900/80 border border-white/10 rounded-xl text-sm text-slate-100 font-mono placeholder:text-slate-500 focus:bg-slate-900 focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all duration-200 pr-12"
-                placeholder="••••••••" required autocomplete="current-password" />
-              <button type="button" id="togglePassword"
-                class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-cyan-400 cursor-pointer transition-colors duration-200">
-                <!-- Eye Off Icon (default hidden) -->
-                <svg id="eyeOffIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="hidden">
-                  <path
-                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
-                  </path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-                <!-- Eye Icon (default showing) -->
-                <svg id="eyeOnIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between pt-1">
-            <label for="rememberMe" class="flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" id="rememberMe" name="rememberMe"
-                class="w-4 h-4 rounded border-white/20 bg-slate-900 text-cyan-500 focus:ring-cyan-500/20 cursor-pointer accent-cyan-500" />
-              <span class="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">Remember me (30 days)</span>
-            </label>
-            <a href="https://discord.gg/WYEmRXRbmn" target="_blank" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors font-medium">Forgot password?</a>
-          </div>
-
-          <button type="submit"
-            class="w-full py-3.5 mt-2 bg-gradient-to-r from-sky-500 via-cyan-500 to-indigo-500 hover:brightness-110 text-white rounded-xl text-xs font-bold tracking-[0.18em] uppercase transition-all duration-300 flex items-center justify-center shadow-glow hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round" class="mr-2">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-              <polyline points="10 17 15 12 10 7"></polyline>
-              <line x1="15" y1="12" x2="3" y2="12"></line>
-            </svg>
-            Sign In
-          </button>
-        </form>
-
-        <div id="error"
-          class="hidden mt-5 p-4 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-medium backdrop-blur-md">
         </div>
 
-        <div class="mt-6 pt-5 border-t border-white/05 text-center text-xs text-slate-400 font-medium">
-          Don't have an account? <a href="/signup.html" class="text-cyan-400 font-bold hover:underline ml-1">Sign up for free</a>
+        <div class="flex items-center gap-2 mt-2 mb-8">
+          <input type="checkbox" id="rememberMe" name="rememberMe"
+            class="w-4 h-4 rounded-md border-slate-300 bg-white text-brand-primary focus:ring-brand-primary/20 cursor-pointer accent-brand-primary" />
+          <label for="rememberMe"
+            class="text-sm font-medium text-brand-secondary cursor-pointer hover:text-brand-text transition-colors">Remember
+            me for 30 days</label>
         </div>
+
+        <button type="submit"
+          class="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-cta hover:brightness-105 text-white rounded-2xl text-sm font-bold tracking-[0.18em] uppercase transition-all duration-300 flex items-center justify-center shadow-glow hover:-translate-y-0.5 cursor-pointer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round" class="mr-2.5">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          Sign In
+        </button>
+      </form>
+      <div class="mt-4 text-center">
+        <a href="https://discord.gg/WYEmRXRbmn" target="_blank" class="text-xs font-semibold text-brand-secondary hover:text-brand-primary transition-colors">Forgot password?</a>
+      </div>
+      <div id="error"
+        class="hidden mt-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium shadow-sm">
+      </div>
+      <div class="mt-6 text-center text-sm font-medium text-brand-secondary">
+        Don't have an account? <a href="/signup.html" class="text-brand-primary font-bold hover:underline">Sign up for
+          free</a>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-100 text-center text-xs font-semibold text-brand-secondary">
+        Need assistance? <a href="https://discord.gg/WYEmRXRbmn" target="_blank" class="text-brand-primary hover:underline">Contact Support</a>
       </div>
     </div>
   </div>
-
   <script>
     const toggleBtn = document.getElementById("togglePassword");
     const pwdInput = document.getElementById("password");
@@ -145,7 +138,6 @@
       eyeOn.classList.toggle('hidden');
       eyeOff.classList.toggle('hidden');
     });
-
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const username = e.target.username.value;
@@ -164,6 +156,7 @@
         });
 
         if (response.ok) {
+          // Verify plan after login
           const meRes = await fetch("/api/me");
           if (meRes.ok) {
             const userData = await meRes.json();
