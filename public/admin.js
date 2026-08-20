@@ -265,6 +265,8 @@ window.submitTestSmtp = async function(e) {
     } finally {
         if (btn) btn.disabled = false;
     }
+};
+
 // --- VIEW NAVIGATION (USERS vs NEWSLETTER) ---
 window.switchAdminView = function(view) {
     const tabUsers = document.getElementById('navTabUsers');
@@ -747,7 +749,7 @@ window.closeViewNewsletterModal = function(e) {
     if (modal) modal.classList.remove('open');
 };
 
-
+async function loadUsers(q = '') {
     try {
         const data = await API.getAdminUsers(q);
         allUsers = data.users || [];
