@@ -1,4 +1,10 @@
-﻿# LeadHunter
+# LeadHunter
+<div align="center">
+
+![License](https://img.shields.io/github/license/britsync07-prog/testingit?style=flat-square&label=license&color=06b6d4) ![Language](https://img.shields.io/github/languages/top/britsync07-prog/testingit?style=flat-square&color=0ea5e9) ![Stars](https://img.shields.io/github/stars/britsync07-prog/testingit?style=flat-square&color=f59e0b) ![Last commit](https://img.shields.io/github/last-commit/britsync07-prog/testingit?style=flat-square&color=22c55e) ![Repo size](https://img.shields.io/github/repo-size/britsync07-prog/testingit?style=flat-square&color=94a3b8)
+
+</div>
+
 > A full-stack B2B lead generation and automated email outreach platform with a built-in campaign sender.
 
 LeadHunter (repository `testingit`) combines a high-performance, multi-source scraping engine with a complete email campaign manager behind a single Express application and a modern Next.js dashboard. Operators scrape leads from Google Maps, LinkedIn, Facebook, Instagram, and other targeted search sources, manage them in a SQLite-backed workspace, then run personalized HTML campaigns through load-balanced SMTP senders with real-time open and click tracking, subscriptions, and an admin-controlled newsletter broadcast system.
