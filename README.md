@@ -171,5 +171,12 @@ docker-compose up -d
 - Rotate the API key published in `API_DOCUMENTATION.md` and treat `cookie.txt`/committed databases as sensitive artifacts to purge from git history before any public release.
 - README declares the software private/all-rights-reserved; do not redistribute without owner consent.
 
+## Contact
+
+- 📧 Email: [saimon@ascentraconsulting.co.uk](mailto:saimon@ascentraconsulting.co.uk)
+- 💼 LinkedIn: [Musfiqur Rahman Saimon](https://www.linkedin.com/in/musfiqur-rahman-saimon-a5994b3aa)
+- 🐙 GitHub: [@britsync07-prog](https://github.com/britsync07-prog)
+- 🌐 Portfolio: [brit-os.pages.dev](https://brit-os.pages.dev/)
+
 ## License
 MIT License — Copyright (c) 2026 Musfiqur Rahman Saimon. See [LICENSE](./LICENSE).
